@@ -1,11 +1,11 @@
 github:
-  owner: ''
+  owner: glbisnoob
   repo: daily-paper-reader
 arxiv_paper_setting:
   mode: standard
   days_window: 9
   docs_dir: docs
-  prefer_supabase_read: true
+  prefer_supabase_read: false
 supabase:
   enabled: true
   url: https://lyucdwgefyfbmaiopjbk.supabase.co
@@ -25,3 +25,52 @@ subscriptions:
     stage: A
     diff_threshold_pct: 15
   keyword_recall_mode: or
+  intent_profiles:
+  - tag: gui-agents
+    description: 检索基于大语言模型与视觉语言模型的 GUI 智能体和计算机使用智能体研究，聚焦视觉定位、界面理解、动作规划、桌面/网页/移动端自主交互、强化学习与基准评测。
+    enabled: true
+    paper_sources:
+    - arxiv
+    keywords:
+    - keyword: GUI agents
+      keyword_cn: 图形界面智能体
+      query: large language model and vision-language agents that interact with graphical
+        user interfaces
+    - keyword: computer-use agents
+      keyword_cn: 计算机使用智能体
+      query: agents that control computers through screen observations and low-level
+        mouse and keyboard actions
+    - keyword: GUI understanding
+      keyword_cn: 图形界面理解
+      query: understanding graphical user interface layouts, widgets, and screen semantics
+    - keyword: GUI action planning
+      keyword_cn: 界面动作规划
+      query: multi-step action planning for autonomous graphical interface task execution
+    - keyword: reinforcement learning
+      keyword_cn: 强化学习
+      query: reinforcement learning methods for training GUI agents on interactive
+        computer tasks
+    - keyword: GUI agent benchmarks
+      keyword_cn: 界面智能体基准
+      query: benchmarks and evaluation protocols for GUI agents on realistic computer
+        tasks
+    intent_queries:
+    - query: How can vision language models ground natural language instructions to
+        GUI elements and plan reliable actions?
+      query_cn: 视觉语言模型如何将自然语言指令定位到界面元素并规划可靠动作？
+      enabled: true
+      source: manual
+      note: ''
+    - query: Methods for general purpose GUI agents that autonomously complete desktop,
+        web, and mobile tasks.
+      query_cn: 通用 GUI 智能体自主完成桌面、网页和移动任务的方法。
+      enabled: true
+      source: manual
+      note: ''
+    - query: Reinforcement learning and benchmark evaluation for computer use agents
+        in multi step cross application workflows.
+      query_cn: 计算机使用智能体在多步跨应用工作流中的强化学习与基准评测。
+      enabled: true
+      source: manual
+      note: ''
+    updated_at: '2026-11-05T14:00:04.730Z'

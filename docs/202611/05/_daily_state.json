@@ -1,0 +1,25 @@
+{
+  "date": "20261105",
+  "date_label": "",
+  "generated_at": "2026-11-05 15:24:39 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.03126v1",
+      "route": "202611/05/2611.03126v1-cua-master-scaling-computer-use-agents-through-open-world-recursive-improvements",
+      "title": "CUA-Master: Scaling Computer-use Agents through Open-World Recursive Improvements",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 10.0,
+      "evidence": "通过开放世界递归改进与嵌套双环数据飞轮扩展计算机使用智能体",
+      "first_seen_at": "2026-11-05 15:24:39 UTC",
+      "updated_at": "2026-11-05 15:24:39 UTC"
+    }
+  ]
+}

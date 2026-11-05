@@ -1,0 +1,24 @@
+{
+  "label": "2026-11-05",
+  "date": "2026-11-05",
+  "generated_at": "2026-11-05T15:24:41",
+  "count": 1,
+  "papers": [
+    {
+      "paper_id": "202611/05/2611.03126v1-cua-master-scaling-computer-use-agents-through-open-world-recursive-improvements",
+      "section": "deep",
+      "title_en": "CUA-Master: Scaling Computer-use Agents through Open-World Recursive Improvements",
+      "authors": "Xinlei Yu, Gen Li, Ji Zhao, Zhangquan Chen, Congcong Wang, Shuai Dong, Zelin Peng, Yuqi Xu, Hongrui Wu, Kaiwen Tuo, Cheng Yang, Kaituo Feng, Yifan Wu, Jiayi Zhang, Dongming Wu, Wenqi Shao, Jiaqi Wang, Xiangyu Yue",
+      "date": "2026-11-02",
+      "pdf": "https://arxiv.org/pdf/2611.03126v1",
+      "score": "10.0",
+      "evidence": "通过开放世界递归改进与嵌套双环数据飞轮扩展计算机使用智能体",
+      "tldr": "针对计算机使用智能体受限于交互数据多样性、可控性与可靠性不足，且递归优化缺乏迭代反馈的问题，CUA-Master提出嵌套双环递归改进框架。系统级外环以世界-数据-模型飞轮引入开放语料，并依据模型弱点指导数据构建；数据级内环结合教学视频种子任务、视觉-语义双路径轨迹重建与自催化传播，合成可验证复杂任务。配合反馈引导的快照回滚重试机制，27B模型在OSWorld Verified等基准取得有竞争力结果，并随迭代持续增益。",
+      "tags": "query:gui-agents",
+      "abstract_en": "Despite recent advances in CUAs, their development remains constrained by the limited diversity, controllability, and reliability of interaction data. Moreover, conventional optimization pipelines lack iterative feedback, while existing recursive improvement approaches often rely on self-generated experiences, limiting ability expansion and yielding diminishing returns. To address these challenges, we introduce CUA-Master, a nested double-loop recursive improvement framework. At the system level, an outer world-data-model flywheel continuously incorporates open-world corpus and leverages evolving model weaknesses to guide subsequent data construction and optimization iterations. At the data level, an inner flywheel couples open-world seeding and autocatalytic propagation. The former mines authentic workflows as seed tasks from instructional videos, and employs visual-semantic dual-path trajectory reconstruction; The latter transforms these seeds into reusable primitives for controllable synthesis of diverse, complex, and verifiable tasks. To enable efficient and reliable trajectory collection, we further introduce a feedback-guided snapshot-rollback retry mechanism in various real environments. Extensive experiments demonstrate that CUA-Master-27B achieves competitive performance across GUI-only and GUI-CLI hybrid benchmarks, scoring 80.2 on OSWorld Verified, 36.9 on OSWorld 2.0, 43.9 on WeaveBench, and 25.0 on Agents' Last Exam. Our framework also substantially improves the quality and efficiency of data synthesis, and exhibits continuous gains across recursive iterations.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "errors": []
+}
