@@ -2,6 +2,8 @@ name: GUI Agents Daily Paper
 
 on:
   workflow_dispatch:
+  schedule:
+    - cron: "0 1 * * *" # 09:00 Hong Kong time
 
 permissions:
   contents: read
