@@ -48,7 +48,7 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-11-05</span>
+      <span class="dpr-home-dashboard-kicker">2026-11-06</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
     <strong class="dpr-home-dashboard-count">共 1 篇</strong>
@@ -58,7 +58,7 @@
     <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
     <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-05 15:24:39 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-06 07:56:41 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,9 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今天精读 1 篇满分论文《CUA-Master: Scaling Computer-use Agents through Open-World Recursive Improvements》，聚焦计算机使用智能体的开放世界递归自我改进。</p>
-<p>最值得关注的是：它尝试用递归改进的方式扩大计算机使用智能体的能力边界，让智能体在开放环境中持续进化，而不是只依赖人工标注数据。</p>
-<p>普通读者可先抓住“智能体如何自我提升”这条主线；后续可关注这类方法在真实软件操作任务中的稳定性与安全边界。</p>
+<p>今日精读 1 篇 9.0 分技术报告，聚焦用规模化经验提升计算机使用智能体。NorthCUA 技术报告展示如何通过经验加速计算机使用智能体，值得关注智能体从真实操作经验中持续学习的方向。普通读者可留意这类“边用边学”的智能体进展，观察其在实际软件操作任务中的表现。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -83,7 +81,7 @@
     <strong class="dpr-home-dashboard-count">1 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="CUA-Master: Scaling Computer-use Agents through Open-World Recursive Improvements">CUA-Master: Scaling Computer-use Agents through Open-World Recursive Improvements</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="NorthCUA Technical Report: Turbocharging Computer-Use Agents through Experience at Scale">NorthCUA Technical Report: Turbocharging Computer-Use Agents through Experience at Scale</span></li></ul>
   </div>
   <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>1</strong></span></div>
 </section>

@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-11-06 <!--dpr-date:20261106-->
+    * 精读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202611/06/2611.02102v3-northcua-technical-report-turbocharging-computer-use-agents-through-experience-at-scale" data-sidebar-item="{&quot;title&quot;: &quot;NorthCUA Technical Report: Turbocharging Computer-Use Agents through Experience at Scale&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2611.02102v3-northcua-technical-report-turbocharging-computer-use-agents-through-experience-at-scale&quot;, &quot;score&quot;: &quot;9.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gui-agents&quot;}], &quot;evidence&quot;: &quot;用校验轨迹与分阶段学习训练计算机使用智能体&quot;}">NorthCUA Technical Report: Turbocharging Computer-Use Agents through Experience at Scale</a>
   * 2026-11-05 <!--dpr-date:20261105-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202611/05/2611.03126v1-cua-master-scaling-computer-use-agents-through-open-world-recursive-improvements" data-sidebar-item="{&quot;title&quot;: &quot;CUA-Master: Scaling Computer-use Agents through Open-World Recursive Improvements&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2611.03126v1-cua-master-scaling-computer-use-agents-through-open-world-recursive-improvements&quot;, &quot;score&quot;: &quot;10.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gui-agents&quot;}], &quot;evidence&quot;: &quot;通过开放世界递归改进与嵌套双环数据飞轮扩展计算机使用智能体&quot;}">CUA-Master: Scaling Computer-use Agents through Open-World Recursive Improvements</a>

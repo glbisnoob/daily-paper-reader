@@ -1,0 +1,25 @@
+{
+  "date": "20261106",
+  "date_label": "",
+  "generated_at": "2026-11-06 07:56:41 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.02102v3",
+      "route": "202611/06/2611.02102v3-northcua-technical-report-turbocharging-computer-use-agents-through-experience-at-scale",
+      "title": "NorthCUA Technical Report: Turbocharging Computer-Use Agents through Experience at Scale",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "用校验轨迹与分阶段学习训练计算机使用智能体",
+      "first_seen_at": "2026-11-06 07:56:41 UTC",
+      "updated_at": "2026-11-06 07:56:41 UTC"
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-06T07:53:42.420240+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 8,
+    "deep_cap": 6,
+    "deep_selected": 1,
+    "quick_candidates": 9,
+    "quick_skim_target": 11,
+    "quick_selected": 0
+  },
+  "deep_dive": [
+    {
+      "id": "2611.02102v3",
+      "source": "arxiv",
+      "title": "NorthCUA Technical Report: Turbocharging Computer-Use Agents through Experience at Scale",
+      "abstract": "Scaling computer-use agents from individual actions to complex software work requires experience that connects decisions to complete outcomes. We present NorthCUA, an integrated system for turbocharging computer-use agents through experience at scale. Its Experience Flywheel supplies diverse executable tasks to the NorthCUA Harness, which sustains long interactions, records decisions, and checks task outcomes. The Flywheel uses these records to curate verified trajectories. For unsolved tasks, recursive self-improvement evolves reusable skills and preserves verified milestones so later attempts build on earlier progress. Staged Learning combines this experience with grounding data from the Flywheel to develop GUI competence through mid-training and long-horizon supervised fine-tuning. The policy then learns from fresh attempts in the same Harness through joint desktop-web reinforcement learning, closing the loop between experience production and policy improvement. The resulting Nano, Mini, and Pro family achieves state-of-the-art results among open-source models across GUI grounding, desktop execution, and Web interaction under the reported evaluation settings. For more responsive Web workflows, NorthCUA-Ultrafast pairs direct action selection with open-ended generation on pre-RL Nano, offering a measured quality-latency tradeoff. Together, these advances establish NorthCUA as a high-performing model family and a reusable foundation for agents that carry complex software work from intent to completion.",
+      "authors": [
+        "Chaoyun Zhang",
+        "Bingxuan Li",
+        "Pinxue Guo",
+        "Yangfan Gao",
+        "Zikun Cai",
+        "Tianci Xie",
+        "Hui Li",
+        "Yuqi Huang",
+        "Yifei Cao",
+        "Bo Mao",
+        "Tian Tang",
+        "Qichang Zheng",
+        "Tongtong Liu",
+        "Xiaoxing Wang",
+        "Jinxiu Liu",
+        "Lizhi Lin",
+        "Zhou Shao",
+        "Maosen Zhou",
+        "Miao Zheng",
+        "Shuo Zhang",
+        "Yangji He",
+        "Kepeng Lei",
+        "Ning Zhao",
+        "Wei Shen",
+        "Zhenjiang Jin",
+        "Xinyue Zhang",
+        "Peng Sun",
+        "Zhenhua Han",
+        "Rui Zheng",
+        "Hang Yan"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG"
+      ],
+      "published": "2026-11-01 18:16:47+00:00",
+      "link": "https://arxiv.org/pdf/2611.02102v3",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "training computer-use agents with curated verified trajectories and staged learning",
+      "llm_evidence_cn": "用校验轨迹与分阶段学习训练计算机使用智能体",
+      "llm_evidence": "用校验轨迹与分阶段学习训练计算机使用智能体",
+      "canonical_evidence": "用校验轨迹与分阶段学习训练计算机使用智能体",
+      "llm_tldr_en": "Presents NorthCUA, an integrated system with an Experience Flywheel, a long-horizon harness and staged learning that turns verified interaction trajectories into scalable GUI competence for computer-use agents.",
+      "llm_tldr_cn": "把计算机使用智能体从单步动作扩展到复杂软件工作需要连接决策与完整结果的经验。作者提出 NorthCUA 系统，其经验飞轮持续产出可执行任务，由执行框架维持长程交互、记录决策并核验结果，进而筛选出已验证轨迹；对未解决任务则以递归自我改进演化可复用技能并保留里程碑。分阶段学习将经验与界面定位数据结合，训练智能体的 GUI 操作能力。",
+      "llm_tldr": "把计算机使用智能体从单步动作扩展到复杂软件工作需要连接决策与完整结果的经验。作者提出 NorthCUA 系统，其经验飞轮持续产出可执行任务，由执行框架维持长程交互、记录决策并核验结果，进而筛选出已验证轨迹；对未解决任务则以递归自我改进演化可复用技能并保留里程碑。分阶段学习将经验与界面定位数据结合，训练智能体的 GUI 操作能力。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "reinforcement learning methods for training GUI agents on interactive computer tasks",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": []
+}
