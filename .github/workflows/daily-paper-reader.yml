@@ -28,7 +28,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: daily-paper-reader
+  group: gui-daily-paper
   cancel-in-progress: false
 
 jobs:
@@ -37,6 +37,7 @@ jobs:
     timeout-minutes: 120
     outputs:
       research_days: ${{ steps.window.outputs.days }}
+      arxiv_daily: ${{ steps.window.outputs.long_range == 'false' }}
     env:
       DPR_MODELS_REMOTE_ONLY: "1"
       DPR_EMBED_ALLOW_LOCAL_FALLBACK: "0"
@@ -263,6 +264,31 @@ jobs:
             fi
           fi
           git push origin HEAD:"$branch"
+
+      - name: Package website
+        if: github.repository == 'glbisnoob/daily-paper-reader' && github.ref == 'refs/heads/main' && steps.window.outputs.long_range != 'true'
+        run: |
+          mkdir _site
+          git archive HEAD index.html app docs .nojekyll | tar -x -C _site
+      - uses: actions/upload-pages-artifact@v4
+        if: github.repository == 'glbisnoob/daily-paper-reader' && github.ref == 'refs/heads/main' && steps.window.outputs.long_range != 'true'
+        with:
+          path: _site
+
+  publish:
+    needs: run
+    if: github.repository == 'glbisnoob/daily-paper-reader' && github.ref == 'refs/heads/main' && needs.run.outputs.arxiv_daily == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   verify-topic-pages:
     needs: run
