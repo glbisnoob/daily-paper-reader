@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-10-09 ~ 2026-11-07 <!--dpr-date:20261009-20261107-->
+    * 精读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/20261009-20261107/2611.03116v1-from-local-skills-to-long-horizon-web-tasks-progressive-skill-exploration-for-llm-web-agents" data-sidebar-item="{&quot;title&quot;: &quot;From Local Skills to Long-Horizon Web Tasks: Progressive Skill Exploration for LLM Web Agents&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2611.03116v1-from-local-skills-to-long-horizon-web-tasks-progressive-skill-exploration-for-llm-web-agents&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gui-agents&quot;}], &quot;evidence&quot;: &quot;通过渐进技能探索训练长程LLM网页智能体的框架&quot;}">From Local Skills to Long-Horizon Web Tasks: Progressive Skill Exploration for LLM Web Agents</a>
   * 2026-10-29 ~ 2026-11-07 <!--dpr-date:20261029-20261107-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/20261029-20261107/2611.07765v1-bigrounder-bidirectional-training-unlocks-the-potential-of-gui-grounding" data-sidebar-item="{&quot;title&quot;: &quot;BiGrounder: Bidirectional Training Unlocks the Potential of GUI Grounding&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2611.07765v1-bigrounder-bidirectional-training-unlocks-the-potential-of-gui-grounding&quot;, &quot;score&quot;: &quot;10.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gui-agents&quot;}], &quot;evidence&quot;: &quot;GUI定位将自然语言指令映射为屏幕坐标，采用双向训练&quot;}">BiGrounder: Bidirectional Training Unlocks the Potential of GUI Grounding</a>
