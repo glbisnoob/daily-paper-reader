@@ -28,7 +28,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: gui-daily-paper
+  group: daily-paper-reader
   cancel-in-progress: false
 
 jobs:
