@@ -1,0 +1,1143 @@
+Title: BiGrounder: Bidirectional Training Unlocks the Potential of GUI Grounding
+
+URL Source: https://arxiv.org/pdf/2611.07765v1
+
+Published Time: Fri, 06 Nov 2026 02:38:32 GMT
+
+Number of Pages: 22
+
+Markdown Content:
+# BiGrounder: Bidirectional Training Unlocks the Potential of GUI Grounding 
+
+Dengyao Shi 1,3,* , Tianyu Fu 2,* , Fei Hu 2,* , Anyang Su 2, Hanning Wang 2,Shuo Wang 2, Minghui Wu 2, Chenxu Zhao 2, and Zhen Lei 11MAIS, Institute of Automation, Chinese Academy of Sciences 
+
+> 2
+
+Mininglamp Technology 
+
+> 3
+
+School of Advanced Interdisciplinary Sciences, University of Chinese Academy of Sciences 
+
+> 1
+
+{shidengyao2026@ia.ac.cn, zhen.lei@ia.ac.cn} *Equal contribution. 
+
+Abstract 
+
+Graphical User Interface (GUI) grounding aims to map natural language instructions to precise operational coordinates, serv-ing as a critical task for autonomous agent interaction. Current approaches formalize GUI grounding as predicting action-coordinate pairs from instructions, with end-to-end training supervised solely by final coordinates. Training datasets typ-ically provide only a small number of descriptions per tar-get coordinate, whereas real-world scenarios involve a much larger set of varied descriptions for the same target, which limits robustness to linguistic variation. While recent GUI grounding paradigms have begun employing reinforcement learning to enhance localization accuracy, models with lim-ited exploratory capability before reinforcement yield con-strained improvements even with identical training data during the reinforcement phase. To overcome these limitations, we propose a bidirectional reward paradigm that enables model self-reinforcement. During SFT, bidirectional training equips the model to generate action descriptions from target coordi-nates. During RL, the model samples semantically consistent instruction variations on-policy and grounds each variation back to its target. A cycle-consistency gate couples seman-tic quality to grounding success, turning the model’s own instruction policy into a source of continually refreshed re-inforcement trajectories. Our 4B-parameter model achieves competitive accuracy across five grounding benchmarks in our evaluation, indicating the effectiveness of the proposed training paradigm. https://github.com/Spell-shi/BiGrounder 
+
+## Introduction 
+
+Current approaches in GUI grounding predominantly fo-cus on learning direct mappings from singular operational descriptions to screen coordinates. However, this paradigm overlooks a critical characteristic of real-world applications: the complex many-to-one mapping relationship between user instructions and target coordinates. Specifically, users may employ diverse expressions, varying levels of detail, and dif-ferent linguistic styles to refer to the same interface element. Such variability in natural language can significantly impair coordinate prediction, especially when instructions differ in length or style. To mitigate this challenge, existing research primarily adopts offline data augmentation strategies (Liu et al. 2025a; Gou et al. 2025; Li et al. 2025a; Liu et al. 2025c), using in-struction paraphrasing and expansion to improve model gen-eralization. However, because the augmented instructions are generated in advance and remain fixed throughout training, the model can explore only a predefined sampling space that may not capture the breadth and evolving nature of instruc-tional variations encountered in real-world scenarios. From a training paradigm perspective, recent work has in-creasingly explored reinforcement learning (Lu et al. 2025; Zhou et al. 2025b) for improving GUI grounding per-formance, typically utilizing coordinate hits within target bounding boxes as the primary reward signal. Neverthe-less, current reinforcement learning methods (Yuan et al. 2025; Liu et al. 2025b) predominantly operate on fixed of-fline datasets, resulting in limited exploration capabilities. To address the aforementioned limitations, we aim for agents to not only fit the "instruction →coordinate" out-come mapping but also learn robust semantic-spatial align-ment representations based on local visual evidence from coordinate-corresponding regions, thereby better adapting to diverse interfaces and instruction expressions in real-world scenarios. To this end, we propose BiGrounder: a reinforcement learning framework based on bidirectional se-mantic verification. Beyond traditional forward localization, the model generates instructions from annotated target coor-dinates and then grounds its own on-policy generations back to the same elements. This turns reverse generation into an endogenous exploration mechanism: as the policy evolves, it continually supplies instruction variations that are seman-tically anchored to the target yet reflect the model’s current behavior. The resulting reverse and forward trajectories re-inforce semantic–spatial alignment through cycle-consistent rewards. Experimental results demonstrate competitive re-sults across multiple industry-standard benchmarks. Our main contributions are summarized as follows: 
+
+• Constructing GUI understanding data from ground-ing annotations. We reverse existing instruction-to-coordinate grounding samples into coordinate-conditioned instruction-generation data and incorporate them into bidirectional SFT, providing explicit supervi-sion for learning the semantic and spatial properties of GUI elements. 
+
+• On-policy bidirectional self-reinforcement. We pro-pose a cycle-consistent RL paradigm that uses the model’s reverse policy to generate instruction variations on-policy and grounds them through the forward policy. This self-1arXiv:2611.07765v1 [cs.CV] 5 Nov 2026 Real World    
+
+> Add the site to the bookmarks I need to bookmark this page. Save it to favorites.
+> Training Dataset
+> Limited Instruction Coverage for the Same Operation
+> I need to save this webpage Click star to save this page I want to save this page
+> (a). Instruction Coverage (b). Self-Reinforcement Loop
+> I need to save this webpage Click star to save this page I want to save this page
+> Self-Generated Iteration ……
+> ……
+> Target GUI Element
+> Missing Diversity Semantic–Operation Alignment through Self-Reinforcement
+> On-Policy Instruction Variants Generation
+
+Figure 1: Existing datasets (a) suffer from limited instruction coverage, whereas our bidirectional reinforcement framework (b) 
+
+samples on-policy instruction variations for the same UI element, strengthening semantic–element understanding. reinforcement mechanism can be directly integrated into standard SFT+RL pipelines. 
+
+• Competitive performance on cross-platform bench-marks. Experiments demonstrate that our model achieves competitive performance across five grounding bench-marks, including ScreenSpot-Pro (Li et al. 2025b), ScreenSpot-V2 (Wu et al. 2024), UI-Vision (Nayak et al. 2025), MMBench-GUI L2 (Wang et al. 2025b), and OSWorld-G-R (Xie et al. 2025). 
+
+## Related Works 
+
+High-Quality Dataset Construction and Instruction Augmentation 
+
+Several works improve data quality and instruction coverage. UI-E2I-Synth (Liu et al. 2025a), AutoGUI (Li et al. 2025a), OS-ATLAS (Wu et al. 2024), UGround (Gou et al. 2025), and JEDI (Xie et al. 2025) offline expand grounding datasets by generating diverse instructions and functionality descriptions with large language models, while GroundCUA (Feizi et al. 2025) and ScaleCUA (Liu et al. 2025c) highlight the value of high-quality human-annotated and GUI-understanding data. However, such offline augmentation confines instructions to predefined sample sets and cannot progressively evolve with the model during training, making it hard to cover the wide range of real-world instruction expressions. 
+
+Reinforcement Learning in GUI Agents 
+
+Recent research explores various strategies to enhance GUI grounding with RL. One line refines the reward signal: UI-R1 (Lu et al. 2025) uses a composite accuracy/action/format reward and shows explicit <think> tokens are redundant, GUI-G1 (Zhou et al. 2025b) curbs reward hacking by shap-ing reward granularity with hits, IoU, and element size, and GUI-G 2 (Tang et al. 2025) models elements as continuous Gaussian distributions to turn sparse binary hits into dense optimization. A second line targets the training framework and exploration: GUI-R1 (Luo et al. 2025) adopts an RFT framework with a unified action space, SE-GUI (Yuan et al. 2025) filters overly difficult samples via attention foci from the previous round, infiGUI-G1 (Liu et al. 2025b) performs adaptive exploration policy optimization over multiple sam-pled answers, UI-Ins (Chen et al. 2025) alleviates policy collapse through instruction refinement and multi-view SFT, and GUI-RCPO (Du et al. 2025) self-evolves on unlabeled data via test-time sampling. Overall, RL is an effective and efficient approach for advancing GUI grounding. However, existing methods reward the model mainly by grounding accuracy and lack semantic rewards for generating correct instructions or descriptions of UI elements. 
+
+## Method 
+
+Overview. We propose BiGrounder, a two-stage frame-work based on bidirectional semantic verification for en-hancing visual-language alignment in GUI agents. Un-like traditional paradigms that only learn unidirectional "instruction →coordinate" mappings, BiGrounder addition-ally learns a reverse generation policy conditioned on ground-truth target coordinates. During SFT, the model jointly learns forward localization and reverse description, acquiring both the ability to locate elements from instructions and to generate semantic descriptions from element regions. During RL, this reverse capability becomes an on-policy source of instruction variation. The cycle comprises two steps: (1) instruction generation : conditioned on the ground-truth target coordinate o∗, the policy generates descriptions or interaction instructions; and (2) instruction grounding :the same policy grounds each generated instruction, and the resulting coordinate is evaluated against o∗.
+
+Bidirectional Task Construction Method 
+
+To enable the model to simultaneously possess GUI Ground-ing and self-generated user instruction capabilities, we de-sign bidirectional training tasks: predicting coordinates from user instructions and generating user instructions from coor-dinates. As shown in Fig. 2, the GUI Grounding task aims to map natural language instructions to specific interaction operations on graphical user interfaces. The model gener-ates structured sequences containing action types and screen coordinates to explicitly indicate the location of target ele-ments, thereby achieving alignment between visual features and precise spatial coordinates. The GUI Description task 2Click Home to return to the homepage.              
+
+> Instruction Generate
+> Generate an instruction for the region: [(12, 115), (57, 176)] Grounding Instruction: Query:
+> Pin current page.
+> Bbox Description Query: Generate a description for the bbox: [(305, 18), (338, 40)] Spatial Description:
+> Open the lyrics for "Suddenly"
+> Point Description Query: Generate a description for the point: (237, 148) Element Description:
+> Output: Action = CLICK
+> Coordinates: (240, 107) Action Task
+> Click the Sports & Event Action Grounding: Query:
+> Output: BBox = [(2, 823), (30, 963)] Bounding Box Task
+> Generate bounding box for Reports icon Bounding Box Coordinates: Query:
+> Output: Center Point Coordinates Point = (553, 110) Point Task
+> Generate center point for
+> “User ”
+> Point Grounding Coordinates: Query:
+
+Figure 2: During the SFT stage, we organize the training data into six tasks: instruction generation, instruction grounding, bounding-box description generation, bounding-box localization, point-based description generation, and point localization. generates unstructured natural language sequences based on prompts and interface inputs to describe the elements corre-sponding to specific coordinates or the operations on these elements. Since each element is paired with multiple descrip-tions during bidirectional training, the model can sample var-ied, semantically consistent instructions in the subsequent RL stage. 
+
+Model Training - Supervised Fine-tuning Stage 
+
+By unifying strictly structured outputs (actions/coordinates) and unstructured semantic outputs (descriptions) into a single generation framework, the model learns to align visual fea-tures simultaneously with "functional semantics" and "pre-cise spatial coordinates." The optimization objective is de-fined as: 
+
+L = −E(I,x,Y )∼D 
+
+" TX
+
+> t=1
+
+log P (yt | y<t , x, I )
+
+#
+
+(1) where D denotes the multi-task training dataset. For a tar-get sequence Y of length T , yt represents the token at step 
+
+t, conditioned on the input image I, the text instruction x,and the preceding tokens y<t under teacher forcing. The su-pervised fine-tuning stage utilizes bidirectional data simul-taneously, enabling the model to learn UI operations while comprehending the meaning of UI elements, thereby laying the foundation for subsequent reinforcement learning. 
+
+Model Training - Reinforcement Stage 
+
+Reinforcement Sample Selection We utilize the SFT model to construct the RL dataset via rejection sampling with an inference temperature of 0.9. A sample is retained only if it satisfies two criteria: (1) Semantic Consistency. Among the four backward-generated instructions, at least three achieve a BERTScore greater than 0.85 with the original instruction. (2) Difficulty Constraint. When performing forward infer-ence with these four instructions, the model must succeed at least once but no more than three times (i.e., the number of correct predictions s ∈ [1 , 3] ), ensuring the selection of non-trivial yet solvable samples 
+
+Reverse Reward In the reverse phase, our goal is to gener-ate instructions that are semantically valid and operationally groundable. We employ Group Relative Policy Optimization to sample a set of candidate instructions {ˆxi}Gi=1 given the target coordinate. We use BERTScore (Zhang et al. 2020) to measure candidate-to-reference consistency. Its precision, recall, and F-score are computed from token-embedding sim-ilarities as follows: 
+
+RBERT = 1
+
+|x|
+
+X
+
+> xi∈x
+
+max   
+
+> ˆxj∈ˆx
+
+x⊤ 
+
+> i
+
+ˆxj (2) 
+
+PBERT = 1
+
+|ˆx|
+
+X 
+
+> ˆxj∈ˆx
+
+max  
+
+> xi∈x
+
+x⊤ 
+
+> i
+
+ˆxj (3) 
+
+FBERT = 2 · PBERT · RBERT 
+
+PBERT + RBERT 
+
+(4) Let bi = FBERT (ˆ xi, x ) and ci = I[∃k : success( τi,k , o ∗)] .A forward grounding trajectory is considered successful when its reward is at least 0.9. We retain the semantic score only when the candidate passes the semantic threshold and completes cycle verification: 
+
+Rrev =
+
+BERTScore(ˆ xi, x ), bi ≥ t, c i = 1 ,
+
+0, otherwise . (5) Here, Rrev denotes the reverse reward function, while rrev 
+
+> i
+
+is its value for the i-th instruction trajectory; t = 0 .85 is the semantic threshold. During training, we generate G = 4 
+
+instructions and perform K = 4 grounding rollouts for each 31. Action: click, Coordinate: [145,756] 2. Action: click, Coordinate: [145,756] …… 
+
+GT Action & Bbox 
+
+Stage1 : Instruction & Description Generate 
+
+Semantic Reward 
+
+Stage2 : Action Grounding & Bbox Grounding 
+
+GT Instruction 
+
+Grounding Reward 
+
+> 1. Click search button 2. Click magnifying glass to search ……
+
+Instruction pool Predicted Actions & Coordinates 
+
+（x , y ）   
+
+> Screenshot
+> Generated Instruction Model
+> Screenshot Model
+> 𝑅 fwd = ൝ 𝑅 ground ,hits target ,0, else .
+
+Figure 3: The reinforcement stage couples on-policy instruction-generation trajectories with their corresponding instruction-grounding trajectories. instruction. If bi ≥ t, the generated instruction ˆxi enters its corresponding forward loop. Otherwise, we set rrev  
+
+> i
+
+= 0 
+
+and use the ground-truth instruction x for that forward loop instead. For a qualified generation, its BERTScore reward is retained only if at least one of its K grounding rollouts returns to the target. Thus, every instruction branch con-tributes forward grounding trajectories, while only seman-tically qualified and cycle-consistent generations update the reverse policy. 
+
+Forward Reward To cater to different grounding granular-ities, we use task-specific grounding rewards for action/point and region outputs: 
+
+Rground =
+
+
+
+RA + RC + RF , action grounding ,Rpoint , point grounding ,Rbbox , bounding box .
+
+(6) 
+
+Action-Coordinate Alignment Reward: For element in-teractions, RA = 0 .1 is awarded for the correct action type, and RC = 0 .9 is awarded when its predicted point falls in-side the target bounding box; the coordinate reward is granted only if the action type is correct. Invalid output formats re-ceive RF = −0.2, while valid formats receive no format penalty. For point grounding, no action type is involved, so we use a binary hit reward Rpoint = 1 when the predicted point falls inside the target bounding box and 0 otherwise. 
+
+BBox-based Reward: For the bounding box prediction re-ward, we adopt the reward design of StepGUI (Yan et al. 2025). To ensure pixel-level precision, we implement a dense reward mechanism based on tolerance-normalized high-order decay. We define the normalized deviation as 
+
+ˆδk = |kpred − kgt |/τ k. For Region Grounding, we decouple the bounding box into center coordinates (cx, c y ) and di-mensions (w, h ), using the same pixel tolerance for all four terms, τcx = τcy = τw = τh = 6 . We construct a composite geometric energy term Egeom , weighting down dimensional errors via the coefficient γ:
+
+Eg = ˆδ4 
+
+> cx
+
++ ˆδ4 
+
+> cy
+
++ γ ˆδ4 
+
+> w
+
++ γ ˆδ4 
+
+> h
+
+(7) Here, we set γ = 0 .5. To simultaneously optimize alignment precision and area overlap, the final bounding box reward 
+
+Rbbox is a weighted fusion of the geometric score and the Intersection over Union (IoU): 
+
+Rbbox = α · exp( −Eg ) + (1 − α) · IoU (bpred , b gt ) (8) We set α = 0 .8, aiming to prioritize geometric centrality while retaining IoU as a regularization constraint for shape consistency. Finally, we employ GRPO (Guo et al. 2025) to optimize the reverse-to-forward cyclic process. Within each trajectory group, the advantage is obtained by normalizing the rewards, 
+
+ˆAi = ( ri −mean( r)) /(std( r)+ ϵnum ), where ϵnum = 10 −6.The per-trajectory clipped loss is 
+
+ℓi(θ) = − min 
+
+
+
+ρi ˆAi, ¯ρi ˆAi
+
+
+
++ βD KL (πθ ∥πref ) , (9) where ρi = πθ (oi | I, S )/π old (oi | I, S ) is the importance ratio, ¯ρi = clip( ρi, 1 − ϵclip , 1 + ϵclip ), and β weights the KL penalty against the reference SFT model πref . The G reverse trajectories form one GRPO group, while the K grounding rollouts associated with each generated instruction form a forward group; their advantages are normalized within the corresponding groups. After group-wise advantage estimation, we jointly aggre-gate all trajectories using seq-mean-token-mean (each tra-jectory is averaged over its own tokens, then averaged with 4Algorithm 1 Bidirectional Cycle-Consistent RL with GRPO 
+
+Require: Dataset D, policy πθ , reference πref 
+
+Require: G = 4 , K = 4 , semantic threshold t = 0 .85  
+
+> 1:
+
+while not converged do  
+
+> 2:
+
+Sample batch B ∼ D  
+
+> 3:
+
+for each (s, o ∗, x ) ∈ B do  
+
+> 4:
+
+Stage 1: Instruction Generation  
+
+> 5:
+
+Sample G trajectories {ˆxi}Gi=1 ∼ πθ (ˆ x | s, o ∗) 
+
+> 6:
+
+for i = 1 to G do  
+
+> 7:
+
+bi ← BERTScore(ˆ xi, x ) 
+
+> 8:
+
+qi ← ˆxi if bi ≥ t, else x // GT fallback  
+
+> 9:
+
+Stage 2: Instruction Grounding  
+
+> 10:
+
+Sample K trajectories {τi,k }Kk=1 ∼ πθ (τ | s, q i) 
+
+> 11:
+
+rf wd i,k ← Rground (τi,k , o ∗) // Grounding reward  
+
+> 12:
+
+ci ← I[∃k : rf wd i,k ≥ 0.9] // Cycle gate  
+
+> 13:
+
+rrev i ← Rrev (bi, c i) // Semantic reward  
+
+> 14:
+
+end for  
+
+> 15:
+
+Af wd i, : ← GRPOAdv( rf wd i, : ), i = 1 , . . . , G  
+
+> 16:
+
+Arev ← GRPOAdv( rrev ) 
+
+> 17:
+
+Compute per-trajectory losses ℓrev and ℓf wd  
+
+> 18:
+
+LBi ← SeqMean( ℓrev ∪ ℓf wd ) // seq-mean-token-mean  
+
+> 19:
+
+Update πθ using LBi  
+
+> 20:
+
+end for  
+
+> 21:
+
+end while 
+
+equal weight), so every trajectory contributes equally regard-less of length: 
+
+LBi = 1
+
+G + GK 
+
+> G
+
+X
+
+> i=1
+
+ℓrev  
+
+> i
+
++
+
+> G
+
+X
+
+> i=1
+> K
+
+X
+
+> k=1
+
+ℓfwd 
+
+> i,k
+
+!
+
+. (10) where ℓrev  
+
+> i
+
+and ℓfwd  
+
+> i,k
+
+are the reverse and forward instances of the loss in Eq. (9). Under seq-mean-token-mean with G =
+
+K = 4 , the reverse and forward trajectories contribute 0.2
+
+and 0.8 by construction. 
+
+## Experiments 
+
+Experimental Setup 
+
+Implementation details. Model Architectures. Our pri-mary model, BiGrounder-4B, is built on the Qwen3-VL-4B-Instruct backbone. To evaluate generalization across model scales and backbone families, we additionally vali-date BiGrounder on Qwen2.5-VL-3B-Instruct and Qwen2.5-VL-7B-Instruct. Following our ablation studies, we set the BERTScore threshold t to 0.85 and all center and size toler-ance thresholds to 6 pixels. 
+
+• SFT Stage. We adopt the open-source grounding data from ScaleCUA (Liu et al. 2025c) and GroundCUA (Feizi et al. 2025), and construct the corresponding reverse coordinate →instruction data to add into training. For samples with only element descriptions, we employ Gem-ini 2.5-Flash to rewrite the descriptions into user instruc-tions. We will release the rewritten instructions together with the exact prompts used. With a total of 4,482k sam-ples, the training is conducted for 2 epochs with a global batch size of 640 and a learning rate of 1 × 10 −5, aim-ing to endow the model with fundamental capabilities for both description generation and element grounding. 
+
+• RL stage. We use approximately 63k filtered samples for the RL stage. Unlike offline augmentation with its fixed sample set, our framework samples instruction variations on-policy from the current model at a temperature of 0.9. We employ GRPO for 1 epoch. For each sample, we generate 4 instructions in the backward phase, each followed by 4 grounding rollouts. We set the training batch size to 64 and the learning rate to 5 × 10 −7.
+
+GUI Grounding Benchmark and Performance 
+
+To systematically evaluate GUI grounding under diverse user instructions, we conduct experiments on five bench-marks with different instruction characteristics and visual complexities: ScreenSpot-Pro (Li et al. 2025b), ScreenSpot-V2 (Wu et al. 2024), MMBench-GUI L2 (Wang et al. 2025b), UI-Vision (Nayak et al. 2025), and OSWorld-G-R (Xie et al. 2025), which cover desktop, mobile, and web interfaces from complementary perspectives. As shown in Table 1, BiGrounder-4B achieves competitive results across all five benchmarks, reaching 66.6% on the high-resolution ScreenSpot-Pro and 87.5% on MMBench-GUI L2. BiGrounder is particularly robust on benchmarks whose instructions carry complex or implicit user intent, consistent with its more stable grounding under instruction variation. 
+
+GUI Agent Performance 
+
+Beyond static grounding, we test whether it transfers to on-line agent tasks, where the executor must localize targets from instructions dynamically generated by a planner. All models share the same GPT-4o planner and interaction bud-get, and differences reflect the executor alone. In terms of accuracy, BiGrounder-4B reaches the highest success rate on both benchmarks, indicating that its grounding stays re-liable when queries are produced by a planner. In terms of robustness, its run-to-run std is comparable or lower ( 0.5 vs. 
+
+0.8 on OSWorld), indicating stable behavior across the var-ied phrasings a planner produces. The gains are modest but consistent across both metrics. 
+
+Robustness to Instruction Variation 
+
+To quantify robustness to instruction reformulation, we build OSWorld-G-R-Variants (564 elements × 4 instruc-tions = 2 ,256 grounding queries), pairing each element’s original instruction with three variants rewritten by GPT-4o and manually verified to be semantically equivalent and unambiguous, then querying every model with all four. As shown in Table 3, BiGrounder attains the highest original-instruction accuracy and the highest Any- and All-Correct rates, while reducing the Any–All gap from 17.4 to 14.8 points compared with Qwen3-VL-4B. This 2.6-point reduc-tion indicates lower sensitivity to instruction wording and more consistent grounding across semantically equivalent expressions. We will release these rewritten instructions to-gether with the exact prompts and filtering procedure to sup-port full reproducibility. 5Model ScreenSpot-Pro ScreenSpot-V2 MMBench-GUI L2 UI-Vision OSWorld-G-R Avg.                                                                                                                      
+
+> Qwen2.5-VL-3B backbone
+> Qwen2.5-VL-3B ∗(Bai et al. 2025c) 25.9 80.8 52.0 0.7 39.4 39.8 UI-R1-E-3B (Lu et al. 2025) 17.8 88.6 68.4 16.5 48.8 48.0 SE-GUI-3B (Yuan et al. 2025) 35.9 86.8 66.3 15.0 46.1 50.0 InfiGUI-R1-3B (Liu et al. 2025b) 35.7 89.5 70.6 17.8 42.9 51.3 GUI-G 2-3B (Tang et al. 2025) 36.4 87.6 66.3 18.7 53.5 52.5 GUI-G1-3B (Zhou et al. 2025b) 37.1 89.5 71.0 20.3 49.5 53.5 InfiGUI-G1-3B (Liu et al. 2025b) 45.2 91.1 73.4 22.0 49.6 56.3 BiGrounder-3B (Ours) 52.5 91.4 78.7 28.7 58.6 62.0 +22 .2
+> Qwen2.5-VL-7B backbone
+> Qwen2.5-VL-7B ∗(Bai et al. 2025c) 27.6 86.5 69.9 0.9 41.3 45.2 SE-GUI-7B (Yuan et al. 2025) 47.3 68.9 34.5 16.7 33.9 40.3 UI-TARS-1.5-7B (Seed 2025) 49.6 90.3 64.3 20.8 64.2 57.8 GUI-G 2-7B (Tang et al. 2025) 47.5 93.3 79.5 25.6 61.9 61.6 InfiGUI-G1-7B (Liu et al. 2025b) 51.9 93.5 80.8 26.1 59.9 62.4 GTA1-7B (Yang et al. 2025) 50.1 92.4 79.4 25.7 67.7 63.1 BiGrounder-7B (Ours) 53.8 92.7 81.4 32.1 60.7 64.1 +18 .9
+> Qwen3-VL-4B backbone
+> Qwen3-VL-4B ∗(Bai et al. 2025a) 59.3 93.5 81.2 26.9 65.3 65.2 Step-GUI-4B (Yan et al. 2025) 60.0 93.6 84.0 27 .1∗67.6 ∗66.5 GUI-Owl-1.5-4B-Instruct (Xu et al. 2026) 66.8 93.2 83.2 27 .3∗68.4 67.8 BiGrounder-4B (Ours) 66.6 93.9 87.5 46.6 69.5 72.8 +7 .6
+
+Table 1: Grounding accuracy on five GUI grounding benchmarks and their average, grouped by backbone. Unless marked with “ ∗”, baseline results are taken from the corresponding original papers or technical reports (cited in each row), or from the consolidated evaluation reported by GroundNext (Feizi et al. 2025). “ ∗” marks results we re-evaluated under our unified protocol for benchmarks not reported in these sources. “Avg.” is the mean over the five benchmarks. Within each backbone group, best 
+
+is in bold and second-best is underlined. The green subscript denotes the absolute Avg. gain over each model’s backbone. 
+
+Executor Model AndroidWorld OSWorld 
+
+Aria-UI (Yang et al. 2024) 44.8 15.2 UGround-V1-7B (Gou et al. 2025) 32.8 16.1 UI-TARS-1.5-7B (Seed 2025) 37.9 19.1 ScaleCUA-7B (Liu et al. 2025c) 48.3 28.1 Qwen3-VL-4B ∗ (Bai et al. 2025a) 68.9 ± 0.9 40.2 ± 0.8 BiGrounder-4B 72.4 ± 0.9 42.8 ± 0.5 
+
+Table 2: GUI agent benchmark results with each model as the grounding executor and GPT-4o as the planner. Android-World follows predefined steps; OSWorld uses a 50-step bud-get. Best in bold. ∗Evaluated by us (mean ± std over 3 runs). 
+
+Training Dynamics. Figure 4 tracks the on-policy instruc-tions over RL. In Fig. 4a, semantic consistency and diver-sity rise together (BERTScore 0.844 → 0.884 , diversity 
+
+0.603 → 0.675 ), suggesting the model explores more var-ied phrasings while staying close to the target. In Fig. 4b, both Any@4 and All@4 improve, where Any@4 and All@4 are the accuracies of grounding an element correctly under at least one and under all four instructions; the shaded gap between them narrows from about 0.156 to 0.085 , indicating grounding becomes less dependent on the specific wording. 
+
+Qualitative Analysis. Figure 5 provides an illustrative ex-ample in which forward-only RL is affected by instruction reformulation, whereas BiGrounder consistently grounds the target across the two semantically equivalent expressions. 
+
+Method Original Accuracy ↑
+
+Any Correct ↑
+
+All Correct ↑
+
+Any–All Gap ↓
+
+Qwen3-VL-4B 65.3 73.4 56.0 17.4 Bi-SFT 65.7 73.6 56.8 16.8 Bi-SFT + Forward RL 67.4 74.5 58.2 16.3 BiGrounder-4B 69.5 75.3 60.5 14.8 ↓2.6
+
+Table 3: Robustness to instruction variation on OSWorld-G-R-Variants . Each original instruction is paired with three target-preserving variants that differ in wording and sentence structure. Original : accuracy under the original instruction; 
+
+Any-/All-Correct : element grounded correctly under at least one/all four instructions. Any–All Gap : sensitivity to instruc-tion variation. The green subscript denotes the absolute gap reduction over Qwen3-VL-4B. Best in bold. 
+
+## Ablation Studies 
+
+Effectiveness of Training Recipes. Table 4 shows that Bi-SFT improves over Single-SFT ( 67 .6 vs. 66 .9). Adding bidi-rectional RL ( +RL-Bi ) yields the best average of 72 .8, out-performing three point-reward alternatives: a binary in-box hit ( InBbox ), a distance-to-center decay ( Distance ), and a Gaussian distance reward ( Gaussian ). To isolate the con-tribution of the reverse branch, we further evaluate +RL-Forward-only , a forward-only variant that uses the same reward without reverse policy updates. 60 200 400 600 800 RL training step 0.6 0.7 0.8 0.9 Score  0.844 0.884 0.603 0.675     
+
+> Semantic Consistency and Diversity
+> BERTScore Diversity (1 - Self-BLEU)
+> 0200 400 600 800 RL training step 0.2 0.4 0.6 0.8 Success rate
+> 0.395 0.776 0.239 0.691
+> Cycle-Grounding Reliability
+> Any@4 All@4 Any-All gap
+
+(a) Semantic consistency and within-group diversity. 0 200 400 600 800 RL training step 0.6 0.7 0.8 0.9 Score  0.844 0.884 0.603 0.675     
+
+> Semantic Consistency and Diversity
+> BERTScore Diversity (1 - Self-BLEU)
+> 0200 400 600 800 RL training step 0.2 0.4 0.6 0.8 Success rate
+> 0.395 0.776 0.239 0.691
+> Cycle-Grounding Reliability
+> Any@4 All@4 Any-All gap
+
+(b) Cycle-grounding reliability. 
+
+Figure 4: RL training dynamics. (a) semantic consistency (BERTScore) and within-group diversity ( 1−Self-BLEU) of the on-policy instructions. (b) cycle-grounding reliability measured by Any@4 and All@4, with the shaded Any–All gap narrowing over training. Click the 'English' language option in the left sidebar. Click the 'English' link in the left sidebar navigation panel. 
+
+> Forward-RL
+> BiGrounder
+
+Figure 5: Qualitative comparison of grounding under instruc-tion variations. 
+
+Method SS-Pro SS-V2 OS-G-R UI-V. MM-L2 Avg. 
+
+Qwen3-VL-4B 59.3 93.5 65.3 26.9 81.2 65.2 Single-SFT 59.4 90.6 65.2 39.7 79.8 66.9 +1 .7
+
+Bi-SFT 60.2 91.2 65.7 39.9 81.0 67.6 +2 .4
+
++RL-InBbox 63.2 92.9 67.4 44.9 84.1 70.5 +5 .3
+
++RL-Distance 62.7 92.3 66.8 42.5 83.5 69.6 +4 .4
+
++RL-Gaussian 63.5 92.9 67.9 44.8 85.1 70.8 +5 .6
+
++RL-Forward-only 63.7 92.9 67.4 45.1 85.3 70.9 +5 .7
+
++RL-Bi (Ours) 66.6 93.9 69.5 46.6 87.5 72.8 +7 .6
+
+Table 4: Controlled comparison of training recipes with Qwen3-VL-4B-Instruct backbone and complete training dataset. The subscript in Avg. denotes the absolute gain over the base model. 
+
+Effect of Cycle-Consistency Gating. BERTScore alone rewards semantically fluent instructions even when they are visually incorrect, leaving the reverse reward open to reward hacking. To counter this, Algorithm 1 retains the reverse reward only when the generated instruction can be grounded back to the target element, so that a high semantic score alone cannot earn credit unless the instruction is also verified to point back to the intended element. As reported in Table 5, cycle gating raises the average from 70 .1 to 72 .8 over the 
+
+Method SS-Pro SS-V2 OS-G-R UI-V. MM-L2 Avg. 
+
+Bi-SFT 60.2 91.2 65.7 39.9 81.0 67.6 RL w/o Cycle-C. 62.8 92.4 66.9 44.9 83.5 70.1 +2 .5
+
+RL w/ Cycle-C. 66.6 93.9 69.5 46.6 87.5 72.8 +5 .2
+
+Table 5: Ablation on cycle-consistency gating for mitigating reward hacking. The subscript in Avg. denotes the absolute gain over the Bi-SFT baseline. 0 100 200 300 400 500 600 700 800 
+
+> Training Steps
+> 0.40 0.45 0.50 0.55 0.60 0.65
+> Rewards
+> t = 0.95 t = 0.90 t = 0.85 t = 0.80 t = 0.75
+
+(a) Mean reward during training. 0 100 200 300 400 500 600 700 800  
+
+> Training Steps
+> 0.04 0.05 0.06 0.07 0.08 0.09
+> Reward Std
+> = 2
+> = 6
+> = 10
+
+(b) Reward std. during training. 
+
+Figure 6: Training dynamics under different reward hyper-parameters: (a) semantic-reward threshold t; (b) pixel-level tolerance τ .ungated variant, confirming that filtering out non-groundable instructions yields more reliable reverse rewards. 
+
+Method SS-Pro SS-V2 OS-G-R UI-V. MM-L2 Avg. 
+
+Qwen3-VL-4B 59.3 93.5 65.3 26.9 81.2 65.2 Bi-SFT w/o rewritten 59.7 91.2 65.5 39.5 80.6 67.3 Bi-SFT w/ rewritten 60.2 91.2 65.7 39.9 81.0 67.6 BiGrounder w/o rewritten 64.7 93.1 68.1 44.8 85.6 71.3 BiGrounder w/ rewritten 66.6 93.9 69.5 46.6 87.5 72.8 
+
+Table 6: Effect of Gemini-rewritten instructions under the same backbone and training recipe. 
+
+Effect of Gemini-Rewritten Instructions. Table 6 iso-lates the Gemini-rewritten instructions under the same back-bone and recipe. Removing them lowers the average only marginally at both stages ( 67 .6 → 67 .3 SFT, 72 .8 → 71 .3
+
+RL), indicating the gains stem from bidirectional training rather than the external rewrites. 
+
+Sensitivity to Reward Hyperparameters. Using a Scale-CUA subset and a fixed configuration, t = 0 .85 gives the highest stabilized reward (Figure 6(a)). A strict tolerance (τ = 2 ) causes excessive variation, whereas τ = 10 weakens discrimination (Figure 6(b)); we therefore use τ = 6 .
+
+## Conclusion 
+
+We present BiGrounder, a bidirectional training paradigm for the many-to-one instruction mapping in GUI ground-ing. It turns the model’s own on-policy instruction variations into reinforcement trajectories. Across five benchmarks, our model achieves competitive average accuracy in our evalua-tion, with the largest gains in semantically challenging sce-narios, and plugs readily into standard SFT+RL pipelines. 7References 
+
+Anthropic. 2024. Claude 3.7 Sonnet. https://www.anthropic. com/news/claude-3-7-sonnet. Accessed: 2025-08-02. Bai, S.; Cai, Y.; Chen, R.; Chen, K.; Chen, X.; Cheng, Z.; Deng, L.; Ding, W.; Gao, C.; Ge, C.; Ge, W.; Guo, Z.; Huang, Q.; Huang, J.; Huang, F.; Hui, B.; Jiang, S.; Li, Z.; Li, M.; Li, M.; Li, K.; Lin, Z.; Lin, J.; Liu, X.; Liu, J.; Liu, C.; Liu, Y.; Liu, D.; Liu, S.; Lu, D.; Luo, R.; Lv, C.; Men, R.; Meng, L.; Ren, X.; Ren, X.; Song, S.; Sun, Y.; Tang, J.; Tu, J.; Wan, J.; Wang, P.; Wang, P.; Wang, Q.; Wang, Y.; Xie, T.; Xu, Y.; Xu, H.; Xu, J.; Yang, Z.; Yang, M.; Yang, J.; Yang, A.; Yu, B.; Zhang, F.; Zhang, H.; Zhang, X.; Zheng, B.; Zhong, H.; Zhou, J.; Zhou, F.; Zhou, J.; Zhu, Y.; and Zhu, K. 2025a. Qwen3-VL Technical Report. arXiv preprint arXiv:2511.21631 .Bai, S.; Chen, K.; Liu, X.; Wang, J.; Ge, W.; Song, S.; Dang, K.; Wang, P.; Wang, S.; Tang, J.; Zhong, H.; Zhu, Y.; Yang, M.; Li, Z.; Wan, J.; Wang, P.; Ding, W.; Fu, Z.; Xu, Y.; Ye, J.; Zhang, X.; Xie, T.; Cheng, Z.; Zhang, H.; Yang, Z.; Xu, H.; and Lin, J. 2025b. Qwen2.5-VL Technical Report. arXiv:2502.13923. Bai, S.; Chen, K.; Liu, X.; Wang, J.; Ge, W.; Song, S.; Dang, K.; Wang, P.; Wang, S.; Tang, J.; et al. 2025c. Qwen2. 5-vl technical report. arXiv preprint arXiv:2502.13923 .Chen, L.; Zhou, H.; Cai, C.; Zhang, J.; Tong, P.; Kong, Q.; Zhang, X.; Liu, C.; Liu, Y.; Wang, W.; Wang, Y.; Jin, Q.; and Hoi, S. 2025. UI-Ins: Enhancing GUI Grounding with Multi-Perspective Instruction-as-Reasoning. arXiv:2510.20286. DeepMind, G. 2025. Gemini 3 Pro. Du, Y.; Yan, Y.; Tang, F.; Lu, Z.; Zong, C.; Lu, W.; Jiang, S.; and Shen, Y. 2025. Test-Time Reinforcement Learning for GUI Grounding via Region Consistency. arXiv:2508.05615. Feizi, A.; Nayak, S.; Jian, X.; Lin, K. Q.; Li, K.; Awal, R.; Lù, X. H.; Obando-Ceron, J.; Rodriguez, J. A.; Chapa-dos, N.; Vazquez, D.; Romero-Soriano, A.; Rabbany, R.; Taslakian, P.; Pal, C.; Gella, S.; and Rajeswar, S. 2025. Grounding Computer Use Agents on Human Demonstra-tions. arXiv:2511.07332. Gou, B.; Wang, R.; Zheng, B.; Xie, Y.; Chang, C.; Shu, Y.; Sun, H.; and Su, Y. 2025. Navigating the Digital World as Humans Do: Universal Visual Grounding for GUI Agents. In 
+
+The Thirteenth International Conference on Learning Rep-resentations .Gu, Z.; Zeng, Z.; Xu, Z.; Zhou, X.; Shen, S.; Liu, Y.; Zhou, B.; Meng, C.; Xia, T.; Chen, W.; Wen, Y.; Dou, J.; Tang, F.; Lin, J.; Liu, Y.; Guo, Z.; Gong, Y.; Jia, H.; Gao, C.; Guo, Y.; Deng, Y.; Guo, Z.; Chen, L.; and Wang, W. 2025. UI-Venus Technical Report: Building High-performance UI Agents with RFT. arXiv:2508.10833. Guo, D.; Yang, D.; Zhang, H.; Song, J.; Zhang, R.; Xu, R.; Zhu, Q.; Ma, S.; Wang, P.; Bi, X.; et al. 2025. Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning. arXiv preprint arXiv:2501.12948 .Hui, Z.; Li, Y.; Zhao, D.; Chen, T.; Banbury, C.; and Koishida, K. 2025. WinClick: GUI Grounding with Multimodal Large Language Models. arXiv:2503.04730. Kim, S.; Chen, Z.; Li, X.; and Liu, Q. 2026. Look Where You’re Told: Instruction-Consistent Attention for GUI Grounding. In Proceedings of the 4th Workshop on Advances in Language and Vision Research (ALVR) , 155–163. Asso-ciation for Computational Linguistics. Li, H.; Chen, J.; Su, J.; Chen, Y.; Li, Q.; and Zhang, Z. 2025a. AutoGUI: Scaling GUI Grounding with Automatic Functionality Annotations from LLMs. arXiv:2502.01977. Li, K.; Ziyang, M.; Lin, H.; Luo, Z.; Tian, Y.; Ma, J.; Huang, Z.; and Chua, T.-S. 2025b. ScreenSpot-Pro: GUI Grounding for Professional High-Resolution Computer Use. In Work-shop on Reasoning and Planning for Large Language Mod-els .Liu, X.; Zhang, X.; Zhang, Z.; and Lu, Y. 2025a. UI-E2I-Synth: Advancing GUI Grounding with Large-Scale Instruc-tion Synthesis. arXiv:2504.11257. Liu, Y.; Liu, Z.; Zhu, S.; Li, P.; Xie, C.; Wang, J.; Hu, X.; Han, X.; Yuan, J.; Wang, X.; et al. 2025b. InfiGUI-G1: Ad-vancing GUI Grounding with Adaptive Exploration Policy Optimization. arXiv preprint arXiv:2508.05731 .Liu, Z.; Xie, J.; Ding, Z.; Li, Z.; Yang, B.; Wu, Z.; Wang, X.; Sun, Q.; Liu, S.; Wang, W.; Ye, S.; Li, Q.; Dong, X.; Yu, Y.; Lu, C.; Mo, Y.; Yan, Y.; Tian, Z.; Zhang, X.; Huang, Y.; Liu, Y.; Su, W.; Luo, G.; Yue, X.; Qi, B.; Chen, K.; Zhou, B.; Qiao, Y.; Chen, Q.; and Wang, W. 2025c. ScaleCUA: Scal-ing Open-Source Computer Use Agents with Cross-Platform Data. arXiv preprint arXiv:2509.15221 . Preprint. Lu, Z.; Chai, Y.; Guo, Y.; Yin, X.; Liu, L.; Wang, H.; Xiong, G.; and Li, H. 2025. UI-R1: Enhancing Action Prediction of GUI Agents by Reinforcement Learning. arXiv preprint arXiv:2503.21620 .Luo, R.; Wang, L.; He, W.; Chen, L.; Li, J.; and Xia, X. 2025. GUI-R1 : A Generalist R1-Style Vision-Language Action Model For GUI Agents. arXiv:2504.10458. Nayak, S.; Jian, X.; Lin, K. Q.; Rodriguez, J. A.; Kalsi, M.; Awal, R.; Chapados, N.; Ã–zsu, M. T.; Agrawal, A.; Vazquez, D.; Pal, C.; Taslakian, P.; Gella, S.; and Rajeswar, S. 2025. UI-Vision: A Desktop-centric GUI Benchmark for Visual Perception and Interaction. arXiv:2503.15661. OpenAI. 2024. GPT-4o System Card. arXiv:2410.21276. Qin, Y.; Ye, Y.; Fang, J.; Wang, H.; Liang, S.; Tian, S.; Zhang, J.; Li, J.; Li, Y.; Huang, S.; et al. 2025. UI-TARS: Pioneering Automated GUI Interaction with Native Agents. 
+
+arXiv preprint arXiv:2501.12326 .Seed, B. 2025. UI-TARS-1.5. https://seed-tars.com/1.5. Tang, F.; Gu, Z.; Lu, Z.; Liu, X.; Shen, S.; Meng, C.; Wang, W.; Zhang, W.; Shen, Y.; Lu, W.; Xiao, J.; and Zhuang, Y. 2025. GUI-G 2: Gaussian Reward Modeling for GUI Ground-ing. arXiv:2507.15846. Wang, X.; Wang, B.; Lu, D.; Yang, J.; Xie, T.; Wang, J.; Deng, J.; Guo, X.; Xu, Y.; Wu, C. H.; Shen, Z.; Li, Z.; Li, R.; Li, X.; Chen, J.; Zheng, B.; Li, P.; Lei, F.; Cao, R.; Fu, Y.; Shin, D.; Shin, M.; Hu, J.; Wang, Y.; Chen, J.; Ye, Y.; Zhang, D.; Du, D.; Hu, H.; Chen, H.; Zhou, Z.; Yao, H.; Chen, Z.; Gu, Q.; Wang, Y.; Wang, H.; Yang, D.; Zhong, V.; Sung, F.; Charles, Y.; Yang, Z.; and Yu, T. 2025a. OpenCUA: Open Foundations for Computer-Use Agents. arXiv:2508.09123. 8Wang, X.; Wu, Z.; Xie, J.; et al. 2025b. MMBench-GUI: Hierarchical Multi-Platform Evaluation Framework for GUI Agents. arXiv preprint arXiv:2507.19478 .Wu, Q.; Cheng, K.; Yang, R.; Zhang, C.; Yang, J.; Jiang, H.; Mu, J.; Peng, B.; Qiao, B.; Tan, R.; et al. 2025. GUI-Actor: Coordinate-Free Visual Grounding for GUI Agents. arXiv preprint arXiv:2506.03143 .Wu, Z.; Wu, Z.; Xu, F.; Wang, Y.; Sun, Q.; Jia, C.; Cheng, K.; Ding, Z.; Chen, L.; Liang, P. P.; and Qiao, Y. 2024. OS-ATLAS: A Foundation Action Model for Generalist GUI Agents. arXiv:2410.23218. Xie, T.; Deng, J.; Li, X.; Yang, J.; Wu, H.; Chen, J.; Hu, W.; Wang, X.; Xu, Y.; Wang, Z.; Xu, Y.; Wang, J.; Sahoo, D.; Yu, T.; and Xiong, C. 2025. Scaling Computer-Use Grounding via User Interface Decomposition and Synthesis. arXiv:2505.13227. Xu, H.; Zhang, X.; Liu, H.; Wang, J.; Zhu, Z.; Zhou, S.; Hu, X.; Gao, F.; Cao, J.; Wang, Z.; Chen, Z.; Liao, J.; Zheng, Q.; Zeng, J.; Xu, Z.; Bai, S.; Lin, J.; Zhou, J.; and Yan, M. 2026. Mobile-Agent-v3.5: Multi-platform Fundamental GUI Agents. arXiv preprint arXiv:2602.16855 .Xu, Y.; Wang, Z.; Wang, J.; Lu, D.; Xie, T.; Saha, A.; Sahoo, D.; Yu, T.; and Xiong, C. 2025. Aguvis: Unified Pure Vision Agents for Autonomous GUI Interaction. arXiv:2412.04454. Yan, H.; Wang, J.; Huang, X.; Shen, Y.; Meng, Z.; Fan, Z.; Tan, K.; Gao, J.; Shi, L.; Yang, M.; et al. 2025. Step-GUI Technical Report. arXiv preprint arXiv:2512.15431 .Yang, Y.; Li, D.; Dai, Y.; Yang, Y.; Luo, Z.; Zhao, Z.; Hu, Z.; Huang, J.; Saha, A.; Chen, Z.; Xu, R.; Pan, L.; Xiong, C.; and Li, J. 2025. GTA1: GUI Test-time Scaling Agent. arXiv:2507.05791. Yang, Y.; Wang, Y.; Li, D.; Luo, Z.; Chen, B.; Huang, C.; and Li, J. 2024. Aria-UI: Visual Grounding for GUI Instructions. arXiv:2412.16256. Ye, J.; Zhang, X.; Xu, H.; Liu, H.; Wang, J.; Zhu, Z.; Zheng, Z.; Gao, F.; Cao, J.; Lu, Z.; Liao, J.; Zheng, Q.; Huang, F.; Zhou, J.; and Yan, M. 2025. Mobile-Agent-v3: Fundamental Agents for GUI Automation. arXiv:2508.15144. Yuan, X.; Zhang, J.; Li, K.; Cai, Z.; Yao, L.; Chen, J.; Wang, E.; Hou, Q.; Chen, J.; Jiang, P.-T.; et al. 2025. Enhancing Visual Grounding for GUI Agents via Self-Evolutionary Re-inforcement Learning. arXiv preprint arXiv:2505.12370 .Zhang, M.; Xu, Z.; Zhu, J.; Dai, Q.; Qiu, K.; Yang, Y.; Luo, C.; Chen, T.; Wagle, J.; Franklin, T.; et al. 2025. Phi-Ground Tech Report: Advancing Perception in GUI Grounding. arXiv preprint arXiv:2507.23779 .Zhang, T.; Kishore, V.; Wu, F.; Weinberger, K. Q.; and Artzi, Y. 2020. BERTScore: Evaluating Text Generation with BERT. arXiv:1904.09675. Zheng, B.; Gou, B.; Kil, J.; Sun, H.; and Su, Y. 2024. GPT-4V(ision) is a Generalist Web Agent, if Grounded. In Pro-ceedings of the 41st International Conference on Machine Learning (ICML) .Zhou, H.; Zhang, X.; Tong, P.; Zhang, J.; Chen, L.; Kong, Q.; Cai, C.; Liu, C.; Wang, Y.; Zhou, J.; and Hoi, S. 2025a. MAI-UI Technical Report: Real-World Centric Foundation GUI Agents. arXiv:2512.22047. Zhou, Y.; Dai, S.; Wang, S.; Zhou, K.; Jia, Q.; and Xu, J. 2025b. GUI-G1: Understanding R1-Zero-Like Training for Visual Grounding in GUI Agents. arXiv:2505.15810. Zhu, J.; Wang, W.; et al. 2025. InternVL3: Exploring Ad-vanced Training and Test-Time Recipes for Open-Source Multimodal Models. arXiv:2504.10479. 9A Qualitative Results on Cycle-Consistent Reinforcement 
+
+During the reinforcement process, we observe a critical phe-nomenon: despite the high semantic similarity among many instructions, the agent still fails to perform correct grounding. Our framework aims to improve the robustness of instruc-tion execution. Fig. A.1 and Fig. A.2 present real cases from the reinforcement process, where the model makes ground-ing errors when handling similar instructions. Through our proposed cycle-consistency reinforcement framework, after multiple iterations, the model’s generalization ability on sim-ilar instructions is significantly improved. As illustrated in Fig. A.3, before RL, the model exhibits spatial ambiguity in dense UI regions, frequently misat-tributing target coordinates to adjacent elements such as “Activities”. Following RL optimization, the model effec-tively mitigates this semantic drift. The generated instruc-tions achieve precise visual–text grounding on the correct target—specifically the “Slack” icon—while successfully leveraging diverse spatial references, including relative po-sitioning to the “Slack” icon or “Activities” text. This high-lights the method’s robustness in generating accurate and syntactically varied localized instructions. 
+
+## B Dataset Construction Details 
+
+Fig. B.1 summarizes the composition of our training cor-pus, which comprises 4,482k instruction–grounding pairs in total. The corpus is split evenly into two symmetric halves that mirror the bidirectional design of BiGrounder: a forward 
+
+half (2,241k, 50%) that maps textual instructions to spatial targets, and a reverse half (2,241k, 50%) that generates in-structions from ground-truth coordinates. Because every re-verse sample is constructed from its corresponding forward grounding sample, the two halves share an identical inter-nal breakdown, which keeps the forward and reverse policies exposed to matched data distributions during training. Within each half, the data are drawn from two sources. The larger source, ScaleCUA (Liu et al. 2025c) (1,800k per half), spans the three grounding modalities used throughout our prompts: Action Grounding (830k, 37.0%), Grounding bbox (790k, 35.3%), and Grounding point (180k, 8.0%). The GroundCUA portion consists of Video-Audio Production 
+
+samples and their reverse counterparts: 441k forward action-grounding pairs and 441k reverse instruction-generation pairs (19.7% of each half). The core pipeline can be trained using open-source data alone. However, since ScaleCUA’s action-grounding subset lacks bounding boxes, the cover-age of localization-based rewards during RL training is lim-ited. We therefore use Gemini-2.5-Flash only as an optional augmentation : it rewrites instructions for the samples that al-ready carry bounding-box annotations, i.e., the 790k Ground-ing bbox portion, using the dual-view refinement pipeline detailed in the “Grounding Instruction Refine” subsection below. The remaining modalities retain their original Scale-CUA/GroundCUA formatting, and the generated instructions will be released. The instruction-generation and grounding prompt tem-plates are collected in Appendix J. 
+
+B.1 Grounding Instruction Refine 
+
+To prepare data for the reinforcement learning stage, we design an automated instruction refinement pipeline utiliz-ing Gemini-2.5-Flash. Since the action-grounding subset of ScaleCUA does not provide bounding-box annotations, the localization-based reward has insufficient action-grounding data to draw on during RL. We therefore repurpose the 
+
+Grounding bbox portion—which already carries bounding-box annotations—by rewriting its instructions into action-oriented commands, thereby filling this gap. We employ a dual-view prompting strategy by feeding the VLM both the global screenshot and a high-resolution crop of the target element. This design enables the model to simultaneously capture global spatial relations derived from the full view and fine-grained visual attributes extracted from the crop. By synthesizing these cues, we transform static region de-scriptions into precise action-oriented commands suitable for action grounding. For both bbox and point grounding tasks, we strictly adhere to the data formatting protocols established in ScaleCUA (Liu et al. 2025c). The refinement prompt is provided in Appendix J.3. 
+
+## C OSWorld-G-Refine-Variants: Construction and Evaluation 
+
+To measure how sensitive a grounding model is to the ex-act wording of an instruction, we augment OSWorld-G-Refine into OSWorld-G-Refine-Variants . This section de-tails how the paraphrase variants are generated and how the paraphrase-consistency metrics reported in the main paper are computed, so that the benchmark can be reproduced ex-actly. 
+
+C.1 Variant Generation 
+
+Starting from the 564 annotated elements of OSWorld-G-Refine, we keep each element’s original instruction and addi-tionally generate three target-preserving paraphrases, yield-ing 564 ×4 = 2 ,256 grounding queries ( 564 original + 1 ,692 
+
+variants). Paraphrases are produced by prompting GPT-4o with the template provided in Appendix J.4. The template constrains every variant to (i) refer to the exact same UI element and location as the original, (ii) use different word-ing, sentence structure, or perspective, and (iii) preserve the original level of spatial/visual specificity without adding or removing critical cues. To encourage genuine diversity rather than mere synonym substitution, the prompt explicitly lists four rewriting strategies—varying spatial references, empha-sizing different visual attributes (color, shape, icon, text, po-sition), changing the interaction verb, and reordering descrip-tive clauses. The model is queried at a sampling temperature of 0.7 and must return exactly three paraphrases as a JSON array; malformed responses are re-requested for up to five at-tempts, and any element whose rewriting still fails falls back to its original instruction and is logged. All generated vari-ants are then manually verified to be semantically equivalent to the source instruction and to remain unambiguous with re-spect to the target element; ambiguous or drifted paraphrases are corrected before evaluation. 10 1.Click the trash can icon located at the bottom-right of the screen. 2.Tap the trash can icon, which is the rightmost icon in the bottom navigation bar. 3.Click the trash can icon with a horizontal line inside it, located at the bottom right of the screen. 4.Tap the trash bin icon located at the bottom right of the screen. 1.Click the trash can icon located at the bottom-right of the screen. 2.Tap the trash can icon, which is the rightmost icon in the bottom navigation bar. 3.Click the trash can icon with a horizontal line inside it, located at the bottom right of the screen. 4.Tap the trash bin icon located at the bottom right of the screen. 
+
+RL Exploration Phase: Final Model Inference :
+
+Trash Bin Icon GT Bounding box: [684,946,752,997] "click('(922,969)')" "click('(710,968)')" "click('(710,968)')" "click('(922,969)')" "click('(710,968)')" "click('(710,968)')" "click('(710,968)')" "click('(710,968)')" Figure A.1: Instruction following comparison before and after cycle-consistency reinforcement, showing improved spatial grounding. 1.Tap the 'x' key on the virtual keyboard. 2.Tap the 'x' key, which is located between the 'z' and 'c' keys in the second row of letter keys. 3.Tap the 'x' key on the virtual keyboard, located between the 'z' and 'c' keys. 4.Tap the 'x' key on the keyboard. 1.Tap the 'x' key on the virtual keyboard. 2.Tap the 'x' key, which is located between the 'z' and 'c' keys in the second row of letter keys. 3.Tap the 'x' key on the virtual keyboard, located between the 'z' and 'c' keys. 4.Tap the 'x' key on the keyboard. 
+
+RL Exploration Phase: Final Model Inference :X letter’s GT Bounding box: [294,876,304,885] "click('(933,881)')" "click(‘(299,881)')" "click(‘(299,881)')" "click('(933,881)')" "click('(299,881)')" "click('(299,881)')" "click('(299,881)')" "click('(299,881)')" 
+
+Figure A.2: Instruction following comparison before and after cycle-consistency reinforcement, showing improved icon ground-ing. Coordinates of Slack button 
+
+1."Click the 'Slack' text next to the bell icon in the top-left corner of the application window.” 
+
+2."Click the 'Activities' text and the circular icon next to it, located in the top-left corner of the screen." 
+
+3."Click the 'Activities' button in the top-left corner of the screen." 
+
+4."Click the 'Slack' text in the top left of the application window." 
+
+1. Click the 'Slack' text in the top-left of the application window." 
+
+2. Click the icon next to 'Activities' text, located in the top-left corner of the screen." 
+
+3. Click the 'Slack' button at the top-left corner of the screen." 
+
+4. Click the 'Slack' text beside the bell icon in the top-left corner of the application window. 
+
+Task Generation Before RL: 
+
+Task Generation After RL: 
+
+Figure A.3: Analyzing the semantic generation capability before and after reinforcement learning. 
+
+C.2 Evaluation Protocol 
+
+Each of the 2,256 queries is evaluated independently and then grouped by its source element, so that every group con-tains the four instructions (one original plus three variants) that point to the same target. Predictions use the same GUI-agent action prompt as our grounding evaluation, decoded greedily (temperature 0). A predicted coordinate is parsed from the emitted click(start_box=’(x,y)’) action, mapped from the normalized [0 , 1000] range back to absolute pix-11 Forward 2241k (50%) 
+
+> Action Grounding 830k (37.0%) Grounding bbox 790k (35.3%) Grounding point 180k (8.0%) GroundCUA 441k (19.7%)
+> Reverse 2241k (50%)
+> Action Grounding 830k (37.0%) Grounding bbox 790k (35.3%) Grounding point 180k (8.0%) GroundCUA 441k (19.7%)
+
+Figure B.1: Composition of the 4,482k-pair train-ing corpus. The inner ring splits the data into forward (instruction →coordinate) and reverse (coordinate →instruction) halves of equal size; the outer ring breaks each half down by data source and grounding modal-ity. The GroundCUA portion uses Video-Audio Production 
+
+samples and their reverse counterparts. As an optional augmentation, the 790k Grounding bbox samples—those that already carry bounding-box annotations—have their instructions rewritten with Gemini-2.5-Flash to broaden localization-based reward coverage during RL; the core pipeline can be trained on open-source data alone. els, and reduced to its center point. A query is counted as correct when this center point lies inside the target region: point-in-rectangle for bbox annotations, point-in-polygon for polygon annotations, and a negative sentinel coordi-nate for refusal cases (where the correct behavior is to abstain). On top of the per-query correctness r, we report four group-level quantities that together characterize robustness to instruction variation: 
+
+• Original Accuracy : accuracy computed over the 
+
+564 original instructions only, matching the standard OSWorld-G-Refine setting. 
+
+• Any-Correct Rate : the fraction of groups in which at least one of the four instructions is grounded correctly. This is an upper bound on achievable accuracy and equals Pass@4 over the paraphrase set. 
+
+• All-Correct Rate : the fraction of groups in which all four 
+
+instructions are grounded correctly—a strict, worst-case measure of consistency. 
+
+• Any–All Gap : the difference between the Any- and All-Correct rates (in percentage points). A smaller gap indi-cates that the model’s success is less dependent on the particular phrasing of the instruction, i.e., more robust grounding. As an auxiliary diagnostic, we also track the mean intra-group variance 1
+
+> N
+
+P 
+
+> i
+
+pi(1 − pi), where pi is the fraction of the four instructions in group i that are grounded correctly; this attains 0 when every group is answered all-right or all-wrong and is maximized ( 0.25 ) when the model is split evenly within groups. As reported in the main paper, BiGrounder attains the highest Original, Any-Correct, and All-Correct rates and shrinks the Any–All gap from 17 .4 to 14 .8 points relative to its Qwen3-VL-4B backbone, confirming that bidi-rectional training reduces sensitivity to instruction wording. We will release the rewritten instructions, the exact gen-eration prompt, and the filtering procedure to support full reproducibility. 
+
+## D Reward Hacking and Semantic Noise 
+
+A central design question in BiGrounder is how to reward the reverse policy πθ (ˆ x | s, o ∗), which generates instructions from a ground-truth target coordinate o∗. The natural choice is a semantic similarity reward such as BERTScore between the generated instruction ˆxi and the reference instruction x.However, semantic similarity alone is vulnerable to reward hacking : the reverse policy can learn to emit instructions that are lexically and semantically fluent, and therefore score high under BERTScore, yet do not actually point to the tar-get element on the screen. Such instructions inject semantic noise into the reinforcement loop, because they are treated as valid supervision for the forward grounding policy even though grounding them would lead to the wrong location. If left unchecked, this noise not only wastes the on-policy instruction budget but can actively degrade grounding, since the model is reinforced toward describing the wrong element convincingly rather than the right element accurately. 
+
+Why BERTScore alone is insufficient. BERTScore mea-sures token-level embedding similarity between ˆxi and x
+
+(Eqs. 2–4 in the main paper). We compute BERTScore us-ing RoBERTa-large representations from layer 17. Two fail-ure modes make it an unreliable standalone reward for GUI grounding. First, GUI screens contain many visually and functionally similar elements (e.g., repeated “star”, “book-mark”, “follow” affordances), so an instruction that de-scribes a plausible-but-wrong element can be nearly indis-tinguishable from the reference in embedding space. Sec-ond, BERTScore rewards surface fluency and paraphrasing, which the policy can exploit to maximize reward without im-proving visual disambiguation. The case study in Table D.2 makes this concrete: the distractor “Click the star to follow the repository.” attains a high BERTScore of 0.86 against the ground truth “Click star to save this page.”, yet it refers to a different action on a different element. A reward that trusts BERTScore in isolation would happily reinforce this instruction. 
+
+Cycle-consistency as a grounding-verified gate. Bi-Grounder resolves this by never trusting the semantic score on its own. As formalized in the reverse reward (Eq. 5 of the main paper), the BERTScore of a generated instruction 12 is retained only if the instruction survives two gates simulta-neously: 
+
+Rrev =
+
+BERTScore(ˆ xi, x ), bi ≥ t ∧ ci = 1 ,
+
+0, otherwise ,
+
+where bi = FBERT (ˆ xi, x ) is the semantic score, t = 0 .85 is the semantic threshold, and ci = I[∃k : success( τi,k , o ∗)] is the cycle gate . The cycle gate is the key anti-hacking mecha-nism: for each candidate instruction ˆxi that passes the seman-tic threshold, the same policy is asked to ground it back with 
+
+K rollouts {τi,k }Kk=1 , and ci = 1 only if at least one rollout returns to the true target (forward grounding reward ≥ 0.9). Thus a fluent instruction that cannot be grounded back to 
+
+o∗ receives Rrev = 0 and is prevented from reinforcing the reverse policy, no matter how high its BERTScore. In the running example, “Click the star to follow the repository.” fails the cycle gate ( ci = 0 ) and its reward collapses to 0.00 ,while the correct paraphrase “Click the star to bookmark this webpage.” grounds back successfully ( ci = 1 ) and keeps its reward of 0.92 (Table D.2). 
+
+Ground-truth fallback keeps the forward loop clean. 
+
+Rejecting a semantically noisy instruction does not waste the sample. When a candidate fails the semantic threshold (bi < t ), BiGrounder substitutes the ground-truth instruc-tion x into that forward loop ( qi ← x, the GT fallback in Algorithm 1). Consequently, every one of the G instruction branches still contributes valid forward grounding trajecto-ries, but only semantically qualified and cycle-consistent generations are allowed to update the reverse policy. This decoupling is what lets BiGrounder harvest instruction di-versity aggressively while keeping the forward supervision signal noise-free. 
+
+Quantifying noise removal. To verify that cycle-consistency actually suppresses semantic noise rather than merely filtering paraphrases, we manually annotate 300 re-verse instructions (273 correct, 27 incorrect) and measure how well each gating strategy separates them. As shown in Table D.1, thresholding on BERTScore alone filters only 
+
+18 .5% of the incorrect instructions ( 5/27 ), and even an LLM judge removes only 74 .1% (20 /27 ). In contrast, the cycle-consistency gate filters 25 of 27 incorrect instructions, reach-ing 92 .6% Noise Filtering Rate (NFR) while simultaneously raising Precision to 99 .2% on the retained set. This confirms that verifying groundability, rather than semantic plausibil-ity, is the decisive signal for rejecting reward-hacking in-structions, and that the two gates are complementary: the semantic threshold discards obviously off-topic generations cheaply, while the cycle gate catches the fluent-but-wrong cases that BERTScore cannot. 
+
+## E Training Analysis and Generalization 
+
+Tables E.1–E.3 report additional rollout-budget controls, instruction-generation ablations, and Qwen3.5 backbone ex-periments. 
+
+Rollout budget and reverse rewards. Table E.1 separates the gains of BiGrounder from simply sampling more ground-ing trajectories. Increasing forward-only rollouts from 16 to                           
+
+> Filter Kept (C / I) Precision ↑NFR ↑
+> No filter 273 / 27 91.0% (273/300) 0.0% (0/27)
+> BERTScore > t 268 / 22 92.4% (268/290) 18.5% (5/27)
+> LLM Judge 267 / 7 97.4% (267/274) 74.1% (20/27)
+> Cycle-Consistency 260 / 2 99.2% (260/262) 92.6% (25/27)
+
+Table D.1: Noise filtering on 300 manually annotated re-verse instructions, including 273 correct and 27 incorrect ones. Precision : fraction of correct samples in the kept set. 
+
+Noise Filtering Rate (NFR) : percentage of incorrect sam-ples successfully filtered out.          
+
+> Reverse Instruction BERTScore Cycle-C. Reward
+> Click the star to follow the repository. 0.86 ✗0.00 Click the star to bookmark this webpage. 0.92 ✓0.92
+
+Table D.2: Case study showing that Cycle-Consistency filters out high-BERTScore but visually incorrect reverse instruc-tions. GT: “Click star to save this page.” 20 raises the four-benchmark mean only from 77.3 to 77.5, whereas BiGrounder reaches 79.4 with four reverse and 16 forward trajectories, a gain of 1.9 percentage points at the same total trajectory count. Thus, allocating more rollouts to forward grounding alone does not recover the observed gains. With the same reverse/forward rollout counts, BiGrounder also outperforms Gate-only by 1.1 points (79.4 vs. 78.3), supporting the benefit of graded semantic feedback beyond binary cycle success. 
+
+On-policy generation and bidirectional updates. Ta-ble E.2 compares the three augmentation variants under matched rollout budgets and optimization-step counts. Re-placing the frozen Bi-SFT generator with the current policy improves Original accuracy from 68.2 to 68.8 and All ac-curacy from 59.1 to 60.1, while reducing Gap from 15.9 to 15.1 points. Joint reverse-policy optimization further im-proves Original to 69.5 and All to 60.5, with Gap reduced to 14.8. On-policy generation and reverse updates are mutually reinforcing. On-policy sampling refreshes training instruc-tions as the model evolves, while reverse updates help sustain the GUI-understanding capability needed to generate mean-ingful, target-specific instructions. Because both tasks share model parameters, optimizing the forward objective alone does not explicitly preserve reverse generation, and this ca-pability may weaken as grounding training proceeds. The reverse objective continually reinforces it through grounding-verified semantic feedback, helping maintain useful on-policy instruction exploration. BiGrounder thus couples an evolving source of training instructions with continued opti-mization of the capability that supports their generation. The observed gains are consistent with this mutually reinforcing design. 
+
+Dense and MoE backbones. Table E.3 shows that Bi-Grounder improves average accuracy on both Qwen3.5 back-bones: from 76.3 to 77.7 (+1.4 points) for the dense 9B 13 Method Rev. Fwd. SS-Pro SS-V2 OS-G-R MM-L2 Avg.                                 
+
+> Forward-only RL ( 1×16 )016 63.7 92.9 67.4 85.3 77.3 Forward-only RL ( 1×20 )020 63.9 92.9 67.9 85.1 77.5 BiGrounder Gate-only 416 65.6 92.9 68.6 86.2 78.3 BiGrounder 416 66.6 93.9 69.5 87.5 79.4
+
+Table E.1: Rollout-budget and reverse-reward controls. Rev./Fwd.: reverse/forward trajectories per target. SS-Pro: ScreenSpot-Pro; SS-V2: ScreenSpot-V2; OS-G-R: OSWorld-G-Refine; MM-L2: MMBench-GUI L2. Scores are accuracy (%). Avg. is the unweighted mean over these four benchmarks, excluding UI-Vision. The 1 × 20 baseline matches BiGrounder’s total trajectory count. Gate-only uses binary reverse rewards.                     
+
+> Method Original Any ↑All ↑Gap ↓
+> Forward-only RL 67.4 74.5 58.2 16.3 Offline aug. 68.2 75.0 59.1 15.9 Online aug. 68.8 75.2 60.1 15.1 BiGrounder 69.5 75.3 60.5 14.8
+
+Table E.2: Instruction-generation and reverse-update abla-tions on OSWorld-G-Refine-Variants. Original, Any, and All are accuracies (%); Gap is Any minus All in percent-age points. Offline/online augmentation use a frozen Bi-SFT/current-policy instruction generator, respectively, with forward-only updates; BiGrounder also updates the reverse policy. These three methods share rollout budgets and optimization-step counts. model, and from 77.7 to 78.9 (+1.2 points) for the 35B-A3B MoE model, supporting the applicability of our training framework across both architectures. 
+
+## F Comparison with Related GUI Learning Methods 
+
+Table F.1 compares BiGrounder with WinClick, UI-Ins, and 
+
+Look Where You’re Told . Our contribution is an on-policy bidirectional RL framework for the many-to-one instruction– element mapping problem, connecting instruction explo-ration with grounding feedback. 
+
+Relation to prior methods. WinClick (Hui et al. 2025) learns forward grounding and reverse description prediction through supervised losses. UI-Ins (Chen et al. 2025) uses instruction rewriting as intermediate reasoning with SFT and GRPO; its online reasoning differs from our indepen-dent, target-conditioned reverse task. Look Where You’re Told (Kim et al. 2026) reconstructs instructions from at-tended visual information and enforces attention consistency, whereas BiGrounder verifies whether generated instructions ground back to the annotated target. 
+
+Coupled on-policy reinforcement. ScaleCUA (Liu et al. 2025c) incorporates GUI-understanding data, including ele-ment appearance, functionality, and layout descriptions, into SFT alongside grounding supervision, motivating the use of interface semantics to support localization. BiGrounder ex-tends this principle from SFT to RL: coordinate-conditioned reverse generation continues to train the model to describe GUI elements in language while the forward policy learns grounding. Joint reverse updates help preserve this descrip-tive capability during grounding optimization, sustaining the source of on-policy instructions rather than leaving it without direct reinforcement. The current policy samples instructions and grounds them back to the target; a positive reverse reward requires both semantic qualification and grounding success. Table E.2 demonstrates the grounding benefit: adding reverse updates to online generation raises Original accuracy from 68.8 to 69.5 and All accuracy from 60.1 to 60.5, while reduc-ing Gap from 15.1 to 14.8 points. On-policy exploration and continued GUI understanding thus reinforce one another, us-ing existing annotations and retaining standard forward-only inference. 
+
+## G Per-Benchmark Detailed Results 
+
+To complement the aggregated grounding accuracy reported in the main paper, this section provides the full per-category breakdown for each of the five GUI grounding benchmarks. Unless otherwise noted, all BiGrounder-4B results are ob-tained under the same unified evaluation protocol described in the main paper. Baseline numbers are taken from the cor-responding original papers or technical reports, and entries marked with “ ∗” are re-evaluated by us. In every table, the 
+
+best result is shown in bold and the second-best is under-lined. The “Avg.” column reports micro accuracy over all benchmark examples, equivalently weighting each split by its number of examples; it therefore need not equal the un-weighted arithmetic mean of the displayed split accuracies. 
+
+G.1 ScreenSpot-V2 
+
+Table H.3 reports the full breakdown on ScreenSpot-V2 across the Mobile, Desktop, and Web platforms, each fur-ther split into text and icon/widget targets. BiGrounder-4B attains the highest overall average (93.9) and is particularly strong on the Desktop text/icon and Web icon splits, indicat-ing that bidirectional training improves grounding of visually dense, non-textual elements without sacrificing performance on text targets. 
+
+G.2 ScreenSpot-Pro 
+
+ScreenSpot-Pro targets high-resolution professional software with small, densely packed elements. Table H.4 details per-formance across six application domains (CAD, Develop-ment, Creative, Scientific, Office, and OS), each divided into text and icon targets. BiGrounder-4B reaches an average of 66.6, ranking second among all compared models and first 14 Method SS-Pro SS-V2 OS-G-R MM-L2 Avg. 
+
+Qwen3.5-9B 65.2 91.8 67.7 80.4 76.3 + BiGrounder 65.7 92.0 68.0 85.1 77.7 
+
+Qwen3.5-35B-A3B 64.5 95.2 63.6 87.5 77.7 + BiGrounder 65.3 94.7 67.6 88.1 78.9 
+
+Table E.3: Additional backbone experiments with Bi-SFT on 100k samples followed by bidirectional RL on 10k samples. Scores are accuracy (%); Avg. is the mean over the four displayed benchmarks. Bold indicates the higher value within each backbone pair. 
+
+Method Generation basis On-policy generation Cycle verification target Bidirectional RL Training 
+
+WinClick (Hui et al. 2025) Annotations × — × SFT Look Where You’re Told (Kim et al. 2026) Attention × Attention distribution × SFT UI-Ins (Chen et al. 2025) — × — × SFT+GRPO 
+
+BiGrounder (Ours) Coordinates ✓ GT location ✓ SFT+GRPO 
+
+Table F.1: Qualitative comparison of instruction generation and grounding. On-policy generation and bidirectional RL refer to an independent instruction-generation task, excluding UI-Ins’s instruction-as-reasoning. Annotations denotes labelled element information without specifying its input encoding. GT: ground truth. among open-source models, with especially large margins on icon targets (e.g., CAD, Development, and OS icons), which are the hardest cases for coordinate prediction. 
+
+G.3 MMBench-GUI L2 
+
+Table H.5 presents the per-platform results on MMBench-GUI L2, covering Windows, MacOS, Linux, iOS, Android, and Web, with each platform reporting basic (“Bas.”) and ad-vanced (“Adv.”) instruction splits. BiGrounder-4B achieves the best overall average (87.5). The gains are most pro-nounced on the advanced splits, where instructions carry more implicit intent, which is consistent with our claim that bidirectional self-reinforcement strengthens robustness to in-struction variation. 
+
+G.4 UI-Vision 
+
+UI-Vision evaluates grounding under Basic, Functional, and Spatial instruction types. As shown in Table H.1, BiGrounder-4B obtains the highest score in every category and the best overall average (46.6), substantially exceeding its Qwen3-VL-4B backbone (26.9). The largest relative im-provement appears on Spatial instructions, which require rea-soning about relative element positions, highlighting the ben-efit of learning semantic–spatial alignment from the reverse description task. 
+
+G.5 OSWorld-G-Refine 
+
+Table H.2 reports the fine-grained results on OSWorld-G-Refine, which categorizes queries into Text Matching, Ele-ment Recognition, Layout Understanding, Fine-grained Ma-nipulation, and Refusal. BiGrounder-4B achieves the best Text Matching accuracy and a competitive overall average (69.5), second only to the much larger OpenCUA-32B, while clearly surpassing all open-source models at comparable scale. 
+
+## H Full Per-Benchmark Result Tables 
+
+Tables H.1–H.5 present detailed results across five GUI grounding benchmarks, covering instruction semantics, text and icon targets, professional interfaces, and operating sys-tems. They characterize BiGrounder’s performance under diverse semantic and spatial localization requirements.                                                          
+
+> Model Basic Functional Spatial Avg
+> Proprietary Models
+> GPT-4o (OpenAI 2024) 1.6 1.5 1.0 1.4 Claude-3.7-Sonnet (Anthropic 2024) 9.5 7.7 7.6 8.3
+> Open-source Models
+> Qwen2.5-VL-7B (Bai et al. 2025b) 1.2 0.8 0.5 0.9 UGround-V1-7B (Gou et al. 2025) 15.4 17.1 6.3 12.9 OS-Atlas-7B (Wu et al. 2024) 12.2 11.2 3.7 9.0 JEDI-7B (Xie et al. 2025) 32.3 30.5 12.8 24.8 InfiGUI-G1-7B (Liu et al. 2025b) 36.2 31.9 11.5 26.1 UI-Venus-7B (Gu et al. 2025) 36.1 32.8 11.9 26.5 Phi-Ground-7B (Zhang et al. 2025) 36.8 37.1 7.6 27.2 Qwen3-VL-4B (Bai et al. 2025a) ∗32.8 34.2 14.7 26.9 MAI-UI-8B (Zhou et al. 2025a) 51.7 49.6 22.5 40.7 UI-TARS-72B (Qin et al. 2025) 31.4 30.5 14.7 25.5 UI-Venus-72B (Gu et al. 2025) 45.6 42.3 23.7 36.8
+> Ours
+> BiGrounder-4B 55.9 52.8 32.3 46.6
+
+Table H.1: Performance comparison on the UI-Vision bench-mark. The best results are highlighted in bold , and the second-best results are underlined. 15 Model Text Matching Element Recognition Layout Understanding Fine-grained Manipulation Refusal Avg                                                       
+
+> Open-Source Models
+> Jedi-3B (Xie et al. 2025) -----61.0 Jedi-7B (Xie et al. 2025) -----63.8 UI-TARS-1.5-7B (Seed 2025) 52.6 75.4 72.4 66.7 0.0 64.2 Qwen3-VL-4B (Bai et al. 2025a) ∗78.2 71.6 76.5 55.2 1.9 65.3 GTA1-7B (Yang et al. 2025) 63.2 82.1 74.2 70.5 0.0 67.7 GUI-Owl-1.5-4B-Instruct (Xu et al. 2026) 73.1 71.8 72.9 74.1 29.6 68.4 Qwen3-VL-32B (Bai et al. 2025a) 77.4 73.6 76.3 57.7 -69.0 OpenCUA-32B (Wang et al. 2025a) 63.2 79.9 84.9 62.1 7.4 70.2
+> Ours
+> BiGrounder-4B 77.4 76.7 77.1 56.4 0.0 69.5
+
+Table H.2: Performance comparison on the OSWorld-G-Refine benchmark. The best results are highlighted in bold , and the second-best results are underlined. 
+
+Model Mobile Desktop Web Avg. Text Icon. Text Icon. Text Icon. 
+
+Open-Source Models 
+
+Qwen3-VL-2B (Bai et al. 2025a) 95.5 82.0 95.4 73.6 89.7 76.4 86.7 Phi-ground (Zhang et al. 2025) 90.2 76.4 93.6 75.9 96.5 62.0 83.8 OS-Atlas-7B (Wu et al. 2024) 95.2 75.8 90.7 63.6 90.6 77.3 85.1 UGround-v1-7B (Gou et al. 2025) 83.6 90.5 85.8 86.3 95.5 83.2 87.7 UI-Tars-1.5-7B (Seed 2025) 92.2 81.5 91.0 84.2 95.5 84.5 90.3 SE-GUI-7B (Yuan et al. 2025) - - - - - - 68.9 UI-TARS-7B (Qin et al. 2025) 96.9 89.1 95.4 85.0 93.6 85.2 91.6 Qwen3-VL-8B (Bai et al. 2025a) 97.9 84.8 95.9 87.9 95.7 83.7 91.7 GUI-Actor-7B (Wu et al. 2025) 97.6 88.2 96.9 85.7 93.2 86.7 92.1 OpenCUA-7B (Wang et al. 2025a) - - - - - - 92.3 GTA1-7B (Yang et al. 2025) 99.0 88.6 94.9 89.3 92.3 86.7 92.4 GUI-Owl-7B (Ye et al. 2025) 99.0 92.4 96.9 85.0 93.6 85.2 92.8 GUI-G 2-7B (Tang et al. 2025) 98.3 91.9 95.4 89.3 94.0 87.7 93.3 InfiGUI-G1-7B (Liu et al. 2025b) 99.0 91.9 94.3 82.1 97.9 89.2 93.5 MAI-UI-2B (Zhou et al. 2025a) 99.3 87.2 97.4 88.6 94.0 84.7 92.5 Qwen3-VL-32B (Bai et al. 2025a) 96.2 90.0 97.4 85.0 95.7 89.7 93.0 GUI-Owl-32B (Ye et al. 2025) 98.6 90.0 97.9 87.8 94.4 86.7 93.2 OpenCUA-32B (Wang et al. 2025a) - - - - - - 93.4 
+
+Ours 
+
+BiGrounder-4B 97.8 90.1 98.1 92.5 94.2 90.7 93.9 
+
+Table H.3: Performance comparison on ScreenSpot-V2 . The best results are highlighted in bold , and the second-best results are underlined. 16 Model CAD Dev. Creative Scientific Office OS Avg. Text Icon Text Icon Text Icon Text Icon Text Icon Text Icon 
+
+Proprietary Models 
+
+GPT-4o (OpenAI 2024) 2.0 0.0 1.3 0.0 1.0 0.0 2.1 0.0 1.1 0.0 0.0 0.0 0.8 Gemini-3-Pro (DeepMind 2025) - - - - - - - - - - - - 72.7 
+
+Open-Source Models 
+
+UI-R1-3B (Lu et al. 2025) 11.2 6.3 22.7 4.1 27.3 3.5 42.4 11.8 32.2 11.3 13.1 4.5 17.8 GUI-R1-7B (Luo et al. 2025) 23.9 6.3 49.4 4.8 38.9 8.4 55.6 11.8 58.7 26.4 42.1 16.9 31.0 Phi-Ground-7B (Zhang et al. 2025) 26.9 17.2 70.8 16.7 56.6 13.3 58.0 29.1 76.4 44.0 55.1 25.8 43.2 GUI-Actor-7B (Wu et al. 2025) 47.7 9.4 59.1 15.9 59.6 16.1 70.1 25.5 69.5 41.5 55.1 19.1 44.6 SE-GUI-7B (Yuan et al. 2025) 51.3 14.1 68.2 19.3 57.6 9.1 75.0 28.2 78.5 43.4 49.5 25.8 47.3 GUI-G 2-7B (Tang et al. 2025) 55.8 12.5 68.8 17.2 57.1 15.4 77.1 24.5 74.0 32.7 57.9 21.3 47.5 ScaleCUA-7B (Liu et al. 2025c) 54.8 21.9 66.2 20.7 56.6 20.3 77.1 24.5 74.0 45.3 49.5 18.0 47.9 UI-TARS-1.5-7B (Seed 2025) - - - - - - - - - - - - 49.6 OpenCUA-7B (Wang et al. 2025a) - - - - - - - - - - - - 50.0 InfiGUI-G1-7B (Liu et al. 2025b) 57.4 23.4 74.7 24.1 64.6 18.2 80.6 31.8 75.7 39.6 57.0 29.2 51.9 UI-Ins-7B (Chen et al. 2025) 60.9 20.3 75.3 18.6 65.2 18.9 81.3 29.1 79.7 37.7 57.0 25.8 52.2 GUI-Owl-7B (Ye et al. 2025) 64.5 21.9 76.6 31.0 59.6 27.3 79.1 37.3 77.4 39.6 59.8 33.7 54.9 Qwen3-VL-4B (Bai et al. 2025a) ∗ 59.4 20.3 81.8 33.8 71.2 23.8 80.6 34.5 88.8 47.2 78.5 41.6 59.3 StepGUI-4B (Yan et al. 2025) - - - - - - - - - - - - 60.0 MAI-UI-8B (Zhou et al. 2025a) 72.6 35.9 83.8 52.4 76.3 33.6 79.9 37.3 88.7 60.4 76.6 49.4 65.8 
+
+Ours 
+
+BiGrounder-4B 68.5 45.3 81.2 62.0 71.2 37.0 84.0 47.3 86.4 52.8 74.8 54.7 66.6    
+
+> Table H.4: Performance comparison on the ScreenSpot-Pro benchmark. The best results are highlighted in bold , and the second-best results are underlined.
+
+Model Windows MacOS Linux iOS Android Web Avg. 
+
+Bas. Adv. Bas. Adv. Bas. Adv. Bas. Adv. Bas. Adv. Bas. Adv. 
+
+Proprietary Models 
+
+GPT-4o (OpenAI 2024) 1.5 1.1 8.7 4.3 1.1 1.0 5.1 3.3 2.5 1.4 3.2 2.9 2.9 Claude-3.7-Sonnet (Anthropic 2024) 1.5 0.7 12.5 7.5 1.1 0.0 13.7 10.6 1.4 1.4 3.2 2.3 4.7 
+
+Open-Source Models 
+
+OS-Atlas-7B (Wu et al. 2024) 36.9 18.8 44.4 21.7 31.4 13.3 74.8 48.8 69.6 46.8 61.3 35.4 41.4 Aguvis-7B (Xu et al. 2025) 37.3 21.7 48.1 33.3 33.5 25.0 67.5 65.2 61.0 51.0 61.6 45.5 45.7 UI-TARS-1.5-7B (Seed 2025) 68.3 39.0 69.0 44.5 64.4 37.8 88.5 69.4 90.5 69.3 81.0 56.5 64.3 Qwen2.5-VL-7B (Bai et al. 2025b) ∗ 69.1 42.7 70.5 51.4 74.4 30.8 86.9 85.5 85.7 85.1 78.9 74.6 69.9 SE-GUI-7B (Yuan et al. 2025) - - - - - - - - - - - - 34.5 ScaleCUA-7B (Liu et al. 2025c) 78.6 54.0 82.3 58.7 74.4 56.6 94.3 81.8 96.1 81.1 92.6 73.1 78.2 Qwen3-VL-4B (Bai et al. 2025a) ∗ 88.6 61.8 85.5 69.1 74.9 53.1 95.2 82.4 95.5 84.4 96.8 72.1 81.2 GUI-Owl-7B (Ye et al. 2025) 86.4 61.8 81.7 64.5 74.4 61.7 94.9 83.0 95.8 83.7 93.2 72.7 80.5 InfiGUI-G1-7B (Liu et al. 2025b) 82.7 61.8 83.8 63.9 72.3 52.0 94.9 89.4 95.2 85.6 93.5 76.3 80.8 UI-Ins-7B (Chen et al. 2025) 82.7 64.7 87.2 75.1 71.7 51.5 94.9 89.7 95.8 89.0 93.2 80.8 83.1 InternVL3-78B (Zhu, Wang et al. 2025) 70.1 42.6 75.7 52.3 59.2 41.3 93.6 80.6 92.7 78.6 90.7 65.9 72.2 UI-TARS-DPO-72B (Qin et al. 2025) 78.6 51.8 80.3 62.7 68.6 51.5 90.8 81.2 93.0 80.0 88.1 68.5 74.3 GUI-Owl-32B (Ye et al. 2025) 85.6 65.1 84.9 67.1 77.0 63.3 95.2 85.5 96.1 87.0 95.5 80.8 83.0 Qwen3-VL-32B (Bai et al. 2025a) 93.4 71.3 92.8 74.3 78.0 56.1 95.5 88.8 97.2 88.5 92.6 78.6 85.3 
+
+Ours 
+
+BiGrounder-4B 85.5 78.1 87.3 81.0 88.6 76.0 93.1 92.0 93.5 93.5 92.8 86.8 87.5    
+
+> Table H.5: Performance comparison on the MMBench-GUI L2 benchmark. “Bas.” and “Adv.” denote the basic and advanced instruction splits, respectively. The best results are highlighted in bold , and the second-best results are underlined.
+
+17 I A Policy-Gradient Analysis of Multi-Instruction and On-Policy Sampling 
+
+We analyze two aspects of BiGrounder’s reinforcement-learning design: allocating grounding rollouts across multiple instruc-tions, and refreshing instructions with the evolving reverse pol-icy. The first reduces sampling variance for a fixed expected-reward objective. The second avoids instruction-distribution mismatch when estimating the current objective, yielding a con-ditional mean-squared-error advantage over a fixed instruction source. 
+
+I.1 Grounding as Expected-Reward Optimization 
+
+Fix a screenshot s, target o∗, and training iteration t. Let qt
+
+denote the instruction distribution induced by the current reverse policy, including the semantic check and ground-truth fallback. We idealize these instructions as target-preserving; passing a semantic threshold alone does not guarantee this assumption. The forward grounding policy πθ (τ | s, x ) generates a token trajectory τ , evaluated by the parameter-independent grounding reward R(τ, o ∗). Its local objective is 
+
+Jfwd  
+
+> t
+
+(θ) = Ex∼qt Eτ ∼πθ (·| s,x )
+
+R(τ, o ∗) . (I.1) The distribution qt is held fixed in this forward-policy derivative, even though the generator and grounder share parameters in implementation. Thus, we analyze the forward contribution to the update, rather than the full derivative through instruction generation. Write Vθ (x) = Eτ ∼πθ [R(τ, o ∗)] and let bt(x) be a base-line independent of the sampled trajectory. The score-function policy-gradient sample at θt is 
+
+Zt(x, τ ) =  R(τ, o ∗) − bt(x) ∇θ log πθ (τ | s, x )|θt . (I.2) For an autoregressive model, the trajectory score is the sum of token log-probability gradients. Under the usual differentiation-under-expectation conditions, 
+
+E[Zt | x] = ∇θ Vθ (x)|θt =: gt(x), (I.3) 
+
+Ex∼qt,τ ∼πθt [Zt] = ∇θ Jfwd  
+
+> t
+
+(θ) θt
+
+=: μt. (I.4) Indeed, differentiating the trajectory probabilities gives the re-ward term, while the baseline contributes bt(x)∇θ
+
+P 
+
+> τ
+
+πθ (τ |
+
+s, x ) = 0 . This establishes conditional unbiasedness directly from the reinforcement-learning objective. 
+
+I.2 Why Multiple Instructions Reduce Gradient Variance 
+
+Assume finite second moments and define total variance for a vector U as Var( U ) = E∥U − EU ∥22. Let 
+
+Bt = Var x∼qt (gt(x)) , (I.5) 
+
+Wt = Ex∼qt [Var( Zt | x)] . (I.6) Here Bt captures differences in expected policy gradients across valid expressions of the same target; Wt captures trajectory noise for a given expression. Semantically equivalent instructions need not produce identical gradients in a language-conditioned pol-icy. 
+
+Proposition I.1 Sample M instructions independently from qt
+
+and K conditionally independent grounding trajectories per instruction, with independent instruction groups. Then 
+
+ˆgM,K = 1
+
+M
+
+> M
+
+X
+
+> i=1
+
+¯Zi, ¯Zi = 1
+
+K
+
+> K
+
+X
+
+> k=1
+
+Zt(xi, τ i,k ) (I.7) 
+
+is unbiased for μt. At a forward-rollout budget N = M K , its mean-squared error satisfies 
+
+E∥ˆgM,K − μt∥22 = Var(ˆ gM,K ) = Bt
+
+M + Wt
+
+N . (I.8) 
+
+Proof. Equation I.3 gives E[ ¯Zi | xi] = gt(xi), and conditional independence gives Var( ¯Zi | xi) = Var( Zt | xi)/K . Therefore, 
+
+Var( ¯Zi) = Bt + Wt
+
+K (I.9) by total variance. Averaging M independent groups divides this variance by M . The tower property gives E[ˆ gM,K ] = μt; hence variance equals mean-squared error. □
+
+For one instruction with 16 rollouts versus four independently sampled instructions with four rollouts each, 
+
+Var(ˆ g1,16 ) = Bt + Wt
+
+16 , (I.10) 
+
+Var(ˆ g4,4) = Bt
+
+4 + Wt
+
+16 . (I.11) Repeated rollouts of one instruction better estimate that instruc-tion’s gradient, but do not average away the choice of word-ing. Four instructions reduce the between-expression compo-nent by 75%, decreasing total mean-squared error by 3Bt/4
+
+when Bt > 0. This comparison holds qt fixed and counts only the same 16 forward grounding rollouts; it does not equate total generation cost. 
+
+Implication for expected-reward improvement. If Jfwd 
+
+> t
+
+has an L-Lipschitz gradient along the update and θ+ = θt +
+
+ηˆgM,K , smoothness and unbiasedness give 
+
+E[Jfwd  
+
+> t
+
+(θ+)] ≥ Jfwd  
+
+> t
+
+(θt) + η∥μt∥22
+
+− Lη 2
+
+2
+
+
+
+∥μt∥22 + Bt
+
+M + Wt
+
+N
+
+
+
+. (I.12) To obtain this inequality, apply the smoothness lower bound to the update and use E∥ˆgM,K ∥22 = ∥μt∥22 + Var(ˆ gM,K ). At the same step size and 16 forward rollouts, using four instructions raises this lower bound by 3Lη 2Bt/8. This connects variance reduction to a larger lower bound on expected RL reward im-provement, rather than guaranteeing the ordering of realized rewards. 
+
+I.3 When On-Policy Instructions Improve Gradient Estimation 
+
+Let q0 be a frozen instruction source, such as a frozen SFT generator or the sampling distribution over a fixed library. All grounding trajectories below are still freshly generated by πθt .Thus, we isolate instruction-source mismatch rather than stale grounding trajectories. Both estimators use M independent in-struction draws and K grounding rollouts per draw; for a fixed library, draws are with replacement and the analysis conditions on that library. The unweighted fixed-source estimator has expectation 
+
+μ0,t = Ex∼q0 [gt(x)] . Relative to the current objective in Eq. I.1, its bias is 
+
+δt = μ0,t − μt = Eq0 [gt(x)] − Eqt [gt(x)] . (I.13) Define B0,t = Var q0 (gt(x)) and W0,t = Eq0 [Var( Zt | x)] , both evaluated at the same current grounding policy. 
+
+18 Proposition I.2 Under the preceding assumptions, the on-policy-source and fixed-source estimators have errors 
+
+Eon := E∥ˆgon − μt∥22 = Bt
+
+M + Wt
+
+N , (I.14) 
+
+Efixed := E∥ˆgfixed − μt∥22
+
+= B0,t 
+
+M + W0,t 
+
+N + ∥δt∥22. (I.15) 
+
+Consequently, on-policy instruction sampling has strictly smaller mean-squared error whenever 
+
+∥δt∥22 > Bt − B0,t 
+
+M + Wt − W0,t 
+
+N . (I.16) 
+
+Proof. Apply Proposition I.1 under each instruction distribution. For the fixed source, write ˆgfixed −μt = (ˆ gfixed −μ0,t )+ δt. The first term has zero mean, so its cross term with δt vanishes. The bias–variance decomposition gives Eq. I.15; subtraction gives Eq. I.16. □
+
+For a fixed iteration and fixed K, increasing M drives Eon 
+
+to zero, whereas Efixed approaches ∥δt∥22. If δt̸ = 0, on-policy sampling therefore has smaller error for sufficiently large matched budgets. More grounding rollouts cannot remove this distribution-mismatch term. However, different instruction dis-tributions need not yield different mean gradients, and a well-matched fixed library can have zero bias or lower variance. This is a conditional advantage for tracking the current generator-defined objective, not proof that this objective is optimal for held-out user instructions. 
+
+Importance correction and coverage. If qt is absolutely continuous with respect to q0, instruction-level importance weights wt(x) = qt(x)/q 0(x) recover the current gradient: 
+
+Eq0,π θt [wt(x)Zt(x, τ )] = μt. (I.17) The bias is therefore avoidable in principle, but correction requires coverage and accurate instruction probabilities. Let 
+
+ˆgIS = M −1 P 
+
+> i
+
+wt(xi) ¯Zi and χ2(qt∥q0) = Eq0 [( wt − 1) 2].If E[∥ ¯Zi∥22 | x] ≤ C2 uniformly, the corrected estimator obeys 
+
+Var(ˆ gIS ) ≤ C2
+
+M Eq0 [wt(x)2]= C2
+
+M
+
+ 1 + χ2(qt∥q0). (I.18) This follows by bounding variance by the second moment of an independent weighted group and using Eq0 [wt] = 1 . On-policy sampling sets the weights to one and removes this mismatch factor from the bound. The bound does not imply that every importance-weighted estimator has higher actual variance. If a finite library omits instructions with positive current probability, exact importance correction cannot recover their contributions. 
+
+I.4 Connection to GRPO and Bidirectional Updates 
+
+In language-model GRPO, responses are sampled from a recent policy snapshot, rewarded, and used in a clipped, importance-ratio update before the sampling policy is refreshed (Guo et al. 2025). Fixed question prompts are compatible with on-policy response sampling. Accordingly, a fixed instruction library does 
+
+not by itself make the forward grounding trajectories off-policy. BiGrounder adds a second policy-controlled trajectory: the instruction itself is the output of the reverse policy. To distinguish the two roles of shared parameters, write the raw reverse policy as νϕ(ˆ x | s, o ∗) and the forward policy as πθ . The semantic check and fallback map raw generations to the effective forward distribution qt. With the forward policy frozen at θt for this local analysis, let ¯rt(ˆ x) be the expected reverse reward after semantic and cycle verification. Its reverse expected-reward objective is 
+
+Jrev  
+
+> t
+
+(ϕ) = Eˆx∼νϕ(·| s,o ∗) [¯ rt(ˆ x)] . (I.19) The score-function identity gives 
+
+∇ϕJrev  
+
+> t
+
+(ϕ) ϕt = Eˆx∼νϕt
+
+h
+
+¯rt(ˆ x) ∇ϕ log νϕ(ˆ x | s, o ∗) ϕt
+
+i
+
+.
+
+(I.20) Thus, fresh reverse generations play the role of fresh response trajectories in standard language-model RL: their distribution matches the policy whose expected reward is being differenti-ated. Reusing old reverse outputs without correction generally estimates a different expectation. Fresh forward rollouts also evaluate these instructions against the current grounder’s be-havior. The two updates serve complementary purposes. On-policy generation refreshes the instructions encountered by the forward policy, while the reverse reward reinforces semantically valid, cycle-consistent generation. Forward-only training provides no explicit reverse-task objective under shared parameters. This explains the role of reverse updates in supporting continued instruction generation, without proving immunity to forgetting. Because forward and reverse rewards differ, these local identities are not asserted to be the full gradient of one shared scalar objective. 
+
+Scope of the analysis. The propositions analyze expected-reward policy gradients with trajectory-independent baselines and independent rollouts. GRPO additionally uses sample-dependent group normalization, clipping, KL regularization, and token/sequence averaging. Its normalized gradient samples are dependent, so these results do not establish unbiasedness or variance ordering for full GRPO updates with different group sizes (16 versus 4). They explain sampling and distribution track-ing; Appendix E evaluates the coupled algorithm empirically. 
+
+19 J Prompt Templates 
+
+This section collects the prompts for instruction generation, grounding, data refinement, variant generation, and agentic planning. 
+
+J.1 Instruction Generation Prompt 
+
+To unify diverse GUI tasks, we design a task-adaptive prompt template. This template guides the VLM to generate specific instruction formats conditioned on the input Task Type ID and spatial coordinates. Specifically, it encompasses three modalities: action-oriented instruction generation (Action Grounding), region description (Grounding bbox), and fine-grained element description (Grounding point). Furthermore, the prompt explicitly constrains the model to generate unambiguous descriptions, ensuring that the output corresponds uniquely to the target element within the current screen context. 
+
+Prompt: GUI Instruction Generation Across Different Tasks. 
+
+You are specialized in GUI understanding and grounding. There are three types of tasks with different output requirements: 1. Action grounding: Generate a grounding instruction starting with a verb (e.g., ’Click ...’). 2. Grounding bbox: Generate a descriptive caption for the region within the bounding box. 3. Grounding point: Generate a descriptive caption for the element at the specific point. Instruction: Based on the provided task type ID and screen coordinates, generate the corresponding sentence. The output must correspond to one and only one element on the entire screen. Current Task Configuration: - Coordinates: {coord_str} - Task Type ID: {task_type_id} Please generate the result for the current task: 
+
+J.2 Grounding Instruction Prompt 
+
+To bridge the gap between high-level user intentions and low-level executable operations, we design a comprehensive Grounding Instruction Prompt. This prompt explicitly defines the agent’s action space, encompassing atomic actions ranging from basic interactions such as ’click’ and ’type’ to complex gestures like ’scrollmenu’. By enforcing the embedding of specific coordinate tokens including <|box_start|> within action arguments, we ensure precise spatial grounding of generated actions. Furthermore, the prompt mandates a strict output format and incorporates exception handling mechanisms, specifically the ’stop’ action for invisible elements, enabling the agent to robustly navigate and interact within the GUI environment based on visual feedback. 
+
+Prompt: GUI Agent Action Grounding 
+
+You are a GUI agent. You are given a task, with screenshots. You need to perform the next action to complete the task. 
+
+## Output Format 
+
+Action: ... 
+
+## Action Space 
+
+1. click(start_box=’<|box_start|>(x1,y1)<|box_end|>’) 2. rightclick(start_box=’<|box_start|>(x1,y1)<|box_end|>’) 3. doubleclick(start_box=’<|box_start|>(x1,y1)<|box_end|>’) 4. select(start_box=’<|box_start|>(x1,y1)<|box_end|>’) % To expand a dropdown menu or select an item from it. 5. type(content=’’,start_box=’<|box_start|>(x1,y1)<|box_end|>’) % First click on the textbox, and then type the content. 6. hotkey(key=”) 7. stop(reason=”) % If the item can not found in the image, give the reason. 8. scrolldown() / scrollup() % If the all screenshot need to scroll down/up. 9. scrollmenu(start_box=’<|box_start|>(x1,y1),(x2,y2)<|box_end|>’) % If the part of screenshot need to scroll and give the area need to scroll. 10. finish() 
+
+## User Instruction: 
+
+{user_instruction} 
+
+20 J.3 Grounding Instruction Refinement Prompt 
+
+The following template implements the dual-view refinement procedure described in Appendix B.1. 
+
+Prompt: Dual-view Instruction Refinement ## Task: GUI Instruction Verification & Refinement 
+
+You are a GUI agent expert. You will receive: 1. First Image : The Full Screenshot with a red bounding box highlighting a specific element. 2. Second Image : A Cropped Image zoomed in on the same element (also marked with a RED BOX). 3. Current Instruction : The user’s command provided in the input. 
+
+## Steps: 
+
+1. Verify : Does the "Current Instruction" accurately and unambiguously describe the element inside the red box in the images? - If the instruction matches the visual element perfectly, set ‘is_aligned‘ to true. - If the instruction is wrong, vague, refers to a different element, or mentions "red box", set ‘is_aligned‘ to false. 2. Generate New : Regardless of alignment, generate a high-quality, unambiguous, action-oriented instruction based strictly on the visual appearance in the Cropped Image. The spatial position description can refer to the full screenshot. - Use the visual text on the element if available (e.g., "Click the ’Submit’ button"). - If no text, use icon description or clear function (e.g., "Click the search icon"). - Do NOT mention bounding boxes, or "red". 
+
+## Output JSON Format: 
+
+Your output MUST be a single, well-formed JSON object with the following exact keys: {{ "reasoning": "Brief analysis of the match...", "is_aligned": true or false, "new_instruction": "The newly generated instruction based on the cropped image..." }} Current Instruction is: {current_instruction} 
+
+J.4 Instruction Variant Generation Prompt 
+
+The following template generates target-preserving paraphrases for the benchmark described in Appendix C. 
+
+Prompt: Instruction Variant Generation for OSWorld-G-Refine-Variants 
+
+You are a professional instruction rewriter for GUI grounding benchmarks. Given an original instruction that tells a user to click/interact with a specific UI element on a screenshot, generate exactly 3 different rephrased versions of this instruction. 
+
+Requirements: 
+
+1. Each variant MUST refer to the EXACT SAME UI element/location as the original. 2. Each variant should use DIFFERENT wording, sentence structure, or perspective. 3. Maintain the same level of specificity — don’t add or remove critical spatial/visual details. 4. Keep instructions natural and fluent in English. 5. Variants should be diverse from each other (not just synonym substitution). 
+
+Strategies you can use: 
+
+- Use different spatial references (“top-left” → “upper-left corner”) - Emphasize different visual attributes (color, shape, icon, text, position) - Change verb choice (“click” → “select” → “tap on” → “press”) - Reorder the descriptive clauses Return your answer as a JSON array of exactly 3 strings, nothing else: ["variant1", "variant2", "variant3"] 
+
+21 J.5 Agentic Evaluation: Planner Prompt 
+
+In the interactive agentic setting on Android, BiGrounder serves as the downstream grounding/action model inside a two-stage planner– executor loop. At each step, a planner VLM analyzes the current screenshot, the user’s overall task, and the interaction history, and emits the next intended operation as structured natural language—never as executable code, JSON actions, screen coordinates, or UI element indexes. The downstream grounding/action model—BiGrounder, driven by the grounding prompt in Appendix J.2—consumes this intended operation and its target description and converts them into a concrete executable action. This decoupling isolates high-level decision making (the planner) from pixel-level localization and low-level execution (the actor), letting us evaluate BiGrounder’s grounding ability independently of the planner’s reasoning. The planner’s action_type_hint , target_description , and value_hint mirror the (operation, element, value) decomposition popularized by SeeAct (Zheng et al. 2024), cleanly separating what to do , where to do it , and with what argument . The planner is driven by two prompts: a fixed system prompt that defines its role, action-type hints, planning rules, and output format; and a user prompt filled in at each step with the current task and operation history (placeholders {instruction} and {actions} 
+
+are substituted at run time). Both are shown below. 
+
+Planner System Prompt — Role, Inputs, Action Types, Planning Rules, and Output Format 
+
+You are an autonomous GUI planner operating on the Android platform. Your primary function is to analyze the current Android screenshot, the user’s task, and the previous operation history, then generate the next intended operation for a downstream action/grounding model. You are only the planner. You must not execute actions. You must not output coordinates. You must not output executable function calls. You must not output JSON actions. You must not choose UI element indexes. The downstream action/grounding model will convert your planned operation into a concrete action such as click, swipe, long press, open app, type text, press back, wait, answer, or terminate. 
+
+## Input Specification. You will receive: the screenshot of the current Android screen; the user’s overall task; and your past interaction history with the UI. The screenshot is provided as image input and is the most reliable source of truth. Previous operations may be incomplete, inaccurate, or over-claiming effects; always verify progress from the current screenshot. 
+
+## Planning Objective. For each step, decide the next intended operation that should be performed to make progress toward the task. You should determine: what screen or app is currently visible; what has already been completed; whether the previous operation succeeded; what remains to be done; what the next local operation should be; what target the downstream grounding model should locate; what value is needed, if any; and how to check whether the operation worked. 
+
+## Available Action Type Hints. The downstream model may execute one of the following action types: CLICK , LONG_PRESS , INPUT_TEXT , SWIPE , OPEN_APP ,
+
+KEYBOARD_ENTER , NAVIGATE_HOME , NAVIGATE_BACK , WAIT , ANSWER , TERMINATE_SUCCESS , TERMINATE_FAILURE . You should provide one action type hint, but you must not output the final executable action. 
+
+## Planning Rules General: Carefully inspect the current screenshot and understand the user’s overall task before planning. Prefer the simplest reliable next step, and plan only one next operation. The next operation must be grounded in the current screen or in a valid navigation/open-app action. Do not repeat the same failed operation; if the previous operation did not work, or the agent appears stuck in a loop, switch to a different approach. 
+
+Completion: Do not plan TERMINATE_SUCCESS unless the screenshot or history clearly proves the task is complete. If the user asks a question and the answer is known, plan ANSWER first; the following step should usually be TERMINATE_SUCCESS . If the task is impossible because of a missing app, missing permission, unavailable information, blocked UI, or an unsupported operation, plan TERMINATE_FAILURE .
+
+Navigation: If the current screen is irrelevant, plan to open the relevant app, navigate back, or return home; if the task requires entering a specific app, prefer OPEN_APP . If the screen is loading or unstable, plan WAIT . If a dialog blocks progress, handle the dialog first if relevant. If the target item is not visible, plan to scroll, search, or navigate to reveal it. 
+
+Text input: If text needs to be entered, plan to focus the correct field and input the exact text; if the field is already focused, plan direct text input. If text was just entered, check whether confirmation is needed (e.g., pressing Enter or tapping Search, OK, Save, Send, or Done). If the correct text is already present, do not plan to type it again. 
+
+Scrolling: If the target content is likely below the visible area, plan to scroll down; if likely above, plan to scroll up. If the previous scroll did not help, try the opposite direction or another route. 
+
+Safety: Avoid planning actions that delete data, purchase items, send messages, make calls, create accounts, log in, submit final forms, or expose private data unless the user’s task explicitly requires it. If such an action is required, proceed only when the current UI clearly matches the user’s intent. If risky or ambiguous, plan TERMINATE_FAILURE 
+
+with a clear reason. 
+
+## Output Format. Your response must be exactly: 
+
+<think> A concise analysis of the current screen, task progress, previous operation result, and why the next operation is appropriate. </think> <operation> One clear next intended operation for the downstream action/grounding model. This should be a local instruction, not executable code. </operation> <action_type_hint> One of: CLICK , LONG_PRESS , INPUT_TEXT , SWIPE , OPEN_APP , KEYBOARD_ENTER , NAVIGATE_HOME , NAVIGATE_BACK , WAIT ,
+
+ANSWER , TERMINATE_SUCCESS , TERMINATE_FAILURE . </action_type_hint> <target_description> Natural-language description of the target UI element, screen area, app, or information source. Use visible text, icon, position, role, or nearby context when possible. Use None if no target is needed. </target_description> <value_hint> Exact text to input, app name, answer text, scroll direction, or termination reason if applicable. Use None otherwise. </value_hint> <success_check> What should be observed after the downstream actor performs this operation if it succeeds. </success_check> <fallback> What to try next if this operation fails. </fallback> 
+
+## Output Constraints. Do not output anything outside the required tags. Do not output executable actions, coordinates, UI element indexes, or JSON actions. Keep each field concise. 
+
+Planner User Prompt (sent with the current screenshot at every step) 
+
+Please generate the next planned operation according to the UI screenshot, the task and previous operations. The current Android screenshot is provided as image input. Task: {instruction} 
+
+Previous operations: {actions} 
+
+22

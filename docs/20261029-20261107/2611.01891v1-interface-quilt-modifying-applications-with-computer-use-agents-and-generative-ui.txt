@@ -1,0 +1,2096 @@
+Interface Quilt: Modifying Applications with Computer Use
+Agents and Generative UI
+Leping Qiu
+Autodesk Research
+Toronto, Canada
+leping@dgp.toronto.edu
+Jo Vermeulen
+Autodesk Research
+Toronto, Canada
+jo.vermeulen@autodesk.com
+Tim Zindulka
+Autodesk Research
+Toronto, Canada
+tim.zindulka@uni-bayreuth.de
+George Fitzmaurice
+Autodesk Research
+Toronto, Canada
+george.fitzmaurice@autodesk.com
+Fraser Anderson
+Autodesk Research
+Toronto, Canada
+fraser.anderson@autodesk.com
+Figure 1: Visual abstract summarizing Interface Quilt – A system using computer use agents and generative UI to generate and
+run interface patches that modify the user’s experience with the target application’s presentation, interaction, and capabilities.
+Abstract
+Modifying an existing application is difficult when it does not
+provide programmatic access for that change. Recent advances
+in computer-use agents (CUAs) enable richer understanding and
+operation of existing interfaces, while generative UI (GenUI) makes
+it practical to generate new ones. We examine how these advances
+expand software modification through a design space of what can
+be changed and a framework for how modifications can be imple-
+mented. We then introduce Interface Quilt, a system that combines
+CUAs and GenUI to generate interface patches, which are new
+interfaces displayed over an existing application to modify its pre-
+sentation, interaction, and capabilities. Through demonstrations
+across a variety of applications, we show that interface patches
+support a range of modifications without source code, APIs, or
+accessibility data.
+CCS Concepts
+• Human-centered computing →User interface management
+systems; Human computer interaction (HCI).
+Keywords
+Generative user interface, Malleable user interface, User interface
+re-authoring, Pixel-based reverse engineering
+1
+Introduction
+Software today is typically designed to be able to satisfy most users’
+needs most of the time, but it rarely fits how all users work all of
+the time. One may want to hide or surface controls based on their
+tasks, replace one interaction technique with another, or make use
+of the powerful capabilities locked away by professional software
+without learning the complex interface. This vision of software
+reshaped for individual users has long been a pursuit of HCI re-
+search [54, 59, 90, 120]. Prior approaches to achieving this were
+through customization and tailoring [26, 90, 103, 111], adaptive
+and adaptable interfaces [42, 46, 128], end-user programming and
+development [64, 78, 104], meta-design [44], and malleable soft-
+ware [11, 16, 63, 80, 89, 118]. In this work, we use modification
+broadly to describe any departure from the software shipped, in-
+cluding changes to what a user perceives (presentation), how they
+interact (interaction), or what they can do with it (capability). The
+term follows communities such as game modders and hardware
+hackers, who alter, extend and retrofit artifacts beyond what their
+maker anticipated [57, 112, 119, 124, 127], as well as designers who
+repurpose existing applications and devices as prototyping tools
+for new behaviours [52, 69].
+Prior modification efforts largely rely on adapting the software
+through programmatic access pathways provided by the devel-
+oper, such as scripts, plugins, APIs, or source code. These path-
+ways can limit the extent to which a modification can be applied.
+Modifying an application without developer support can be more
+difficult, but it is not impossible. Prior HCI systems have used
+pathways not designed for modification, ranging from websites’
+DOM [14, 105, 148], operating system (OS) window APIs [121, 123],
+accessibility APIs [76, 85, 149], to runtime code injection to specific
+application frameworks [39, 94]. However, not all applications pro-
+vide these pathways, and there have been various systems that
+use the graphical user interface (GUI) directly and pixel-based
+arXiv:2611.01891v1  [cs.HC]  1 Nov 2026
+
+
+Qiu et al.
+techniques to modify applications. Systems such as Prefab add
+advanced interaction techniques by identifying common UI ele-
+ments [30, 31, 34] and Sikuli provided interface scripting through
+icons [142]. These systems demonstrate that interface structure
+and actions can be recovered without source-code access. However,
+these techniques require custom-authored models and templates
+targeting specific UI toolkits, limiting their applicability.
+Recent advances in UI understanding [86, 139, 143, 147] and
+computer-use agents (CUAs) [4, 116, 145] make it possible to re-
+cover richer structure and semantics from rendered interfaces and
+act through them. At the same time, advances in generative UI
+(GenUI) [18, 22, 23, 73, 138] make it increasingly practical to gener-
+ate new interactive surfaces. To understand how these capabilities
+expand software modification, we first develop a design space that
+characterizes what a modification can change, including changes
+enabled by CUAs and GenUI to how users perceive and interact
+with existing software. We then develop a framework for how mod-
+ifications are achieved, characterizing both the access a modifying
+system has to an application and the level of synchronization be-
+tween the modifying system and the target application. Together,
+the design space and framework help us examine what is possible
+when modifying applications that reveal rendered pixel data alone.
+We introduce Interface Quilt, a system for modifying existing
+applications by generating and running interface patches: generated
+interfaces that change an application’s presentation, interaction,
+or capabilities while leaving the application itself unchanged. At
+build time, Interface Quilt provides a harness for computer-use
+agents to explore the target application, inspect its interface state,
+and discover the controls needed for a modification. Interface Quilt
+records this recovered information and makes it available to coding
+agents, which use it to generate interface patches. An interface
+patch modifies presentation by covering or augmenting parts of
+the existing interface, interaction by mediating application output
+and user input, and capabilities through new logic packaged in the
+interface patch. At runtime, Interface Quilt orchestrates interface
+patches, continuously synchronizing application state to interface
+patches and translating the user’s interactions with the interface
+patches back into actions on the application. This synchronization
+makes the interface patch and underlying application behave as a
+single integrated interface from the user’s perspective, creating the
+experience of modified software without programmatic access to
+the target application.
+We examine Interface Quilt’s capabilities and boundaries through
+demonstrations, following Ledo et al. [68]. Across PowerPoint,
+Affinity, Fusion, Slack, and Overleaf, we use Interface Quilt to create
+interface patches inspired by classical interaction techniques such
+as put-that-there [15], marking menus [65], Toolglass [12], Side
+Views [125], Patina [92], Ephemeral Adaptation [43], SILK [67],
+and ToolTrack [91]. We build interface patches that recompose
+task-centric interfaces, restructure interface controls, add in-situ
+support, and enhance software capabilities. Together, these demon-
+strations showed that when the states and controls needed by a
+modification are visible through the interface, Interface Quilt can
+restructure presentation, introduce new interaction techniques, and
+add capabilities while managing interface patches synchronized
+with the target application.
+This paper makes three contributions. (1) we present Interface
+Quilt, a system architecture for generating and running interface
+patches that modify existing applications through their rendered
+interfaces; (2) through demonstrations across applications, we show
+how interface patches can modify presentation, interaction, and
+capabilities; and (3) we present a design space of software modifica-
+tion, examining changes described in prior systems, and a software
+framework that separate what a modification changes from how it
+is achieved, and situate GenUI and CUAs both as forms of modifi-
+cation and as mechanisms for realizing modifications.
+2
+Related Work
+This work builds on prior work in end-user customization and
+software modification and is enabled by the emerging capabilities
+of generative AI models.
+2.1
+Vision of Modifiable Software
+Software that can be reshaped by the individual user has long been
+a goal of investigation by researchers in interactive computing. In
+Personal Dynamic Media, Kay and Goldberg described Smalltalk
+that enables any user to mould by their own needs [59]. Stallman
+built the Emacs text editor with extensibility principles that “users
+are not limited by the decisions made by the implementers” [120].
+MacLean et al. argued that no single design can suit all users and
+situations, thus systems should be tailorable for users’ modifica-
+tion [90]. Henderson and Kyng similarly described continuous de-
+sign in use, where software systems prepare for user modification
+in response to users’ idiosyncratic use and the complexity of the
+world not anticipated by designers [54].
+HCI research demonstrates benefits in modifying applications
+to better fit the user’s tasks, computing environments and abilities.
+For tasks, users customize a feature-rich word processor to reach
+frequently used functions faster [111], and users are provided with
+a personal interface with only the functions they chose, navigated
+and learned better with more sense of control [93]. For computing
+environment change, interfaces regenerated for a device’s input
+and output constraints, such as screen sizes, allow applications in
+service of context that the designers did not build for [17, 46, 106,
+126]. For abilities, the modifying offers the most significant benefit,
+as interfaces generated from a model of a user’s motor abilities
+allow them to complete tasks that they could not perform in the
+original interface [48, 49, 137, 147, 149].
+To support modifications, HCI uses more specific terms across
+different dimensions. Adaptive interfaces are changed by the system,
+whereas adaptable interfaces are changed by the user [42]. End-
+user programming and end-user development identify users who
+create computational behaviour without professional programming
+experiences [64, 78, 104]. Mørch’s customization, integration and
+extension dimensions distinguish how deeply a change reaches into
+the software [100].
+Other terms distinguish how modification is made. Customization
+and tailoring use mechanisms deliberately provided by the devel-
+oper, such as preference dialog and scripting languages [26, 90, 103,
+111]. Plugin extension APIs are similarly developer-supplied con-
+tacts for modifications. Meta-design withholds the specific design
+
+
+Interface Quilt
+at the time for users to complete during use [44]. Malleable soft-
+ware goes further and makes the data and code substrates available
+for change. Systems like Webstrates [63], Codestrates [118], and
+Varv [16] treat applications and documents as the same modifiable
+material and interaction substrates decompose applications into
+substrates and instruments in service of modifications [11, 80, 89].
+For our purpose, these concepts distinguish the routes to modifica-
+tion rather than the act of modification itself, and are all considered
+as modifications.
+These modification pathways share an assumption that software
+developers prepare modification mechanisms from within the soft-
+ware, such as packaged options in customization, predefined paths
+in adaptive software, or software with malleability designed from
+the ground up. Without this support, modifications become much
+more difficult [16]. Our work focuses on providing Interface Quilt
+that sits over existing software to provide the user with the experi-
+ence of modified software, even without providing mechanisms for
+modification.
+2.2
+Modifying Application Without Support
+Made for Modifications
+It is possible to modify software without support or access built
+into the software. Prior work has introduced pathways from out-
+side the application for modifications, such as through web code,
+accessibility APIs, language-specific hooks, and operating systems’
+APIs.
+Web applications are the most readily modified applications, as
+web pages are declarative documents in HTML and DOMs with
+client-side source code inspectable for a modifying system. For ex-
+ample, Chickenfoot creates automation and customization abilities
+for end-users by keyword matching the source code [14]. High-
+light reauthors an existing website for mobile phone and omits
+pages not used during user demonstrations [105]. Other systems
+record and share web operation procedures, inject widgets, spread-
+sheets, and panels to web pages that were not designed to host
+them [51, 62, 71, 81, 87, 129, 148]. The access to client-side code,
+combined with the ability to examine function calls, provides deeper
+modifications. For example, d.mix enables flexible re-authoring and
+mashups of API-based web applications [53] and Genie reverse-
+engineers a web application’s commands to retarget them as speech,
+keyboard and command line interface [122].
+However, many non-web applications on desktop and mobile
+lack direct source code access and rely on alternative pathways.
+Some application frameworks support mechanisms for runtime
+code-injection that systems can reverse-engineer for modification.
+For example, Scotty proposed a runtime toolkit overloading to
+change macOS Cocoa applications’ method implementations at run-
+time [39], WADE uses Windows’ dynamic linking library to modify
+interface layout and behaviours [94], and earlier toolkit research
+taps into the operating system’s drawing pipelines to transform
+and extend interface widgets [40, 109]. Some operating systems,
+such as Windows and Android, provide a windowing system with
+region names and input redirection, useful for basic layout recon-
+figurations. WinCuts use them to duplicate live regions of arbitrary
+windows [123], User Interface Facades to recombine and replace
+widgets of running applications [121], and A-Mash extracts parts
+of unmodified Android applications into a single wrapper applica-
+tion [70]. Specifically for input redirection, ICON reroutes device
+inputs with Windows APIs [36] and HIDAgent simulate human-
+interface device controls through an external hardware [13]. The
+accessibility API offers UI element trees with markups designed for
+screen readers, but it also enables the “curb cut effect” for modifica-
+tion systems to structurally understand the interface. For example,
+Interaction Proxies use it to provide augmented metadata and inter-
+action mediation for runtime accessibility repair on Android [149].
+The API provides abilities to record user demonstration, input ma-
+nipulation, and interface augmentation [56, 76, 77, 85, 92]. Yet, it
+still relies on developers to provide proper support, which is not
+always guaranteed [20, 149]. Although these pathways allow ac-
+cess to modify some application behaviours, they are limited by the
+toolkits, platforms and developer support.
+The most common denominator shared across GUI applications
+is the rendered pixels. As such, researchers investigated pixel-based
+reverse engineering techniques for modifying an application. Prefab
+identifies widget location and outline by template-matching the
+pixels of known widgets, then retrofits advanced interaction tech-
+niques onto unmodified applications [30–32, 34]. Similarly, Sikuli
+used screenshots templates and synthetic inputs to automate desk-
+top workflows [142], and Waken recovers widgets and usage from
+tutorial videos [7]. However, pixel-based methods also introduce
+limitations and constraints to the modification. First, these methods
+lack state awareness of the applications. To mitigate this, Prefab
+reintroduce accessibility APIs to mitigate applications’ state and
+style [33, 35]. Second, these methods rely on hand-crafted tem-
+plates or fixed widget styles from a standard UI toolkit, limiting the
+general applicability.
+Modifying an application without support, therefore, remains
+limited in the extent of supported applications and modifications. In
+Interface Quilt, we extend the pixel-based technique in Prefab [35]
+and recontextualize the layered interface architecture in Interaction
+Proxies [149] with the latest development in generative UI for creat-
+ing the modifications and computer use agents to explore existing
+software and bind modifications to activate them.
+2.3
+Emerging Capabilities: Generative UI and
+Computer Use Agents
+Recent developments in generative UI (GenUI) and Computer Use
+Agents (CUAs), driven by large language models (LLMs) and visual
+language models (VLMs), lower the barriers to reproducing inter-
+faces and actions. These capabilities create new opportunities for
+modifying existing applications, although GenUI and CUAs alone
+have largely been developed for different ends.
+Prior to LLMs, user interface management systems and model-
+based methods have generated interfaces from domain models
+in order to design once and target any device [79, 101, 115, 132,
+136]. Graceful Degradation investigates the transformation rules of
+interfaces while preserving continuity across platforms. Systems
+like Personal Universal Controller and Huddle generate a more usable
+interface for appliances [107, 108] and SUPPLE render an optimized
+interface based on device and user model [46]. Other work like
+Bespoke investigated synthesizing a custom UI from the command
+line [131].
+
+
+Qiu et al.
+The emerging wave of GenUI takes advantage of LLMs’ cod-
+ing capabilities and focuses on producing usable interfaces from
+scratch [22, 73, 138]. GenUI can refer to both runtime generations
+and adaptations or design-time generations [23]. To constrain the
+generation process, systems like BISCUIT [25] and DynaVis [130]
+scaffold widget generation with access to source code, SQUIRE [72]
+and Athena [8] reintroduce the intermediate models, Jelly [18] cre-
+ated data models and UI specifications for gradual UI generation,
+Maru [61] created information architecture to stabilize generation
+across iterations. Recent work on revibing HCI interactive sys-
+tems with coding agents suggests coding agents are becoming
+increasingly successful at producing interfaces [3]. However, these
+GenUIs are all built to code bases that the GenUI system owns,
+and it remains difficult to integrate GenUI into existing applica-
+tions [18, 22, 141]. Systems that integrate into existing applications
+are done through APIs [83] or via the web [51].
+UI understanding and CUAs have developed together. Develop-
+ment in screen recognition enabled systems to recover interface
+semantics [134, 147], UI models [139], interface texts, layouts, and
+widgets [5, 86, 143] from screenshots alone. The understanding
+feeds in for computer use agents to operate applications on be-
+half of the users [4, 116, 145]. Some systems also fuse screenshots
+with accessibility API or DOM when available to improve per-
+formance [144, 145]. To promote users’ awareness, control, and
+learnability when delegating tasks to CUA, researchers have ex-
+plored adding pausing, checking, and handoff mechanisms [19,
+60, 102, 113, 140]. To improve CUA performance both in accuracy
+and speed, researchers explored separating build time from run-
+time process, where a system explores the application once, then
+packages the recovered controls as a deterministic tool, such as
+model context protocol (MCPs), for another agent to call on at
+runtime [75, 84, 117, 135, 150].
+We combine the capabilities of GenUI and CUA in Interface Quilt
+to create a persistent interaction instrument [9] as interface patches
+bounded over an existing application. Interface Quilt uses CUAs
+to recover the controls over existing applications and uses coding
+agents and GenUIs to construct an interface layer for modification.
+We view these capabilities as emerging mechanisms in a broader
+space of software modification (section 3), enabling changes to how
+users perceive and interact with software that was not designed for
+modification.
+2.4
+Prior Design Spaces for Software
+Modification
+Prior work has developed design spaces for specific forms of soft-
+ware modification. Interaction Proxies provided interaction re-mappings
+for runtime accessibility repairs [149], and InteractOut extends the
+space to input manipulations for curbing phone overuse [85]. DOM-
+Steer describes three operations for in-situ assistance manipulating
+websites: insert, mutate and recompose [51]. Design spaces for adap-
+tive interfaces similarly describe system-initiated changes to pre-
+sentation [41, 47]. Zindulka et al. develops design space for touch-
+based LLM interactions by additive, subtractive, and transformative
+change to text [151]. Min et al. characterize malleable overview-
+detail interfaces by content, composition and layout [97, 99], and
+create a design space of abstraction techniques covering unit of
+interest, granularity, representation, transformability, presentation
+and guidance [98].
+These design spaces are scoped to specific mechanisms, inter-
+face forms or domains. Our goal is to describe modifications across
+them by separating what changes for the user and how the change
+is achieved. The design space characterizes modifications along
+five dimensions of the user’s perception-action loop, including the
+element and structure of presentation, the modality and steps of
+interaction, and the capabilities. It further distinguishes reductive,
+replacement, and additive changes, adapting from the distinction
+of the modified target used by Zindulka et al. for text manipula-
+tion [151]. The framework of modification mechanisms describes
+how a modification receives and returns states and actions with an
+application, extending Daniel et al.’s degrees of interoperability [28].
+To our knowledge, our design space and framework are the first to
+view GenUI and CUAs as both forms of modification and pathways
+through which other modifications can be achieved.
+3
+Design Space and Framework
+We provide a unified account of software modification by distin-
+guishing what changes for the user from how that change is achieved.
+We develop a design space that characterizes the effects of modi-
+fication on the user’s experience of an existing application, and a
+complementary framework of modification mechanisms that char-
+acterizes how modifying systems gain access to the application
+and remain connected to its state and actions. We derive both by
+synthesizing the HCI systems reviewed in our related work and
+drawing on prior design spaces of customization, adaptation, and
+modification.
+We define an existing application as an interactive application
+packaged for the end user with its interface and behaviour fixed
+by its developers, and refer to this shipped state as the baseline.
+A modification is any departure from this baseline that changes
+what the user perceives, how they interact with the application, or
+what they can do with it. Using the baseline as a common reference
+point allows us to compare modifications independently of the
+mechanisms used to implement them.
+3.1
+Design Space of Software Modification
+The design space (Figure 2) comprises two axes.
+First, Types of Modifications describes what part of the user’s
+experience with the target application has changed, from what
+users see (presentation), how the user operates the application (in-
+teraction), and what they can do with the application (capability).
+A presentation change can affect individual elements, for example,
+labels and icons (element) or the way elements relate to one another
+(structure). Similarly, an interaction change can affect individual
+action (modality) or a sequence of actions required to complete a
+task (steps). Capability changes whether a functionality is available
+to the user at all. Our dimensions follow similar distinctions in prior
+design spaces that distinguish transformations of objects from their
+layouts [45], transformation from presentation [98], and behaviour
+from presentation [10].
+Second, Relationship to Baseline describes how a modification
+relates to the baseline for each dimension. First, the baseline can be
+unmodified. A change can be reductive, removing something from
+
+
+Interface Quilt
+Figure 2: Design Space of Software Modification. Types of
+Modifications describes the area of user experience modified.
+Relationship to Baseline describes the way the modified ex-
+perience relates to the unmodified software.
+the baseline, additive, introducing something new, or replacement,
+where something is removed and swapped with something new.
+Our mappings follow the same descriptors found in prior design
+space of text manipulation [151] and the design space of interaction
+re-mappings [149]. The following sections explain dimensions with
+example systems and compare the dimensions with prior design
+spaces.
+3.1.1
+Presentation Element. Concerns the visual properties of an
+individual interface element. Reductive removes part of an el-
+ement’s presentation without providing alternative encoding in
+its place. For example, reducing the saliency like ScreenCrayons
+rendering the unannotated areas with a light colour [110] and
+Ephemeral Adaptation fading the menu items users are less likely to
+use [43]. Adaptive hypermedia similarly describes elements being
+dimmed [29] and Min et al. identify element representation that
+removes or simplifies encoding [98]. Replacement preserves the
+information carried by an element but substitutes another presen-
+tation. For example, Prefab translates interface labels into another
+language [34], Stylette rewrites the cascading style sheets (CSS) of
+a selected web element from natural language [62], and DOMSteer
+changes the border to increase the saliency of a web element [51].
+Additive introduces new visual channels. For example, Prefab’s
+favourites enhancement displays a star on existing widgets [34],
+ToolClips shows contextual tutorial video over AutoCAD icons [50],
+and Sikuli attach annotations to interface elements [142]. The dif-
+ference between replacement and additive is whether the original
+presentation remains. Both require identifying the elements, but
+the former also requires covering or redrawing the element. Presen-
+tation change is often also associated with capability change. For
+example, Patina overlays community usage over the applications,
+providing new information while adding presentation element [92]
+and reform attaches UI enhancements with new information to a
+website [129]. Both appear as presentation changes, but the infor-
+mation added did not previously exist in the original application,
+and we therefore consider them as capability additive as well.
+3.1.2
+Presentation Structure. Concerns the organization among the
+elements, such as the position, grouping, and distribution across
+regions or screens. Reductive hides groups of elements from the
+user. For example, the personal interface for Word changes the
+commands exposed by its menus and menu bars [93], Dark Pita
+enables users to suppress distracting interface content [87]. In these
+cases, the individual hiding is also considered a reducing presen-
+tation element. Replacement restructures elements. For example,
+Interface Facade lets users cut, duplicate and recombine regions of
+widgets of running applications [121], Masonview reorganizes ele-
+ments of existing websites [96], and Orca [58] and Chickenfoot [95]
+rewrites the layout of web content. SUPPLE restructures an inter-
+face by computing a layout based on device and user models [46].
+Additive appends a new region alongside the existing layout. For
+example, WinCuts copies a live region of a window into another
+view without removing it from the source window [123], TaskLens
+add generated task-oriented panels beside Blender’s existing inter-
+face for learning [83], and Gajos et al.’s split interface design creates
+a duplicate additional toolbar while keeping the unmodified inter-
+face [47]. Similar to presentation element modification, structural
+modification may also introduce new capabilities. For example, Fu-
+sion’s mashed-up UI [148] and Wildcard’s spreadsheet [81] appear
+as additional panels but also introduce computation (capability) not
+previously available in the application.
+3.1.3
+Interaction Modality. Concerns about modifying the type
+of modality for an interaction. Reductive disables a type of in-
+teraction. For example, disabling short button presses for acces-
+sibility [74], disabling touch input when a pen is present [55], or
+disabling single-finger taps to curb phone use [85]. Replacement
+swaps a type of interaction with another operation or pathway.
+For example, Prefab adds target-aware pointing techniques [31] or
+changes clicks to sliding gestures for tablet input [33]. Additive in-
+troduces an alias to activate the same functions with new pathways.
+For example, the ICON toolkit enables rerouting alternative input
+device to control an application [37], Grab ’n’ Drop adds toolglass
+interaction over third-party applications without removing the orig-
+inal menus [38], Astral maps phone sensors to mouse and keyboard
+events for rapid prototyping [69], Genie exposes recovered web
+commands through speech and keyboard without removing the
+page’s existing controls [122]. Improv [24] describes a system for
+modelling UI behaviours for remapping controls, but since the origi-
+nal interaction channel is intact, we consider it as additive. Zhang et
+al.’s one-to-zero, one-to-one, and zero-to-one mappings are similar
+to our reductive, replacement, and additive modifications [149].
+3.1.4
+Interaction Steps. Concerns the sequence of carrying out a
+task. This is a view on change to the number of steps, which is
+different from prior definitions that concerned adding or removing
+elements, structures, or pathways. We take on this definition to
+echo the many-to-one and one-to-many interaction mappings in In-
+teraction Proxies [149], as it helps describe automation. Reductive
+shortens the steps it takes to complete an action without chang-
+ing the action’s outcome. Automating the systems shortens the
+number of steps for users to complete a task. CoScripter [71], Chick-
+enfoot [14], Sikuli [142], SUGILITE [76], Koala [82], MultiClick [146],
+PUMICE [77], and Rousillon [21] all convert repetitive or multi-step
+interactions into fewer steps or a single trigger. When the system
+
+
+Qiu et al.
+creates a new trigger, such as a new button, that bypasses the orig-
+inal interaction steps, it is also considered to have modified the
+interaction modality. Anchored Customization [114] surfaces, an-
+chors, and highlights setting options in a multi-layered interface,
+and in doing so, it also modifies presentation elements (adds a high-
+light) and structure (adds controls). Replacement reroutes one
+sequence with another without necessarily shortening it. For exam-
+ple, Interface Facade [121] reroutes a drop-down menu with radio
+buttons, but this does not change the number of steps to complete
+the operation. Additive adds steps and sequences to the inter-
+action. For example, InteractOut adds requirements for repeated
+taps to trigger an action [85] and Interaction Proxies replaces one
+interaction with a sequence of two interactions [149],
+3.1.5
+Capability. Concerns the set of outcomes an application
+makes available. Reductive restricts the outcome of the application
+to what’s reachable from the user. UI mashups extract capabilities
+from an existing application to package them into an app. For ex-
+ample, A-Mash extracts the selected functionality from an existing
+application [70]. In this case, the application being extracted expe-
+riences reductive modification, as some of its functionalities are
+rendered unreachable. But for the newly formed mashup interface,
+it experiences additive modification. Varv’s schema and actions-
+based application enables users to remove functionalities through
+either using the “omit” operator that removes functions or the “pick”
+operator that selects a subset of actions [16]. Since the end result is
+a reduced set of available features, we consider both as a reductive
+modification to the baseline. Replacement overrides the underly-
+ing implementation and algorithm, which makes the performance
+or existing capabilities better, without introducing a new capability.
+For example, Chrome Frame is an Internet Explorer plug-in that
+changes the browser’s rendering engine while retaining the original
+browser interface [1]. Additive extends the possible outcome from
+using the application. For example, WADE adds external service
+into a host program [94], ToolTrack add counters to buttons to sup-
+port users exploring and learning features [91], and computation
+abstractions add new capabilities to existing data [97]. Scotty in-
+jects functionality to the send button to check if the user forgot the
+attachment [39]. This is an example of adding new capabilities but
+maintaining the original interface.
+3.2
+Framework of Modification Mechanism
+We characterize how prior modification systems use different forms
+of application access provided by the target application to achieve
+various levels of synchronization. By that, we mean the extent to
+which the modified experience remains synchronized with the tar-
+get application’s state and actions during use. Tight coupling is
+particularly important for modification systems that leave the ap-
+plication’s underlying implementation unchanged. Because these
+systems modify how users perceive and interact with the appli-
+cation rather than rewriting the application’s code, the modified
+interface must continuously create a proxy to reflect the state of
+the target application, and vice versa. The tighter this coupling,
+the more the modification can behave as an integrated part of the
+application, allowing users to interact with the modified experience
+without distinguishing between the modification interface and the
+target application.
+3.2.1
+Application access. This describes the representation of the
+target application that a modification system has access to.
+Source Code. At one extreme, the modifying system owns the
+substrate to be modified. In other words, the modification system
+is the application. As such, the presentation, data, and representa-
+tions can all be directly inspected and edited by the system. Web-
+strates [63], for example, makes the running application a shared
+document that itself can rewrite, while Varv represents applications
+through schema and actions that can be extended or omitted [16].
+Because the modifying system controls the representation that
+drives the interface, systems can change the presentation, interac-
+tion, and capabilities directly.
+Published Interface. This includes the domain representation
+provided by the developer, such as APIs, MCPs, command-line
+interface, scripting, and plugin frameworks. For example, DynaVis
+interfaces with Vega-Lite to generate widgets with callbacks to
+modify properties of the visualization [130], and Bespoke builds
+controls over command-line applications [131]. This provides a
+stable access to tested controls. However, the generalizability of
+modifications would be limited by what the developers enable.
+Toolkit or Platform. A modifying system may choose to exploit
+the UI toolkit and or features of the programming language that
+were not designed as extension points. For example, Genie analyze
+a host application’s JavaScript and event structure [122], Scotty
+changes method implementations in running Cocoa applications
+through runtime toolkit overloading [39], and systems such as A-
+Mash use operating-system mechanisms to extract and embed live
+interface components from unmodified applications [70]. These
+accesses are not intentionally designed by the app developers, but
+can be used by the modification software if the application is built
+with those toolkits and languages.
+Accessibility Tree. It exposes a structured description of an
+interface outside the application’s implementation. Systems such
+as Interaction Proxies [149] and Interface Facades [121] use accessi-
+bility information representation to recover element labels, roles,
+bounding boxes, states, and support actuation. These are routes that
+provide some access to the application internals, but availability
+is dependent on the quality and completeness of the accessibility
+information supplied by application developers.
+Pixel. Finally, a modification system can use the same visible
+output channel that’s available to the user. Prefab [35] locates the
+controls by matching pixel-based pixel properties and recovers wid-
+get state and style from the hand annotations [33], and Sikuli simi-
+larly locates click targets from screenshot templates [142]. While
+rendered output requires the least cooperation from the application
+developer, it demands the most effort for a modifying system to
+recover the structure, behaviour, and states that were explicitly
+provided.
+Moving from the left (source code) to the right (pixel) poses a
+trade-off between developer-supported structure and broader appli-
+cability of modifications. Improvements in UI screen understanding
+and computer use models make it increasingly easy to leverage
+pixel as a modification substrate, but the access still needs to be
+connected with actuation back to the unmodified application.
+
+
+Interface Quilt
+Figure 3: Framework of Modification Mechanism. Application Access describes the pathway used by the modification system.
+Synchronization describes the extent to which the modified experience remains synchronized with the target application’s
+state and actions.
+3.2.2
+Synchronization. Synchronization describes the extent to
+which the modified experience remains synchronized with the tar-
+get application’s state and actions at runtime. We distinguish levels
+of coupling by how directly and continuously this synchronization
+can be maintained. The mechanisms supporting that synchroniza-
+tion may be explicitly exposed by the target application, or recon-
+structed by the modifying system from less structured forms of
+access.
+Read Only. This is the weakest level, where a system can only
+recover information about the current interface without routes to
+actuate on the host software. UI-understanding systems, for ex-
+ample, recover interface elements from pixels [134, 139, 147] and
+Patina uses the accessibility API to recognize buttons to overlay dy-
+namic usage visualization without actuating on the application [92].
+The reading channel can inform a presentation modification, but
+cannot affect the interaction.
+Event Actuation. This adds another route through user-level
+input. For example, Sikuli locates the targets from screenshots
+and automates executions through synthetic mouse and keyboard
+events [142]. More recent vision-based computer use agents, such
+as UI-TARS, operate applications via unit actions like clicks, typing,
+and scrolling [116]. This enables OS-level actions over an applica-
+tion that is opaque for modification. However, input events do not
+by themselves provide stable handles to operate the host applica-
+tion, and the system must continuously decide where and how to
+act.
+Addressable Operation Binding. This provides the modifica-
+tion with a stable handle to the application. Compared with the
+previous level, it provides modifications that identify control, proce-
+dure, and steps, enabling the modifications to affect the operations
+of the software. The handle might be an interface control, such
+as Interaction Proxies’ accessibility nodes as inspectable state and
+route to invoke actions on an element [149]. Or the handle can be
+procedures and commands. SUGILITE generalizes demonstrated
+interactions into reusable procedures [76] and the Declarative Model
+Interface abstracts GUI interaction into explicit access, state, and
+observation primitives for agents to operate [135].
+Reactive State Binding. The strongest operational coupling is
+to be able to both manipulate the host software and synchronize
+response to changes to the modified interface to promote human
+use. For example, Wildcard’s spreadsheet is synchronized with an
+application-editable spreadsheet, and changes in one representa-
+tion propagate between representations [81]. When the modifying
+system owns an underlying representation, this type of coupling is
+provided for free. For example, Jelly can modify a shared task-driven
+data model to drive real-time updates to the data and generate an in-
+terface [18]. Reactive binding is also possible with a pixel alone. The
+Prefab follow-up paper synchronizes the button states between the
+original interface and a sliding widgets overlay through pixel-based
+recognition [35].
+4
+Interface Quilt and Interface Patch
+We propose Interface Quilt and interface patches for modifying
+existing applications (Figure 1). An interface patch is a generated
+interface overlaid on the existing application to modify the user’s
+experience with the application’s presentation, interaction, and
+capabilities. And Interface Quilt is a system that supports generating
+and running interface patches through computer use agents (CUAs)
+and generative UI (GenUI).
+
+
+Qiu et al.
+4.1
+Interface Quilt Supports Generating and
+Running Interface Patches
+The design space (Figure 2) identifies modifications to an applica-
+tion’s presentation, interaction, and capabilities, and the mechanism
+framework (Figure 3) characterizes how such modifications access
+and maintain synchronization with the application. These analyses
+informed the design of Interface Quilt.
+Interface Quilt consists of two parts. First, a build-time pipeline
+uses CUAs to explore the target application and identify the avail-
+able UI controls and observable states required to access and syn-
+chronize an interface patch with the application. A coding agent
+then uses these identified operations to generate an interface patch.
+Second, a runtime hosts the generated interface patch alongside
+the target application. When a user interacts with the interface
+patch, the runtime executes the corresponding UI actions in the
+target application. When relevant application state changes, Inter-
+face Quilt observes those changes and updates the interface patch
+accordingly.
+This architecture reflects two points in our framework (Figure 3).
+First, Interface Quilt recovers the target application through its
+rendered interface rather than source code, application APIs, or ac-
+cessibility metadata. Second, it maintains synchronization between
+the target application and the interface patch. Interface patches can
+request application operations, and application state can update
+the patch. Together, these mechanisms allow the same runtime to
+support interface patches that modify presentation, interaction, and
+capability, which we demonstrate in the following sections.
+4.2
+Demonstrating Interface Patch Modifying
+Applications
+We first provide two compound examples, À la Carte Interface
+and Put-that-there, to demonstrate the interface patch’s ability to
+execute multiple types of modifications at once. We then provide
+two sets of interface patch examples targeting multiple applications
+to showcase specific types of modifications.
+4.2.1
+À la Carte Interface. Figure 4 shows an interface patch sur-
+facing only the relevant interface and controls to the user. The user
+is making a slide deck in PowerPoint and wants to retouch an image
+to remove the text. With this interface patch, they can tap into the
+retouching algorithm of professional software like Affinity, without
+needing to leave PowerPoint, manage multiple open windows, sync
+the image between applications, or learn how to use the complex
+interface of Affinity. The user interacts with an interface patch
+cutout of Affinity’s canvas and retouches by gesturing to paint like
+they usually do (Figure 4D-F). Interface Quilt supports generating
+UIs, enabling different representations of controls and gradually
+revealing relevant controls for the user’s task, ranging from no
+settings (Figure 4D), a cutout of original tool settings (Figure 4E),
+to a reksinned set of settings with sliders that synchronize with the
+target application (Figure 4F).
+This workflow demonstrates Interface Quilt’s ability to create
+an interface patch that modifies across the design space. On presen-
+tation, new interface elements are additive, and the cutout of the
+original Affinity interface is a structural addition. On interaction,
+the user’s paint operation on the interface patch is unmodified,
+the GenUI sliders are modality replaced, and the synchronization
+between the PowerPoint image and Affinity is step reduction. On
+capability: from Affinity’s perspective, this is a capability reduction
+because the user can no longer access other features of Affinity
+through this interface patch, whereas from PowerPoint’s perspec-
+tive, this is both a capability replacement, using Affinity’s algorithm
+for retouch, and a capability add, as PowerPoint’s erase feature does
+not contain settings for the retouch pen.
+This is an extended version of prior systems like WinCuts [123],
+Interface Facade [121], and Highlight [105]. In addition to duplicat-
+ing interface elements and screen regions, Interface Quilt enables (1)
+packaging interaction paths discovered from computer use agents
+at build time into a single button-triggered deterministic workflow
+at runtime. This effectively breaks down the cross-application data
+silos; (2) leveraging the generative UI capabilities to reskin one
+applications’ UI for new ways to interact and more cohesive in-
+tegration to another application; and (3) automatically handling
+the window management to position the interface patch directly
+above the original image in PowerPoint, creating an integrated
+experience.
+4.2.2
+Put-that-there. Figure 5 shows the user manipulating shapes
+on the vector graphics app, Affinity, with their voice and cursor
+position, inspired by the put-that-there interaction technique [15].
+With Interface Quilt, the user can operate Affinity through mul-
+timodal interactions even when the software does not support it.
+The interface patch includes a live speech bubble at the bottom
+of the interface. The interface patch also renders the user’s cursor
+location and corresponds to speech on the canvas, like “here” and
+“there.”
+To create an object, the user describes its properties while point-
+ing to the desired location. The interface patch combines the speech
+and pointing input and maps the request to application operations
+recovered at build time. Interface Quilt then invokes the correspond-
+ing Affinity controls to create the shape (Figure 5A–B). To move
+an object, the user says “put that” while pointing to the object and
+“there” while pointing to its destination. Interface Quilt recovers the
+referenced object’s location, while the interface patch interprets
+the user’s multimodal command and invokes the corresponding
+move operation. The user can refer to the object by location or
+semantics. For example, the user can say “move the blue circle here.”
+The interface patch identifies the object and its coordinates, then
+moves the object to the user’s pointed location. In addition, by
+leveraging Interface Quilt’s ability to identify object location, this
+put-that-there interface patch also supports adding different shapes
+with different sizes, changing the colour of a shape, multi-select,
+align, delete and duplicate shapes.
+This demonstrates Interface Quilt’s ability to create an interface
+patch with a new presentation element. As the user can still operate
+the original interface as is, the interface patch does not replace the
+original interaction but adds an alternative voice input modality.
+It reduces interaction steps, because it automates procedures such
+as adding objects and changing colours into one command. As the
+capabilities for rendering and manipulating objects remain the same,
+this interface patch does not change the application’s capabilities.
+Compared with the original put-that-there [15] implementation
+for large screen multimodal interactions, our system uses the same
+
+
+Interface Quilt
+Figure 4: Interface Patch Example: Revising WinCut and Interface Facade with an À la Carte Interface. Supporting editing
+images in PowerPoint with the features of Affinity. (A) User clicks the retouch button. (B) System opens a file from a path.
+(C) System clicking to open Affinity. (D) User retouches the image on the interface patch cutout. (E) Cutout of the original
+interface’s control. (F) Generative UI replaces the original interface’s control. (G) The system executes the pre-discovered
+execution sequence to operate the PowerPoint and replace files. (H) System opens a file from a path. (I) The retouched image
+is replaced in PowerPoint. Orange outline highlights the interface patch’s interface and actions and is not part of the user’s
+experience.
+point and speech interactions for a desktop application. Because the
+interface patch is implemented by supplying the coding agent with
+the original paper, it uses the same symbolic matching algorithm for
+identifying objects. For recognition of shapes and transcribing the
+user’s speech, the interface patch sends requests via external APIs.
+The experience of using the interface patch compared with a vanilla
+computer use agent is that the interface patch retains the mix-
+initiative experience, where the user provides verbal commands
+while maintaining precise location input via cursor location, and
+repetitive steps like selecting, adding, and aligning multiple objects
+are automated.
+4.2.3
+Many Interface Patches, Single App. Figure 6 shows many in-
+terface patches modifying an application’s presentation, interaction,
+and capabilities.
+Iconify and Reorder. Sometimes interface presentation or lay-
+outs are not optimal for the user’s task, and Figure 6A shows two
+interface patches changing the presentation element and structure.
+The first changes the original PowerPoint ribbon text buttons into
+icons. The second reorders the ribbon items while preserving the
+original visual language. At build time, Interface Quilt recovers
+controls’ locations and visual properties and reassembles them
+as an interface patch. At runtime, the Interface Quilt accepts the
+user’s interaction with the interface patch and operates the original
+interface.
+
+
+Qiu et al.
+Figure 5: Interface patch example: Put-that-there. (A) User says “create a blue circle here” while pointing the cursor at a point
+on the canvas. (B) The system creates a blue circle. (C) User says “put that” while pointing at the red square and “there” while
+pointing at another point on the canvas. (D) The red square moves to where the user pointed. (E) User says “move the blue
+circle here” while pointing on the canvas. (F) The system identifies the object and moves it to where the user points.
+Figure 6: Interface patch example: Many Interface Patches targeting PowerPoint. (A) Change ribbon to icon or reorder icons. (B)
+Inspired by SILK, sketch to remove the element. (C) Sketch to duplicate buttons. (D) Text size slider and marking menus. (E)
+Toolglass technique. (F) Patina technique. Orange outline highlights the interface patch’s interface and actions and is not part
+of the user’s experience.
+
+
+Interface Quilt
+Sketching Interface. Interface Quilt can also include an au-
+thoring interface patch that allows users to modify an application’s
+presentation. Inspired by Landay’s SILK [67] that enables users to
+quickly sketch out interactive interface prototypes, Figure 6B and
+C show an interface patch that enables users to hide unwanted
+interface elements and duplicate buttons, respectively. To hide, the
+user first presses the “Sketch” button that shares the same visual
+language as PowerPoint, then zig-zags with the cursor over the
+unwanted elements. By pressing “Build,” the interface patch applies
+a colour mask to hide the elements (Figure 6B). The user can also
+move buttons around by circling an element, draw where the ele-
+ment should go, and have the button duplicated to the new area on
+the ribbon or on the canvas for in-situ controls (Figure 6C). This
+interface patch demonstrates presentation structure reduction (hide
+buttons) and addition (duplicate buttons), and capability addition
+(user authoring element changes at runtime).
+Slider and Marking Menus. HCI has invented many advanced
+interaction techniques that are not implemented in all software.
+Interface Quilt enables recreating and attaching these techniques to
+existing software via interface patches. Inspired by Kurtenbach and
+Buxton [66], Figure 6D shows the interface patch’s Marking Menus,
+which allow users to right-click on the canvas to open the radial
+buttons representing the menus. The user can perform gestures
+towards an icon to apply the menu option, or directly perform the
+gesture towards a desired control in one gesture, without pausing
+for the radial button to display. This allows the user to quickly
+apply styling options on the target application, such as performing
+a gesture to align text to the right. This is done by recovering the
+controls in the ribbon and pressing for the user as triggered by the
+marking menu interface patch. This example also shows Interface
+Quilt’s support for hosting multiple patches at once. For example,
+the slider interface patch provides an additional slider for adjusting
+text size. It continuously tracks the values in the text field, updates
+the values on the slider, and updates the user’s input on the slider
+back into the text field, achieving the effect as if the controls are
+native. Both interface patches are modality additions.
+Toolglass. Another classical interaction rarely implemented is
+Toolglass and Magic Lenses by Bier et al. [12]. Figure 6E shows an
+interface patch adding a toolglass to PowerPoint. After pressing
+the “Toolglass” button, the user can move the toolglass panel with
+the laptop’s built-in trackpad and apply options with a mouse. This
+interface patch adds interaction modality.
+Patina. Because Interface Quilt tracks the application state and
+the location of interface elements, it can associate users’ interac-
+tions with the parts of the interface on which they occur. This
+enables interface patches that use interaction history to support
+learning the software. For example, inspired by Matejka et al.’s
+Patina [92], which visualizes usage patterns through heatmap over-
+lays, Figure 6F visualizes the user’s clicks on both UI elements and
+the canvas as a heatmap. When the user switches between tabs
+in the ribbon, the patch displays the corresponding patina for the
+currently visible interface. Interface Quilt monitors the application
+through vision and maintains awareness of its changing state, al-
+lowing the visualization to remain bound to the relevant interface
+elements as the user interacts with the application. The interface
+patch adds a presentation element and capability to the application.
+4.2.4
+More Interface Patches, More Apps. Figure 7 shows more
+interface patches modifying more applications’ presentation, inter-
+action, and capabilities.
+Toolbar Labels. Interfaces of complex software can be daunting
+and difficult to understand. Even though Affinity includes a tooltips
+implementation, where hovering over the icon shows the name
+of the tool, it remains hard for beginners to learn the icon-feature
+mappings. Figure 7A shows an interface patch that adds the name
+of the tool next to the icons and highlights the current tool in a
+more salient blue colour. Interface Quilt at build time, hover over
+each of the icons and record the tool names, and at runtime, it
+displays the name and synchronizes the selected tool as highlights.
+Since the original software contains the information but does not
+reveal it, this is a presentation element and structure addition, but
+not a capability addition.
+Side Views. Another example of presentation added through
+feeding forward [133] information contained in the software, but
+not immediately accessible by the user, is Side Views by Terry and
+Mynatt [125]. Figure 7B shows an interface patch that allows the
+user to select preview dimensions from the interface patch’s added
+checkbox, preview the possible outcomes of adjusting both dimen-
+sions, then apply the settings through the interface patch. Similar
+to Prefab’s implementation of side views [31], Interface Quilt also
+sweeps the possible options by clicking on the slider. However, ours
+creates mechanisms for users to select dimensions and compose
+2D side views.
+In-situ Menus. When using complex software, the controls are
+often embedded in inspectors positioned on the edge of the interface.
+Figure 7 shows Interface Quilt recognizing the selected shapes,
+then updates the interface patch to display a situated control next
+to the user’s selected object composed of the relevant parameter
+fields. The interface patch is dynamic to the object selected. For
+example, when the user selects a shape without the corner radius
+option, the interface patch no longer displays it. This interface
+patch demonstrates a presentation structure that is context-aware
+of the user’s selected object’s type and the location of the object.
+ToolTrack and Ephemeral Adaptation. Figure 7D shows an
+interface patch reimplementing Masson et al.’s ToolTrack feature
+on Fusion [91]. It adds visualizations, such as yellow triangles and
+progress bars, to help users track whether a feature has been ex-
+plored. The original implementation was built into the application
+and had source code access. Here, Interface Quilt recognizes the
+buttons, including those in the drop-down, and adds user clicks
+tracking from the outside. Similarly, inspired by Findlater et al.’s
+Ephemeral Adaptation [43], the interface patch tracks the user’s
+most recently used buttons, showing those buttons immediately,
+while gradually fading in the others. This interface patch changes
+the presentation element to reduce saliency and is a capability
+addition.
+Marking Menus. We can also apply the same interface patch
+built for one application to another application. Figure 7 shows the
+marking menu interface patch operating on Overleaf on Chrome.
+Because Interface Quilt operates on rendered pixels, it views Over-
+leaf like any other GUI application. At build time, Interface Quilt
+identifies commands such as undo, redo, and bold. At runtime, the
+Interface Quilt invokes these recovered commands when the user
+selects the corresponding menu item.
+
+
+Qiu et al.
+Figure 7: More Interface Patches. (A) Affinity Toolbar Labels. (B) Affinity 2D Side Views. (C) Affinity in-situ controls are
+composed of control panels from different regions of the interface. (D) Fusion ToolTrack and Ephemeral Adaptation. (E)
+Overleaf Marking Menu. (F) Slack enhancements on the send button, with delay send, confirm send, and sentiment analysis
+capabilities. Orange outline highlights the interface patch’s interface and actions and is not part of the user’s experience.
+Button Enhancements. Figure 7F shows three interface patches,
+adding capabilities. Interface Quilt first recovers the function and
+visual appearance of Slack’s send button, then creates interface
+patches with the same button appearance overlaid in Slack. This
+enables the interface patches to effectively override Slack’s button
+interaction and capabilities without access to its source code. First, a
+delay send feature that counts down after the user presses the send
+button, and triggers in the background after a set duration. Second,
+a confirm send feature that adds interaction steps, requiring a sec-
+ondary user confirmation. Third, a sentiment analysis feature that
+extends the confirm send to (1) parse and analyze the user’s drafted
+message and (2) run sentiment analysis to help users double-check
+the tone before sending a message.
+5
+Implementation
+Interface Quilt’s runtime architecture separates the UI, logic, and OS
+support (Figure 8). The Surface renders the interface patch UI and
+accepts the user’s input. The Controller orchestrates the I/O events,
+hosts multiple interface patch runtimes, and dispatches I/O events
+to the corresponding interface patches. The Daemon and Local
+Models are separate processes that provide an I/O connection for
+controllers with the OS and provide API call services to VLM/OCR
+and CUA.
+We implement Interface Quilt on macOS, where the surface is an
+Electron window, the interface patches and controllers are written
+in TypeScript and executed in a Node.js runtime, and the daemon
+is written in Swift. We describe the implementation for macOS, but
+the same architecture can be applied to other operating systems.
+Figure 8: Interface Quilt Architecture.
+5.1
+Interface Quilt Architecture
+5.1.1
+Surface Layer. The surface is a single Electron window dis-
+played above all applications. We use Electron because it can reliably
+render the interactive interface patches written in TypeScript. By
+default, the surface is a transparent, always-on layer that permits
+all users’ interactions to pass through to the application beneath it
+by setting NSModalPanelWindowLevel. Only the region where an
+interface patch is running becomes interactable. Having interface
+patches on a single surface that’s controlled by the system enables
+
+
+Interface Quilt
+precise interface element placement. We create a shared Cut Ren-
+derer that contains shared frame streaming capabilities to avoid
+reimplementations between interface patches.
+5.1.2
+Controller Layer. The controller is a standalone TypeScript
+Node.js process containing the runtime logic. It sits between the
+daemon and the surface, wiring OS-specific privileged operations
+such as capture and synthetic input via the daemon, while syncing
+the windows and hit regions with the surface. The controller decides
+on which route to best support an interface patch.
+An orchestrator manages all active interface patches by provid-
+ing a central event queue runStreams() that provides each active
+interface patch with its own runtime, including event callbacks,
+drawing operations, hit-region namespace, and I/O requests. In the
+case of the slider and marking menu, the two interface patches each
+contain a runtime, but share the controller, surface, and daemon,
+managed by the orchestrator. Events from both the surface and
+the daemon return to the orchestrator. Native pointer, keyboard,
+window, and application change events come from the daemon,
+while interactions with the interface patch’s UI come from the sur-
+face. The controller routes the events to the interface patch runtime
+that subscribes to it. For time-based events, where the interface
+patch needs to periodically poll the values on a region, such as
+syncing slider values, an interface patch can also initiate the poll
+without waiting for callbacks. In sum, the controller coordinates
+and schedules events rather than using an update loop, as many
+interface patches can be static and do not require periodic repaint.
+5.1.3
+Daemon Layer and Local Models. The daemon on macOS
+is a Swift application, packaging OS privileges for the controller
+access, containing the screen capture, an I/O driver, and window
+management modules. The decoupled design enables Interface Quilt
+to explore the OS interfaces once, and expose them as custom I/O
+events to service multiple interface patches. This avoids rebuilding
+or re-exploring the OS capabilities and enables sharing interface
+patches between OS by updating the daemon layer alone.
+The Screen Capture module wraps macOS’ ScreenCaptureKit
+for two purposes. First, to expose the UI for local models to rec-
+ognize UI elements and parse text. Second, to support cutting and
+streaming UIs to interface patches without native support, like
+available on other OS [121]. The I/O driver handles clicking, typing,
+intercepting and notifying the orchestrator of low-level HID events.
+The I/O Driver posts events to the corresponding process ei-
+ther through CGEvent.postToPid or a private macOS API named
+SLEventPostToPid [27] to control the target application. This al-
+lows an interface patch to operate on a background application
+without moving the user’s cursor or bringing the application to
+the forefront. However, the activation of menus and controls of
+some apps depends on the system pointer hover that cannot be
+simulated this way, such as PowerPoint’s dropdown menus. In such
+cases, the daemon provides a fallback that temporarily borrows
+the user’s cursor with CGWarpMouseCursorPosition to click. The
+daemon streams continuous user mouse events live to support the
+painting strokes. Synthetic events are tagged so that the daemon
+does not report them back to the controller. To type, the daemon
+uses CGEvent(KeyboardEventSource:) to simulate low-level key-
+board events.
+The Window Management module supports identifying which
+window is currently active with CGWindowListCopyWindowInfo
+to switch between corresponding interface patches. It also iden-
+tifies the pid of the current window, allowing the display of the
+corresponding interface patch and the wiring of I/O events.
+The Local Models provide three paths for parsing the applica-
+tion’s UI. First, a full pass uses bounding boxes, OCR, and computer
+vision models to identify UI elements and controls. Second, a faster,
+cheaper runtime route uses the UI grounding cached at build time
+to conduct pixel-based comparisons using local luminance for text
+tags and zero-mean normalized cross correlation (ZNCC) glyph
+template matching. Third, the daemon also uses OS-specific user
+input APIs that do not assume developer support as heuristics to
+trigger screen captures and state updates
+5.2
+Building an Interface Patch
+Interface Quilt’s architecture serves as a development harness for
+coding agents. At build time, the coding agent uses Interface Quilt’s
+computer use and perception capabilities to explore the target appli-
+cation. We prompt a coding agent with the desired modification and
+give it access to the existing Interface Quilt codebase and runtime
+architecture. When recreating an interaction technique from prior
+work, such as marking menus or put-that-there, we additionally
+provide the corresponding paper as a specification of the intended
+behaviour. The coding agent can use Interface Quilt’s daemon to
+control the target application and inspect the streamed interface,
+while local models expose information such as element bounding
+boxes, text, and visual assets. It can also use its own visual under-
+standing to interpret interface structure and behaviour. Together,
+these infrastructures allow the coding agent to explore the target
+application, identify relevant states and controls, and implement
+the runtime interface patch specifying the behaviours.
+Each interface patch contains a TypeScript file with its executable
+interaction logic and a JSON binding containing application-specific
+data. The TypeScript implementation exposes an onStream(ctx,
+params) function that connects the patch to controller events at run-
+time, while the binding stores application-specific information such
+as visual assets and execution routes. Separating patch logic from
+application-specific bindings allows the same interface patch im-
+plementation to target multiple applications with minimal changes.
+For example, we use the same marking-menu logic for both Power-
+Point and Overleaf. Through onStream, an interface patch receives
+a shared context and subscribes to callbacks such as onPointer,
+onKey, and onReload. The context also exposes surface and dae-
+mon APIs, allowing the interface patch to invoke operations such
+as paint(), skyClickAt(), keyToPid(), and pointerAt().
+5.3
+Apparatus and Models
+We built and tested Interface Quilt on a MacBook Pro with an
+M2 Pro processor running macOS 26.5.2. We used a combination
+of models in our setup. During build time, we use OmniParser
+v2 [86] to find candidate control regions, Apple Vision OCR API
+to detect text labels and values, and an image-to-coordinates com-
+puter use model mlx-community/Holo2-8B-bf16 [2] for identify-
+ing buttons and controls’ coordinates. We built the patches and
+the Interface Quilt with Claude Code harness, with Claude Opus
+
+
+Qiu et al.
+4.8, 5, and Claude Fable 5, 5.1 models. We leveraged the coding
+agent’s ability to inspect screenshots to name buttons without
+texts, test visuals of built patches, and inspect failures pointed
+out by the interface patch author. During runtime, we use the
+same set of models without the Claude Code models. A num-
+ber of interface patches require access to live LLM recognition.
+The Slack sentiment analysis OCRs the current draft and uses
+gpt-5.4-mini for analysis. Put-that-there recognizes speech via
+gpt-realtime-1.5 with gpt-4o-mini-transcribe for live tran-
+scription and uses whisper-1 for timestamps matching the key-
+words and cursor positions.
+6
+Discussion
+We review the successes and limitations of Interface Quilt as a
+system for creating and running interface patches on applications
+with only pixel access, consider when alternative forms of appli-
+cation access could better support their construction and runtime
+synchronization, and discuss the broader implications of Interface
+Quilt’s architecture and interface patches as a form of software
+modification.
+6.1
+What Interface Patches Can and Cannot
+Modify
+Our demonstrations show that interface patches can modify pre-
+sentation, interaction, and capabilities across a range of existing
+applications, but that these modifications vary substantially in diffi-
+culty. These differences stem from what Interface Quilt can observe
+and control through the rendered application UI, and from how
+much of the target application’s behaviour an interface patch must
+reproduce rather than reuse.
+Adding presentation and capabilities is simple, as Interface Quilt
+can render a new interface running on top of the target application.
+It is harder to reduce or replace presentation, because the system
+needs to first identify the area of the original interface through a
+vision model, then recover assets such as text and labels to recreate
+an interface patch with coherent visual language.
+Reducing and replacing the capabilities is even more effortful. It
+is often easier to reuse the main canvas interface and recreate the
+controls surrounding it. For example, with Interface Quilt, it is pos-
+sible to achieve the effect of a complete replacement of application
+A’s core capabilities with a similar application B while retaining
+A’s interface. However, to do this, Interface Quilt would recreate
+application A’s interface and use it as controls for application B,
+rather than actually replacing the runtime library of application B.
+This is because Interface Quilt’s approach is suitable for recreating
+the controls UI as they are observable, but impossible to recreate
+an application’s internal algorithm, such as rendering behaviours,
+as it’s inaccessible from observation alone.
+The difficulty of interaction modifications varies by modalities
+or what is exposed on the surface of the target application. Map-
+ping users’ clicks or more sophisticated input techniques to basic
+clicks on the interface is easy, as the buttons are exposed and Inter-
+face Quilt’s daemon can easily reproduce clicks. Similarly, adding
+multimodal interactions is easy, as Interface Quilt’s architecture
+enables generating and hosting multimodal behaviours. Supporting
+gesture inputs on the target application is more difficult, such as a
+drag gesture, depending on its implementation. For example, we
+demonstrate success with Affinity (Figure 4), but we cannot retar-
+get gestures on Fusion that used the Qt framework on macOS. The
+daemon has no path through the OS-level APIs to manipulate and
+stream the user’s input events to Fusion, without taking over the
+user’s cursor, which interrupts the user’s sense of control.
+6.2
+Pixels vs. APIs
+Pixels and computer use provide benefits not available through
+other application access pathways, such as API. First, the pixel
+provides Interface Quilt with visual information of the interface,
+enabling generating interfaces that share the visual language of the
+target application. We demonstrate this with the reordered controls
+(Figure 6A) and generated buttons with similar visual language
+positioned adjacent to the target application’s controls (Figure 6B).
+Controlling the interface through computer use agents makes it easy
+to build multimodal interactions that require information about the
+user’s cursor, like capturing the user’s cursor in the put-that-there
+example (Figure 5).
+The Interface Quilt’s pathway trades off seamless synchroniza-
+tion for generalizability. For example, in the à la carte interface
+patch, synchronizing the image between PowerPoint and Affinity
+required a sequence of clicks on the interface, rendering the OS tem-
+porarily unusable to the user. On one hand, APIs, MCPs, and script-
+ing can make the process faster and work in the background. On the
+other hand, Interface Quilt promotes generalizability, where any
+application’s file import and export can be executed, regardless of
+developer support. Additionally, even though the synchronization
+between the values on the interface patch and the target application
+is near instant, there exists a short delay. This becomes especially
+apparent in the in-situ control interface patch (Figure 7C) where
+Interface Quilt uses models to classify the object a user interacts
+with. We expect that more capable and efficient models will reduce
+or close the gap.
+The difficulty of synchronizing the interface patch with the target
+application depends on the extent to which controls are exposed on
+the interface. It is easy when they are clearly marked. For example,
+the system can directly parse text and paint size values on Power-
+Point (Figure 6D) and Affinity (Figure 4F), and synchronize in near
+real-time with the interface patch’s slider presentation. However,
+it requires more discovery efforts when the states and controls are
+not immediately legible. For example, in the Side Views (Figure 7B),
+the system needs to first click on the extreme ends of the slider
+to discover the numerical range of the slider, and in the à la carte
+interface patch (Figure 4G), the system needs to discover and click
+on options in a dropdown, introducing delays between user’s action
+and effect. Sometimes the pixels are inconsistent, making recovery
+difficult. For example, the ToolTrack interface patch (Figure 7D)
+counts the user’s clicks on “create sketch” in the ribbon and in
+the drop-down menu separately, despite being the same feature,
+because the two controls have different icons, a full icon in the
+ribbon and a small icon in the drop-down.
+Synchronization is hardest when the target application does not
+display the controls and values on the UI. For example, the interface
+patch cannot recompute the precise parameters of an object on the
+canvas without explicit display of such values. If the values are
+
+
+Interface Quilt
+hidden behind layers of interface, Interface Quilt could periodically
+click and poll the values, but might introduce interruptions to the
+user’s controls. It may be possible for Interface Quilt to use the pixel
+space to recover the object’s parameters, but this would introduce
+measuring errors. In these cases, APIs provide more precise and
+deterministic access for better modifications.
+An unexpected limitation of using pixels for controls is the
+“single-threaded” nature of the OS and applications when handling
+user input that they expect to come from a human user. For ex-
+ample, macOS only provides one cursor and takes input events
+sequentially. As a result, the Toolglass interface patch (Figure 6E)
+cannot simultaneously accept the trackpad and the cursor input.
+Users cannot move the toolglass while selecting options. Addition-
+ally, it is difficult to provide compound inputs when the application
+does not surface multiple controls on the UI. For example, Interface
+Quilt cannot create a saliency slider that simultaneously adjusts the
+text colour, text size, and text weight together in PowerPoint be-
+cause, without scripting access, Interface Quilt has to click through
+multiple hidden panels to modify the parameters, breaking the
+synchronized experience.
+6.3
+Architecture and Design Rationale
+Interface Quilt builds upon prior systems that modify applications
+through creating an interface layer over the original application,
+including Prefab [31], Patina [92], and Interaction Proxies [149].
+Interface Quilt extends this approach by combining computer-use
+agents with generative UI to make the modification layer more
+extensible. Rather than targeting a particular type of interface mod-
+ifications, Interface Quilt supports interface patches that modify the
+presentation, interaction, and capabilities individually or together.
+The Interface Quilt’s architecture design provides three benefits.
+First, the separation between runtime and build time retains the
+generalizability of build time while providing the user with a veri-
+fied and deterministic modified application experience. Second, the
+decoupled daemon and control components in Interface Quilt en-
+able retargeting a built interface patch to different OS by changing
+the daemon to wrap the OS APIs as Interface Quilt’s APIs. Third,
+each interface patch is separated into the logic and specifications.
+This enables one interface patch implemented for one application
+to be easily ported to target another application without changing
+the interface patch’s core logic.
+6.4
+Limitations of Interface Quilt and Interface
+Patches
+Interface Quilt has several limitations in both the construction and
+runtime of interface patches.
+At build time, creating an interface patch remains a multi-round
+and iterative process. A primary limitation is the agent’s limited
+ability to verify generated interactions beyond sending basic clicks
+and keyboard inputs and inspecting screenshots and traces for
+state changes. This makes automatically testing the generated in-
+terface patches with new interaction modalities, such as gestures,
+pen input, or multi-device interactions, difficult. Future work could
+incorporate an external verification process capable of synthesiz-
+ing human interface device signals to test these interactions more
+systematically [13]. Interface patch generation also takes longer
+than UI generation. Coding agents can generate interface patches
+significantly faster than a human programmer, but the individual
+build-test iteration can still take tens of minutes. Reusing prebuilt
+components in the architecture, similar interface patches implemen-
+tations, and cached information about a target application reduces
+the construction time. However, the generation is still lacking for
+on-demand rapid customization due to exploration overheads when
+integrating the generated UI to the existing application. Reducing
+this latency will require faster models, as well as providing more
+heuristics to speed up computer-use agent explorations.
+Generating an interface patch also requires Interface Quilt to
+temporarily take control of the user’s computer while it inspects
+and interacts with the target application, interrupting the user’s
+normal computing activities. One possible mitigation is to recreate
+the user’s OS and application environment in a virtual machine on
+the device or in the cloud, where Interface Quilt can generate and
+test the interface patch, and then distribute the resulting interface
+patch back on the user’s device.
+Interface Quilt introduces privacy, security, and performance
+concerns. First, at build time, the system has full access to operate
+the user’s computer at build time. One potential mitigation is to
+sandbox Interface Quilt and have a secondary system firewall Inter-
+face Quilt’s operations and data flow. At runtime, some interface
+patches require Interface Quilt to continuously observe the appli-
+cation interface and aspects of the user’s interaction with it. Such
+monitoring may expose sensitive information displayed on screen
+or inferred from the user’s interaction traces. Running perception
+models locally and making most operations deterministic, like in
+Interface Quilt, reduces the amount of user data sent to external
+services.
+Second, interface patches contain agent-generated code and may
+invoke external APIs and communicate over the network. As a
+result, generated patches may introduce vulnerabilities or inadver-
+tently disclose user data. A practical deployment of Interface Quilt
+would therefore require stronger safeguards around generated code,
+including post-build inspection, sandboxing, explicit permission
+boundaries, and fire-walling of network access and other sensitive
+capabilities.
+Third, continuously running interface patches, visual percep-
+tion, application-state tracking, and supporting services introduce
+non-negligible computational overhead. Interface Quilt partially
+mitigates this cost through a shared architecture where multiple
+lightweight interface patch runtimes reuse common system ser-
+vices provided in daemon, local models, and surface rather than
+independently running multiple instances of them. Nevertheless,
+reducing runtime resource consumption remains important for
+deploying interface patches on more resource-constrained devices.
+Finally, our current implementation requires the target appli-
+cation to run at the same window size as during the build time.
+Changes in window size, display scaling, or interface layout can
+therefore cause misalignment for a spatially positioned interface
+patch. Future versions could use the daemon’s window-management
+and local models services to dynamically update patch geometry
+as the target application’s window and layout change.
+
+
+Qiu et al.
+6.5
+Implications of Modifying Software with
+Interface Quilt and Interface Patches
+We view Interface Quilt as occupying an intermediate point in
+the lifecycle of software modification. Generative and malleable
+interfaces can produce interfaces in response to an immediate task
+or intent [18, 130, 141], while conventional plugins and features
+delivered through software updates are engineered as stable com-
+ponents of an application. An interface patch sits between these
+two ends of the spectrum. It can originate from a local demand and
+be generated relatively quickly. Once built, it persists and can be
+repeatedly used with the target application. Interface Quilt does
+not yet make this process suitable for end-user customization, since
+specifying and building an interface patch still requires iteration
+with the coding agents. However, we demonstrate how computer
+use agents and generative UI can be combined to create persistent
+modifications to the presentation, interaction and capabilities of ap-
+plications without programmatically accessing or modifying their
+source code. In this sense, interface patches provide a constrained
+form of software modification: more persistent than an ephemeral
+interface while more agile than conventional plugins or shipped
+features. In the future, Interface Quilt could also generate interface
+patches instantiated or triggered on demand, such as by an adap-
+tive system that observes the user’s interaction traces to propose
+modifications.
+Interface Quilt could also serve as a design tool for higher-fidelity
+interaction prototyping. Rather than recreating an application as a
+mockup, designers could construct interface patches that operate
+directly with a real application with real state behaviours and data.
+By extending the sketch interface patch (Figure 6B, C), Interface
+Quilt could enable designers to combine sketch and voice to author
+modifications on an existing interface. This has the potential to
+reimagine rapid prototyping [67].
+More broadly, interface patches could provide a deployment path
+for interaction techniques that would otherwise remain prototypes
+or research artifacts. Interface Quilt may enable revibed HCI ar-
+tifacts [3] to operate directly on existing applications, allowing
+interaction techniques from HCI research to be deployed on any
+software without requiring programmatic access provided by the
+developer.
+Beyond prototyping and research, Interface Quilt could become
+an expert customization tool. Technically proficient users could cre-
+ate persistent, task-specific modifications for software. This process
+supports rapid transitions from a feature request to tangible inter-
+face patches rather than waiting for the developer to implement the
+feature. Finally, the modular separation between interface patches
+and the OS-level daemon suggests an ecosystem of interface patches
+created from individual users, then shared across users, adapted to
+various applications and platforms, and eventually incorporated
+into the applications. From Interface Quilt to interface patches, the
+ecosystem extends the longstanding vision of customizable and
+community-built software [6, 88].
+7
+Conclusion
+We presented Interface Quilt, a system for creating and running
+interface patches, persistent modifications layered over existing
+applications. Our demonstrations showed that interface patches
+can modify presentation, interaction, and capabilities across ap-
+plications, through rendered-interface access alone. These results
+suggest that the combination of computer-use agents and genera-
+tive UI can support a broader role than task automation or creat-
+ing ephemeral interfaces. Together, they can reinvigorate existing
+software with modifications. We see interface patches as an inter-
+mediate form of malleable software, situated between ephemeral
+generated interfaces and fully engineered application features.
+Use of Generative AI
+In accordance with the ACM Policy on Authorship, the authors
+disclose the use of generative AI throughout this work. Anthropic
+models (including Opus 5, Fable 5, 5.1) and the OpenAI GPT-5 fam-
+ily models were used across brainstorming, literature search, and
+prototype implementation. OpenAI’s image model is used in teaser
+figure generation. Other local Computer Use models, UI-TARS and
+holo are used in system implementation. The authors reviewed and
+verified all generated output and take full responsibility for the
+Work.
+References
+[1] [n. d.].
+Chrome Frame.
+https://www.chromium.org/developers/how-
+tos/chrome-frame-getting-started/.
+[2] 2026.
+Holo2
+-
+a
+Hcompany
+Collection.
+https://huggingface.co/collections/Hcompany/holo2.
+[3] Eytan Adar, Yoonjoo Lee, Nina Lei, Q. Vera Liao, and Weirui Peng. 2026. Revibing
+Code from Papers: Reimplementing HCI Artifacts. arXiv:2608.00450 [cs.HC]
+doi:10.48550/arXiv.2608.00450
+[4] Saaket Agashe, Jiuzhou Han, Shuyu Gan, Jiachen Yang, Ang Li, and Xin Eric
+Wang. 2024. Agent S: An Open Agentic Framework That Uses Computers Like
+a Human. arXiv:2410.08164 [cs.AI] doi:10.48550/arXiv.2410.08164
+[5] Ahmed Ben Akouche, Géry Casiez, Mathieu Nancel, and Julien Gori.
+2026. TargetFinder: Detecting Widgets from Pixels on Desktop Interfaces.
+arXiv:2607.19907 [cs.HC] doi:10.48550/arXiv.2607.19907
+[6] Sérgio Alves, Ricardo Costa, Kyle Montague, and Tiago Guerreiro. 2024. Citizen-
+Led Personalization of User Interfaces: Investigating How People Customize
+Interfaces for Themselves and Others. Proc. ACM Hum.-Comput. Interact. 8,
+CSCW2 (Nov. 2024), 446:1–446:23. doi:10.1145/3686985
+[7] Nikola Banovic, Tovi Grossman, Justin Matejka, and George Fitzmaurice. 2012.
+Waken: Reverse Engineering Usage Information and Interface Structure from
+Software Videos. In Proceedings of the 25th Annual ACM Symposium on User
+Interface Software and Technology. ACM, Cambridge Massachusetts USA, 83–92.
+doi:10.1145/2380116.2380129
+[8] Jon-Tait Beason, Ruijia Cheng, Eldon Schoop, and Jeffrey Nichols. 2026. Athena:
+Intermediate Representations for Iterative Scaffolded App Generation with
+an LLM. In Proceedings of the 31st International Conference on Intelligent User
+Interfaces (IUI ’26). Association for Computing Machinery, New York, NY, USA,
+284–306. doi:10.1145/3742413.3789133
+[9] Michel Beaudouin-Lafon. 2000. Instrumental Interaction: An Interaction Model
+for Designing Post-WIMP User Interfaces. In Proceedings of the SIGCHI Confer-
+ence on Human Factors in Computing Systems. ACM, The Hague The Netherlands,
+446–453. doi:10.1145/332040.332473
+[10] Michel Beaudouin-Lafon. 2004. Designing Interaction, Not Interfaces. In Pro-
+ceedings of the Working Conference on Advanced Visual Interfaces. ACM, Gallipoli
+Italy, 15–22. doi:10.1145/989863.989865
+[11] Michel Beaudouin-Lafon. 2023. Beyond Applications: Interaction Substrates
+and Instruments. In IHM ’23: Proceedings of the 34th Conference on l’Interaction
+Humain-Machine. ACM, TROYES France, 1–15. doi:10.1145/3583961.3583968
+[12] Eric A. Bier, Maureen C. Stone, Ken Pier, William Buxton, and Tony D. DeRose.
+1993. Toolglass and Magic Lenses: The See-through Interface. In Proceedings of
+the 20th Annual Conference on Computer Graphics and Interactive Techniques.
+ACM, Anaheim CA, 73–80. doi:10.1145/166117.166126
+[13] Jeffrey P. Bigham. 2026. HIDAgent: A Toolkit Enabling "Personal Agents" on
+HID-Compatible Devices. arXiv:2602.00492 [cs.HC] doi:10.48550/arXiv.2602.
+00492
+[14] Michael Bolin, Matthew Webber, Philip Rha, Tom Wilson, and Robert C. Miller.
+2005. Automation and Customization of Rendered Web Pages. In Proceedings
+of the 18th Annual ACM Symposium on User Interface Software and Technology.
+ACM, Seattle WA USA, 163–172. doi:10.1145/1095034.1095062
+
+
+Interface Quilt
+[15] Richard A. Bolt. 1980. “Put-that-there”: Voice and Gesture at the Graphics
+Interface. In Proceedings of the 7th Annual Conference on Computer Graphics and
+Interactive Techniques - SIGGRAPH ’80. ACM Press, Seattle, Washington, United
+States, 262–270. doi:10.1145/800250.807503
+[16] Marcel Borowski, Luke Murray, Rolf Bagge, Janus Bager Kristensen, Arvind
+Satyanarayan, and Clemens Nylandsted Klokmose. 2022. Varv: Reprogrammable
+Interactive Software as a Declarative Data Structure. In Proceedings of the 2022
+CHI Conference on Human Factors in Computing Systems (CHI ’22). Association
+for Computing Machinery, New York, NY, USA, 1–20. doi:10.1145/3491102.
+3502064
+[17] Gaëlle Calvary, Joëlle Coutaz, David Thevenin, Quentin Limbourg, Laurent
+Bouillon, and Jean Vanderdonckt. 2003. A Unifying Reference Framework for
+Multi-Target User Interfaces. Interacting with Computers 15, 3 (June 2003),
+289–308. doi:10.1016/S0953-5438(03)00010-9
+[18] Yining Cao, Peiling Jiang, and Haijun Xia. 2025. Generative and Malleable
+User Interfaces with Generative and Evolving Task-Driven Data Model. In
+Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems.
+ACM, Yokohama Japan, 1–20. doi:10.1145/3706598.3713285
+[19] Ruei-Che Chang, Wenqian Xu, Dingzeyu Li, Bryan Wang, and Anhong Guo.
+2026. Sidekick: Designing Communication for Effective Multitasking with
+Computer Use Agents. arXiv:2607.17527 [cs.HC] doi:10.1145/3830398.3830476
+[20] Tsung-Hsiang Chang, Tom Yeh, and Rob Miller. 2011. Associating the Visual
+Representation of User Interfaces with Their Internal Structures and Metadata.
+In Proceedings of the 24th Annual ACM Symposium on User Interface Software
+and Technology. ACM, Santa Barbara California USA, 245–256. doi:10.1145/
+2047196.2047228
+[21] Sarah E. Chasins, Maria Mueller, and Rastislav Bodik. 2018. Rousillon: Scraping
+Distributed Hierarchical Web Data. In Proceedings of the 31st Annual ACM
+Symposium on User Interface Software and Technology. ACM, Berlin Germany,
+963–975. doi:10.1145/3242587.3242661
+[22] Jiaqi Chen, Yanzhe Zhang, Yutong Zhang, Yijia Shao, and Diyi Yang. 2025.
+Generative Interfaces for Language Models. doi:10.48550/ARXIV.2508.19227
+[23] Xiang ’Anthony’ Chen, Tiffany Knearem, and Yang Li. 2025. The GenUI Study:
+Exploring the Design of Generative UI Tools to Support UX Practitioners and
+Beyond. In Proceedings of the 2025 ACM Designing Interactive Systems Conference.
+1179–1196. arXiv:2501.13145 [cs] doi:10.1145/3715336.3735780
+[24] Xiang ‘Anthony’ Chen and Yang Li. 2017. Improv: An Input Framework for
+Improvising Cross-Device Interaction by Demonstration. ACM Transactions on
+Computer-Human Interaction 24, 2 (April 2017), 1–21. doi:10.1145/3057862
+[25] Ruijia Cheng, Titus Barik, Alan Leung, Fred Hohman, and Jeffrey Nichols. 2024.
+BISCUIT: Scaffolding LLM-Generated Code with Ephemeral UIs in Computa-
+tional Notebooks. arXiv:2404.07387 [cs] doi:10.48550/arXiv.2404.07387
+[26] William R. Cook. 2007. AppleScript. In Proceedings of the Third ACM SIGPLAN
+Conference on History of Programming Languages. ACM, San Diego California.
+doi:10.1145/1238844.1238845
+[27] Cua AI, Inc. 2025. Cua.
+[28] Florian Daniel, Jin Yu, Boualem Benatallah, Fabio Casati, Maristella Matera, and
+Regis Saint-Paul. 2007. Understanding UI Integration: A Survey of Problems,
+Technologies, and Opportunities. IEEE Internet Computing 11, 3 (May 2007),
+59–66. doi:10.1109/MIC.2007.74
+[29] Paul De Bra, Peter Brusilovsky, and Geert-Jan Houben. 1999. Adaptive Hyper-
+media: From Systems to Framework. ACM Comput. Surv. 31, 4es (Dec. 1999),
+12–es. doi:10.1145/345966.345996
+[30] Morgan Dixon. 2013. Pixel-Based Reverse Engineering of Graphical Interfaces.
+In Proceedings of the Adjunct Publication of the 26th Annual ACM Symposium
+on User Interface Software and Technology - UIST ’13 Adjunct. ACM Press, St.
+Andrews, Scotland, United Kingdom, 29–32. doi:10.1145/2508468.2508469
+[31] Morgan Dixon and James Fogarty. 2010. Prefab: Implementing Advanced
+Behaviors Using Pixel-Based Reverse Engineering of Interface Structure. In
+Proceedings of the SIGCHI Conference on Human Factors in Computing Systems.
+ACM, Atlanta Georgia USA, 1525–1534. doi:10.1145/1753326.1753554
+[32] Morgan Dixon, James Fogarty, and Jacob Wobbrock. 2012. A General-Purpose
+Target-Aware Pointing Enhancement Using Pixel-Level Analysis of Graphical
+Interfaces. In Proceedings of the SIGCHI Conference on Human Factors in Comput-
+ing Systems. ACM, Austin Texas USA, 3167–3176. doi:10.1145/2207676.2208734
+[33] Morgan Dixon, Gierad Laput, and James Fogarty. 2014. Pixel-Based Methods
+for Widget State and Style in a Runtime Implementation of Sliding Widgets. In
+Proceedings of the SIGCHI Conference on Human Factors in Computing Systems.
+ACM, Toronto Ontario Canada, 2231–2240. doi:10.1145/2556288.2556979
+[34] Morgan Dixon, Daniel Leventhal, and James Fogarty. 2011. Content and Hier-
+archy in Pixel-Based Methods for Reverse Engineering Interface Structure. In
+Proceedings of the SIGCHI Conference on Human Factors in Computing Systems.
+ACM, Vancouver BC Canada, 969–978. doi:10.1145/1978942.1979086
+[35] Morgan Dixon, Alexander Nied, and James Fogarty. 2014. Prefab Layers and Pre-
+fab Annotations: Extensible Pixel-Based Interpretation of Graphical Interfaces.
+In Proceedings of the 27th Annual ACM Symposium on User Interface Software
+and Technology (UIST ’14). Association for Computing Machinery, New York,
+NY, USA, 221–230. doi:10.1145/2642918.2647412
+[36] Pierre Dragicevic and Jean-Daniel Fekete. 2004. The Input Configurator Toolkit:
+Towards High Input Adaptability in Interactive Applications. In Proceedings
+of the Working Conference on Advanced Visual Interfaces. ACM, Gallipoli Italy,
+244–247. doi:10.1145/989863.989904
+[37] Pierre Dragicevic and Jean-Daniel Fekete. 2004. Support for Input Adaptability
+in the ICON Toolkit. In Proceedings of the 6th International Conference on Multi-
+modal Interfaces. ACM, State College PA USA, 212–219. doi:10.1145/1027933.
+1027969
+[38] James R. Eagan. 2017.
+Grab ‘n’ Drop: User Configurable Toolglasses.
+In
+Human-Computer Interaction – INTERACT 2017, Regina Bernhaupt, Girish Dalvi,
+Anirudha Joshi, Devanuj K. Balkrishan, Jacki O’Neill, and Marco Winckler (Eds.).
+Vol. 10515. Springer International Publishing, Cham, 315–334. doi:10.1007/978-
+3-319-67687-6_21
+[39] James R. Eagan, Michel Beaudouin-Lafon, and Wendy E. Mackay. 2011. Cracking
+the Cocoa Nut: User Interface Programming at Runtime. In Proceedings of the
+24th Annual ACM Symposium on User Interface Software and Technology. ACM,
+Santa Barbara California USA, 225–234. doi:10.1145/2047196.2047226
+[40] W. Keith Edwards, Scott E. Hudson, Joshua Marinacci, Roy Rodenstein, Thomas
+Rodriguez, and Ian Smith. 1997. Systematic Output Modification in a 2D User
+Interface Toolkit. In Proceedings of the 10th Annual ACM Symposium on User
+Interface Software and Technology - UIST ’97. ACM Press, Banff, Alberta, Canada,
+151–158. doi:10.1145/263407.263537
+[41] Leah Findlater and Krzysztof Z. Gajos. 2009. Design Space and Evaluation
+Challenges of Adaptive Graphical User Interfaces. AI Magazine 30, 4 (Dec.
+2009), 68–73. doi:10.1609/aimag.v30i4.2268
+[42] Leah Findlater and Joanna McGrenere. 2004. A Comparison of Static, Adaptive,
+and Adaptable Menus. In Proceedings of the SIGCHI Conference on Human Factors
+in Computing Systems (CHI ’04). Association for Computing Machinery, New
+York, NY, USA, 89–96. doi:10.1145/985692.985704
+[43] Leah Findlater, Karyn Moffatt, Joanna McGrenere, and Jessica Dawson. 2009.
+Ephemeral Adaptation: The Use of Gradual Onset to Improve Menu Selection
+Performance. In Proceedings of the SIGCHI Conference on Human Factors in
+Computing Systems. ACM, Boston MA USA, 1655–1664. doi:10.1145/1518701.
+1518956
+[44] G. Fischer, E. Giaccardi, Y. Ye, A. G. Sutcliffe, and N. Mehandjiev. 2004. Meta-
+Design: A Manifesto for End-User Development. Commun. ACM 47, 9 (Sept.
+2004), 33–37. doi:10.1145/1015864.1015884
+[45] Murielle Florins and Jean Vanderdonckt. 2004. Graceful Degradation of User
+Interfaces as a Design Method for Multiplatform Systems. In Proceedings of the
+9th International Conference on Intelligent User Interfaces (IUI ’04). Association
+for Computing Machinery, New York, NY, USA, 140–147. doi:10.1145/964442.
+964469
+[46] Krzysztof Gajos and Daniel S. Weld. 2004. SUPPLE: Automatically Generating
+User Interfaces. In Proceedings of the 9th International Conference on Intelligent
+User Interfaces. ACM, Funchal, Madeira Portugal, 93–100. doi:10.1145/964442.
+964461
+[47] Krzysztof Z. Gajos, Mary Czerwinski, Desney S. Tan, and Daniel S. Weld. 2006.
+Exploring the Design Space for Adaptive Graphical User Interfaces. In Proceed-
+ings of the Working Conference on Advanced Visual Interfaces - AVI ’06. ACM
+Press, Venezia, Italy, 201. doi:10.1145/1133265.1133306
+[48] Krzysztof Z. Gajos, Jacob O. Wobbrock, and Daniel S. Weld. 2007. Automatically
+Generating User Interfaces Adapted to Users’ Motor and Vision Capabilities. In
+Proceedings of the 20th Annual ACM Symposium on User Interface Software and
+Technology. ACM, Newport Rhode Island USA, 231–240. doi:10.1145/1294211.
+1294253
+[49] Krzysztof Z. Gajos, Jacob O. Wobbrock, and Daniel S. Weld. 2008. Improving the
+Performance of Motor-Impaired Users with Automatically-Generated, Ability-
+Based Interfaces. In Proceedings of the SIGCHI Conference on Human Factors
+in Computing Systems. ACM, Florence Italy, 1257–1266. doi:10.1145/1357054.
+1357250
+[50] Tovi Grossman and George Fitzmaurice. 2010. ToolClips: An Investigation of
+Contextual Video Assistance for Functionality Understanding. In Proceedings of
+the SIGCHI Conference on Human Factors in Computing Systems. ACM, Atlanta
+Georgia USA, 1515–1524. doi:10.1145/1753326.1753552
+[51] Pan Hao, Rishi Selvakumaran, Jacob Sun, and Qianwen Wang. 2026. Beyond
+Chat and Clicks: GUI Agents for In-Situ Assistance via Live Interface Transfor-
+mation. arXiv:2604.14668 [cs.HC] doi:10.48550/arXiv.2604.14668
+[52] Björn Hartmann, Scott R. Klemmer, Michael Bernstein, Leith Abdulla, Brandon
+Burr, Avi Robinson-Mosher, and Jennifer Gee. 2006. Reflective Physical Pro-
+totyping through Integrated Design, Test, and Analysis. In Proceedings of the
+19th Annual ACM Symposium on User Interface Software and Technology. ACM,
+Montreux Switzerland, 299–308. doi:10.1145/1166253.1166300
+[53] Björn Hartmann, Leslie Wu, Kevin Collins, and Scott R. Klemmer. 2007. Program-
+ming by a Sample: Rapidly Creating Web Applications with d.Mix. In Proceedings
+of the 20th Annual ACM Symposium on User Interface Software and Technology.
+ACM, Newport Rhode Island USA, 241–250. doi:10.1145/1294211.1294254
+[54] Austin Henderson and Morten Kyng. 2020. There’s No Place Like Home: Con-
+tinuing Design in Use. In Design at Work (1 ed.), Joan Greenbaum and Morten
+
+
+Qiu et al.
+Kyng (Eds.). CRC Press, 219–240. doi:10.1201/9781003063988-13
+[55] Ken Hinckley, Koji Yatani, Michel Pahud, Nicole Coddington, Jenny Rodenhouse,
+Andy Wilson, Hrvoje Benko, and Bill Buxton. 2010. Pen + Touch = New Tools.
+In Proceedings of the 23nd Annual ACM Symposium on User Interface Software
+and Technology. ACM, New York New York USA, 27–36. doi:10.1145/1866029.
+1866036
+[56] Tian Huang, Chun Yu, Weinan Shi, Bowen Wang, David Yang, Yihao Zhu,
+Zhaoheng Li, and Yuanchun Shi. 2023. Interaction Proxy Manager: Semantic
+Model Generation and Run-time Support for Reconstructing Ubiquitous User
+Interfaces of Mobile Services. Proc. ACM Interact. Mob. Wearable Ubiquitous
+Technol. 7, 3 (Sept. 2023), 99:1–99:39. doi:10.1145/3610929
+[57] Amy Hurst and Jasmine Tobias. 2011. Empowering Individuals with Do-It-
+Yourself Assistive Technology. In The Proceedings of the 13th International ACM
+SIGACCESS Conference on Computers and Accessibility. ACM, Dundee Scotland,
+UK, 11–18. doi:10.1145/2049536.2049541
+[58] Peiling Jiang and Haijun Xia. 2025.
+Orca: Browsing at Scale Through
+User-Driven and AI-Facilitated Orchestration Across Malleable Webpages.
+arXiv:2505.22831 [cs] doi:10.48550/arXiv.2505.22831
+[59] A. Kay and A. Goldberg. 1977. Personal Dynamic Media. Computer 10, 3 (March
+1977), 31–41. doi:10.1109/C-M.1977.217672
+[60] Anjali Khurana, Xiaotian Su, April Yi Wang, and Parmit K Chilana. 2025. Do It
+For Me vs. Do It With Me: Investigating User Perceptions of Different Paradigms
+of Automation in Copilots for Feature-Rich Software. In Proceedings of the 2025
+CHI Conference on Human Factors in Computing Systems (CHI ’25). Association
+for Computing Machinery, New York, NY, USA, 1–18. doi:10.1145/3706598.
+3713431
+[61] Eunhye Kim, DaEun Choi, Bryan Min, Hyunjung Yi, Yue Jiang, and Juho Kim.
+2026. Maru: Information Architecture as a Shared Language for Generating
+Aligned and Persistent User Interfaces. In UIST 2026.
+[62] Tae Soo Kim, DaEun Choi, Yoonseo Choi, and Juho Kim. 2022. Stylette: Styling
+the Web with Natural Language. In CHI Conference on Human Factors in Com-
+puting Systems. ACM, New Orleans LA USA, 1–17. doi:10.1145/3491102.3501931
+[63] Clemens N. Klokmose, James R. Eagan, Siemen Baader, Wendy Mackay, and
+Michel Beaudouin-Lafon. 2015. Webstrates: Shareable Dynamic Media. In Pro-
+ceedings of the 28th Annual ACM Symposium on User Interface Software & Tech-
+nology. ACM, Charlotte NC USA, 280–290. doi:10.1145/2807442.2807446
+[64] Amy J. Ko, Robin Abraham, Laura Beckwith, Alan Blackwell, Margaret Burnett,
+Martin Erwig, Chris Scaffidi, Joseph Lawrance, Henry Lieberman, Brad Myers,
+Mary Beth Rosson, Gregg Rothermel, Mary Shaw, and Susan Wiedenbeck. 2011.
+The State of the Art in End-User Software Engineering. Comput. Surveys 43, 3
+(April 2011), 1–44. doi:10.1145/1922649.1922658
+[65] Gordon Kurtenbach and William Buxton. 1991. Issues in Combining Marking
+and Direct Manipulation Techniques. In Proceedings of the 4th Annual ACM
+Symposium on User Interface Software and Technology - UIST ’91. ACM Press,
+Hilton Head, South Carolina, United States, 137–144. doi:10.1145/120782.120797
+[66] Gordon Kurtenbach and William Buxton. 1993. The Limits of Expert Perfor-
+mance Using Hierarchic Marking Menus. In Proceedings of the SIGCHI Conference
+on Human Factors in Computing Systems - CHI ’93. ACM Press, Amsterdam, The
+Netherlands, 482–487. doi:10.1145/169059.169426
+[67] James A. Landay. 1996. SILK: Sketching Interfaces like Krazy. In Conference
+Companion on Human Factors in Computing Systems Common Ground - CHI ’96.
+ACM Press, Vancouver, British Columbia, Canada, 398–399. doi:10.1145/257089.
+257396
+[68] David Ledo, Steven Houben, Jo Vermeulen, Nicolai Marquardt, Lora Oehlberg,
+and Saul Greenberg. 2018. Evaluation Strategies for HCI Toolkit Research. In
+Proceedings of the 2018 CHI Conference on Human Factors in Computing Systems.
+ACM, Montreal QC Canada, 1–17. doi:10.1145/3173574.3173610
+[69] David Ledo, Jo Vermeulen, Sheelagh Carpendale, Saul Greenberg, Lora Oehlberg,
+and Sebastian Boring. 2019. Astral: Prototyping Mobile and Smart Object
+Interactive Behaviours Using Familiar Applications. In Proceedings of the 2019
+on Designing Interactive Systems Conference. ACM, San Diego CA USA, 711–724.
+doi:10.1145/3322276.3322329
+[70] Sunjae Lee, Hoyoung Kim, Sijung Kim, Sangwook Lee, Hyosu Kim, Jean Young
+Song, Steven Y. Ko, Sangeun Oh, and Insik Shin. 2022. A-Mash: Providing
+Single-App Illusion for Multi-App Use through User-Centric UI Mashup. In
+Proceedings of the 28th Annual International Conference on Mobile Computing
+And Networking (MobiCom ’22). Association for Computing Machinery, New
+York, NY, USA, 690–702. doi:10.1145/3495243.3560522
+[71] Gilly Leshed, Eben M. Haber, Tara Matthews, and Tessa Lau. 2008. CoScripter:
+Automating & Sharing How-to Knowledge in the Enterprise. In Proceedings of
+the SIGCHI Conference on Human Factors in Computing Systems. ACM, Florence
+Italy, 1719–1728. doi:10.1145/1357054.1357323
+[72] Alan Leung, Ruijia Cheng, Jason Wu, Jeffrey Nichols, and Titus Barik. 2025.
+SQUIRE: Interactive UI Authoring via Slot QUery Intermediate REpresentations.
+In Proceedings of the 38th Annual ACM Symposium on User Interface Software
+and Technology (UIST ’25). Association for Computing Machinery, New York,
+NY, USA, 1–17. doi:10.1145/3746059.3747672
+[73] Yaniv Leviathan, Dani Valevski, Matan Kalman, Danny Lumen, Eyal Segalis,
+Eyal Molad, Shlomi Pasternak, Vishnu Natchu, Valerie Nygaard, Srinivasan,
+Venkatachary, James Manyika, and Yossi Matias. 2026. Generative UI: LLMs
+Are Effective UI Generators. arXiv:2604.09577 [cs.HC] doi:10.48550/arXiv.2604.
+09577
+[74] J. L. Levine and M. A. Schappert. 2005. A Mouse Adapter for People with Hand
+Tremor. IBM Systems Journal 44, 3 (2005), 621–628. doi:10.1147/sj.443.0621
+[75] Jiawen Li, Zheng Ning, Yuan Tian, and Toby Jia-jun Li. 2025. ALLOY: Generating
+Reusable Agent Workflows from User Demonstration. doi:10.48550/ARXIV.
+2510.10049
+[76] Toby Jia-Jun Li, Amos Azaria, and Brad A. Myers. 2017. SUGILITE: Creating
+Multimodal Smartphone Automation by Demonstration. In Proceedings of the
+2017 CHI Conference on Human Factors in Computing Systems. ACM, Denver
+Colorado USA, 6038–6049. doi:10.1145/3025453.3025483
+[77] Toby Jia-Jun Li, Marissa Radensky, Justin Jia, Kirielle Singarajah, Tom M.
+Mitchell, and Brad A. Myers. 2019. PUMICE: A Multi-Modal Agent That Learns
+Concepts and Conditionals from Natural Language and Demonstrations. In
+Proceedings of the 32nd Annual ACM Symposium on User Interface Software and
+Technology. ACM, New Orleans LA USA, 577–589. doi:10.1145/3332165.3347899
+[78] Henry Lieberman, Fabio Paternò, Volker Wulf, John Karat, and Jean Vanderdon-
+ckt (Eds.). 2006. End User Development. Human-Computer Interaction Series,
+Vol. 9. Springer Netherlands, Dordrecht. doi:10.1007/1-4020-5386-X
+[79] Quentin Limbourg, Jean Vanderdonckt, Benjamin Michotte, Laurent Bouillon,
+and Víctor López-Jaquero. 2005. USIXML: A Language Supporting Multi-path
+Development of User Interfaces. In Engineering Human Computer Interaction
+and Interactive Systems, David Hutchison, Takeo Kanade, Josef Kittler, Jon M.
+Kleinberg, Friedemann Mattern, John C. Mitchell, Moni Naor, Oscar Nierstrasz,
+C. Pandu Rangan, Bernhard Steffen, Madhu Sudan, Demetri Terzopoulos, Dough
+Tygar, Moshe Y. Vardi, Gerhard Weikum, Rémi Bastide, Philippe Palanque, and
+Jörg Roth (Eds.). Vol. 3425. Springer Berlin Heidelberg, Berlin, Heidelberg, 200–
+220. doi:10.1007/11431879_12
+[80] Geoffrey Litt, Josh Horowitz, Peter van Hardenberg, and Todd Matthews. 2025.
+Malleable Software: Restoring User Agency in a World of Locked-down Apps.
+https://www.inkandswitch.com/essay/malleable-software/.
+[81] Geoffrey Litt and Daniel Jackson. 2020. Wildcard: Spreadsheet-Driven Cus-
+tomization of Web Applications. In Conference Companion of the 4th Interna-
+tional Conference on Art, Science, and Engineering of Programming. ACM, Porto
+Portugal, 126–135. doi:10.1145/3397537.3397541
+[82] Greg Little, Tessa A. Lau, Allen Cypher, James Lin, Eben M. Haber, and
+Eser Kandogan. 2007.
+Koala: Capture, Share, Automate, Personalize Busi-
+ness Processes on the Web. In Proceedings of the SIGCHI Conference on Hu-
+man Factors in Computing Systems. ACM, San Jose California USA, 943–946.
+doi:10.1145/1240624.1240767
+[83] Yimeng Liu and Misha Sra. 2026. TaskLens: Generating Task-Conditioned
+Scaffolded Interfaces for Learning Professional Creative Software. In Pro-
+ceedings of the 2026 Designing Interactive Systems Conference. 17–38.
+arXiv:2511.23379 [cs.HC] doi:10.1145/3800645.3813081
+[84] Junting Lu, Zhiyang Zhang, Fangkai Yang, Jue Zhang, Lu Wang, Chao Du, Qing-
+wei Lin, Saravan Rajmohan, Dongmei Zhang, and Qi Zhang. 2025. AXIS: Effi-
+cient Human-Agent-Computer Interaction with API-First LLM-Based Agents.
+In Proceedings of the 63rd Annual Meeting of the Association for Computational
+Linguistics (Volume 1: Long Papers), Wanxiang Che, Joyce Nabende, Ekaterina
+Shutova, and Mohammad Taher Pilehvar (Eds.). Association for Computational
+Linguistics, Vienna, Austria, 7711–7743. doi:10.18653/v1/2025.acl-long.381
+[85] Tao Lu, Hongxiao Zheng, Tianying Zhang, Xuhai “Orson” Xu, and Anhong
+Guo. 2024. InteractOut: Leveraging Interaction Proxies as Input Manipulation
+Strategies for Reducing Smartphone Overuse. In Proceedings of the CHI Confer-
+ence on Human Factors in Computing Systems. ACM, Honolulu HI USA, 1–19.
+doi:10.1145/3613904.3642317
+[86] Yadong Lu, Jianwei Yang, Yelong Shen, and Ahmed Awadallah. 2024. Omni-
+Parser for Pure Vision Based GUI Agent. arXiv:2408.00203 [cs.CV] doi:10.48550/
+arXiv.2408.00203
+[87] Yuwen Lu, Chao Zhang, Yuewen Yang, Yaxing Yao, and Toby Jia-Jun Li. 2024.
+From Awareness to Action: Exploring End-User Empowerment Interventions
+for Dark Patterns in UX. Proc. ACM Hum.-Comput. Interact. 8, CSCW1 (April
+2024), 59:1–59:41. doi:10.1145/3637336
+[88] Wendy E. Mackay. 1990.
+Patterns of Sharing Customizable Software. In
+Proceedings of the 1990 ACM Conference on Computer-supported Cooperative
+Work - CSCW ’90. ACM Press, Los Angeles, California, United States, 209–221.
+doi:10.1145/99332.99356
+[89] Wendy E. Mackay and Michel Beaudouin-Lafon. 2025. Interaction Substrates:
+Combining Power and Simplicity in Interactive Systems. In Proceedings of the
+2025 CHI Conference on Human Factors in Computing Systems. ACM, Yokohama
+Japan, 1–16. doi:10.1145/3706598.3714006
+[90] Allan MacLean, Kathleen Carter, Lennart Lövstrand, and Thomas Moran.
+1990. User-Tailorable Systems: Pressing the Issues with Buttons. In Proceed-
+ings of the SIGCHI Conference on Human Factors in Computing Systems (CHI
+’90). Association for Computing Machinery, New York, NY, USA, 175–182.
+
+
+Interface Quilt
+doi:10.1145/97243.97271
+[91] Damien Masson, Jo Vermeulen, George Fitzmaurice, and Justin Matejka. 2022.
+Supercharging Trial-and-Error for Learning Complex Software Applications.
+In CHI Conference on Human Factors in Computing Systems. ACM, New Orleans
+LA USA, 1–13. doi:10.1145/3491102.3501895
+[92] Justin Matejka, Tovi Grossman, and George Fitzmaurice. 2013. Patina: Dynamic
+Heatmaps for Visualizing Application Usage. In Proceedings of the SIGCHI
+Conference on Human Factors in Computing Systems (CHI ’13). Association for
+Computing Machinery, New York, NY, USA, 3227–3236. doi:10.1145/2470654.
+2466442
+[93] Joanna McGrenere, Ronald M. Baecker, and Kellogg S. Booth. 2002. An Eval-
+uation of a Multiple Interface Design Solution for Bloated Software. In Pro-
+ceedings of the SIGCHI Conference on Human Factors in Computing Systems
+(CHI ’02). Association for Computing Machinery, New York, NY, USA, 164–170.
+doi:10.1145/503376.503406
+[94] Xiaojun Meng, Shengdong Zhao, Yongfeng Huang, Zhongyuan Zhang, James
+Eagan, and Ramanathan Subramanian. 2014. WADE: Simplified GUI Add-on
+Development for Third-Party Software. In Proceedings of the SIGCHI Conference
+on Human Factors in Computing Systems. ACM, Toronto Ontario Canada, 2221–
+2230. doi:10.1145/2556288.2557349
+[95] Robert C. Miller, Michael Bolin, Lydia B. Chilton, Greg Little, Matthew Webber,
+and Chen-Hsiang Yu. 2010. Rewriting the Web with Chickenfoot. In No Code
+Required. Elsevier, 39–63. doi:10.1016/B978-0-12-381541-5.00003-1
+[96] Bryan Min, Matthew T Beaudouin-Lafon, Sangho Suh, and Haijun Xia. 2023.
+Demonstration of Masonview: Content-Driven Viewport Management. In Ad-
+junct Proceedings of the 36th Annual ACM Symposium on User Interface Software
+and Technology. ACM, San Francisco CA USA, 1–3. doi:10.1145/3586182.3615827
+[97] Bryan Min, Allen Chen, Yining Cao, and Haijun Xia. 2025. Malleable Overview-
+Detail Interfaces. In Proceedings of the 2025 CHI Conference on Human Factors in
+Computing Systems. ACM, Yokohama Japan, 1–25. doi:10.1145/3706598.3714164
+[98] Bryan Min, Sangho Suh, Jim Hollan, and Haijun Xia. 2026. Making Abstraction
+Concrete: A Design Space and Interaction Model of Abstraction in Interactive
+Systems. arXiv:2605.11344 [cs.HC] doi:10.48550/arXiv.2605.11344
+[99] Bryan Min and Haijun Xia. 2025. Meridian: A Design Framework for Malleable
+Overview-Detail Interfaces. In Proceedings of the 38th Annual ACM Symposium
+on User Interface Software and Technology. ACM, Busan Republic of Korea, 1–14.
+doi:10.1145/3746059.3747654
+[100] Anders Mørch. 1997. Three Levels of End-User Tailoring: Customization, Inte-
+gration, and Extension. In Computers and Design in Context, Morten Kyng and
+Lars Mathiassen (Eds.). The MIT Press, 51–76. doi:10.7551/mitpress/1966.003.
+0004
+[101] G. Mori, F. Paterno, and C. Santoro. 2004. Design and Development of Multide-
+vice User Interfaces through Multiple Logical Descriptions. IEEE Transactions
+on Software Engineering 30, 8 (Aug. 2004), 507–520. doi:10.1109/TSE.2004.40
+[102] Hussein Mozannar, Gagan Bansal, Cheng Tan, Adam Fourney, Victor Dibia,
+Jingya Chen, Jack Gerrits, Tyler Payne, Matheus Kunzler Maldaner, Madeleine
+Grunde-McLaughlin, Eric Zhu, Griffin Bassman, Jacob Alber, Peter Chang, Ricky
+Loynd, Friederike Niedtner, Ece Kamar, Maya Murad, Rafah Hosn, and Saleema
+Amershi. 2025. Magentic-UI: Towards Human-in-the-loop Agentic Systems.
+arXiv:2507.22358 [cs.AI] doi:10.48550/arXiv.2507.22358
+[103] Brad A. Myers. 1998. Scripting Graphical Applications by Demonstration. In
+Proceedings of the SIGCHI Conference on Human Factors in Computing Systems -
+CHI ’98. ACM Press, Los Angeles, California, United States, 534–541. doi:10.
+1145/274644.274716
+[104] Bonnie A. Nardi. 1993. A Small Matter of Programming: Perspectives on End User
+Computing. The MIT Press. doi:10.7551/mitpress/1020.001.0001
+[105] Jeffrey Nichols, Zhigang Hua, and John Barton. 2008. Highlight: A System
+for Creating and Deploying Mobile Web Applications. In Proceedings of the
+21st Annual ACM Symposium on User Interface Software and Technology. ACM,
+Monterey CA USA, 249–258. doi:10.1145/1449715.1449757
+[106] Jeffrey Nichols and Tessa Lau. 2008. Mobilization by Demonstration: Using
+Traces to Re-Author Existing Web Sites. In Proceedings of the 13th International
+Conference on Intelligent User Interfaces. ACM, Gran Canaria Spain, 149–158.
+doi:10.1145/1378773.1378793
+[107] Jeffrey Nichols, Brad A. Myers, Michael Higgins, Joseph Hughes, Thomas K.
+Harris, Roni Rosenfeld, and Mathilde Pignol. 2002. Generating Remote Control
+Interfaces for Complex Appliances. In Proceedings of the 15th Annual ACM
+Symposium on User Interface Software and Technology. ACM, Paris France, 161–
+170. doi:10.1145/571985.572008
+[108] Jeffrey Nichols, Brandon Rothrock, Duen Horng Chau, and Brad A. Myers.
+2006. Huddle: Automatically Generating Interfaces for Systems of Multiple
+Connected Appliances. In Proceedings of the 19th Annual ACM Symposium on
+User Interface Software and Technology. ACM, Montreux Switzerland, 279–288.
+doi:10.1145/1166253.1166298
+[109] Dan R. Olsen, Scott E. Hudson, Thom Verratti, Jeremy M. Heiner, and Matt
+Phelps. 1999. Implementing Interface Attachments Based on Surface Represen-
+tations. In Proceedings of the SIGCHI Conference on Human Factors in Computing
+Systems the CHI Is the Limit - CHI ’99. ACM Press, Pittsburgh, Pennsylvania,
+United States, 191–198. doi:10.1145/302979.303038
+[110] Dan R. Olsen, Trent Taufer, and Jerry Alan Fails. 2004. ScreenCrayons: An-
+notating Anything. In Proceedings of the 17th Annual ACM Symposium on
+User Interface Software and Technology. ACM, Santa Fe NM USA, 165–174.
+doi:10.1145/1029632.1029663
+[111] Stanley R. Page, Todd J. Johnsgard, Uhl Albert, and C. Dennis Allen. 1996. User
+Customization of a Word Processor. In Proceedings of the SIGCHI Conference on
+Human Factors in Computing Systems Common Ground - CHI ’96. ACM Press,
+Vancouver, British Columbia, Canada, 340–346. doi:10.1145/238386.238541
+[112] Laura Paul and Regan L. Mandryk. 2026. Game Changers: Exploring Player
+Perspectives of Digital Game Modification. In Proceedings of the 2026 CHI Con-
+ference on Human Factors in Computing Systems. ACM, Barcelona Spain, 1–18.
+doi:10.1145/3772318.3791547
+[113] Yi-Hao Peng, Dingzeyu Li, Jeffrey P. Bigham, and Amy Pavel. 2025. Morae:
+Proactively Pausing UI Agents for User Choices. arXiv:2508.21456 [cs] doi:10.
+48550/arXiv.2508.21456
+[114] Antoine Ponsard and Joanna McGrenere. 2016. Anchored Customization: An-
+choring Settings to the Application Interface to Afford Customization. In Pro-
+ceedings of the 2016 CHI Conference on Human Factors in Computing Systems.
+ACM, San Jose California USA, 4154–4165. doi:10.1145/2858036.2858129
+[115] A.R. Puerta. 1997. A Model-Based Interface Development Environment. IEEE
+Software 14, 4 (1997), 40–47. doi:10.1109/52.595902
+[116] Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian,
+Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, Wanjun Zhong, Kuanye Li,
+Jiale Yang, Yu Miao, Woyu Lin, Longxiang Liu, Xu Jiang, Qianli Ma, Jingyu Li,
+Xiaojun Xiao, Kai Cai, Chuang Li, Yaowei Zheng, Chaolin Jin, Chen Li, Xiao
+Zhou, Minchao Wang, Haoli Chen, Zhaojian Li, Haihua Yang, Haifeng Liu, Feng
+Lin, Tao Peng, Xin Liu, and Guang Shi. 2025. UI-TARS: Pioneering Automated
+GUI Interaction with Native Agents. doi:10.48550/ARXIV.2501.12326
+[117] Zhi Qiu, Jiazheng Sun, Chenxiao Xia, Jun Zheng, and Xin Peng. 2026. CI4A:
+Semantic Component Interfaces for Agents Empowering Web Automation.
+arXiv:2601.14790 [cs.AI] doi:10.48550/arXiv.2601.14790
+[118] Roman Rädle, Midas Nouwens, Kristian Antonsen, James R. Eagan, and
+Clemens N. Klokmose. 2017. Codestrates: Literate Computing with Webstrates.
+In Proceedings of the 30th Annual ACM Symposium on User Interface Software
+and Technology. ACM, Québec City QC Canada, 715–725. doi:10.1145/3126594.
+3126642
+[119] Raf Ramakers, Fraser Anderson, Tovi Grossman, and George Fitzmaurice. 2016.
+RetroFab: A Design Tool for Retrofitting Physical Interfaces Using Actuators,
+Sensors and 3D Printing. In Proceedings of the 2016 CHI Conference on Human
+Factors in Computing Systems. ACM, San Jose California USA, 409–419. doi:10.
+1145/2858036.2858485
+[120] Richard M. Stallman. 1981.
+EMACS the Extensible, Customizable Self-
+Documenting Display Editor. In Proceedings of the ACM SIGPLAN SIGOA Sym-
+posium on Text Manipulation -. ACM Press, Portland, Oregon, United States,
+147–156. doi:10.1145/800209.806466
+[121] Wolfgang Stuerzlinger, Olivier Chapuis, Dusty Phillips, and Nicolas Roussel.
+2006. User Interface Façades: Towards Fully Adaptable User Interfaces. In
+Proceedings of the 19th Annual ACM Symposium on User Interface Software
+and Technology. ACM, Montreux Switzerland, 309–318. doi:10.1145/1166253.
+1166301
+[122] Amanda Swearngin, Amy J. Ko, and James Fogarty. 2017. Genie: Input Retar-
+geting on the Web through Command Reverse Engineering. In Proceedings of
+the 2017 CHI Conference on Human Factors in Computing Systems. ACM, Denver
+Colorado USA, 4703–4714. doi:10.1145/3025453.3025506
+[123] Desney S. Tan, Brian Meyers, and Mary Czerwinski. 2004. WinCuts: Manipulat-
+ing Arbitrary Window Regions for More Effective Use of Screen Space. In CHI
+’04 Extended Abstracts on Human Factors in Computing Systems. ACM, Vienna
+Austria, 1525–1528. doi:10.1145/985921.986106
+[124] Theresa Jean Tanenbaum, Amanda M. Williams, Audrey Desjardins, and Karen
+Tanenbaum. 2013. Democratizing Technology: Pleasure, Utility and Expres-
+siveness in DIY and Maker Practice. In Proceedings of the SIGCHI Confer-
+ence on Human Factors in Computing Systems. ACM, Paris France, 2603–2612.
+doi:10.1145/2470654.2481360
+[125] Michael Terry and Elizabeth D. Mynatt. 2002. Side Views: Persistent, on-Demand
+Previews for Open-Ended Tasks. In Proceedings of the 15th Annual ACM Sym-
+posium on User Interface Software and Technology. ACM, Paris France, 71–80.
+doi:10.1145/571985.571996
+[126] David Thevenin and Joelle Coutaz. 1999. Plasticity of User Interfaces: Frame-
+work and Research Agenda. INTERACT (1999).
+[127] Sarah-Kristin Thiel and Peter Lyle. 2019. Malleable Games - A Literature Review
+on Communities of Game Modders. In Proceedings of the 9th International
+Conference on Communities & Technologies - Transforming Communities. ACM,
+Vienna Austria, 198–209. doi:10.1145/3328320.3328393
+[128] Kashyap Todi, Gilles Bailly, Luis Leiva, and Antti Oulasvirta. 2021. Adapting
+User Interfaces with Model-based Reinforcement Learning. In Proceedings of
+the 2021 CHI Conference on Human Factors in Computing Systems (CHI ’21).
+Association for Computing Machinery, New York, NY, USA, 1–13. doi:10.1145/
+
+
+Qiu et al.
+3411764.3445497
+[129] Michael Toomim, Steven M. Drucker, Mira Dontcheva, Ali Rahimi, Blake Thom-
+son, and James A. Landay. 2009. Attaching UI Enhancements to Websites with
+End Users. In Proceedings of the SIGCHI Conference on Human Factors in Comput-
+ing Systems. ACM, Boston MA USA, 1859–1868. doi:10.1145/1518701.1518987
+[130] Priyan Vaithilingam, Elena L. Glassman, Jeevana Priya Inala, and Chenglong
+Wang. 2024. DynaVis: Dynamically Synthesized UI Widgets for Visualization
+Editing. In Proceedings of the CHI Conference on Human Factors in Computing
+Systems. ACM, Honolulu HI USA, 1–17. doi:10.1145/3613904.3642639
+[131] Priyan Vaithilingam and Philip J. Guo. 2019. Bespoke: Interactively Synthe-
+sizing Custom GUIs from Command-Line Applications By Demonstration. In
+Proceedings of the 32nd Annual ACM Symposium on User Interface Software and
+Technology (UIST ’19). Association for Computing Machinery, New York, NY,
+USA, 563–576. doi:10.1145/3332165.3347944
+[132] Jean M. Vanderdonckt and François Bodart. 1993. Encapsulating Knowledge
+for Intelligent Automatic Interaction Objects Selection. In Proceedings of the
+SIGCHI Conference on Human Factors in Computing Systems - CHI ’93. ACM
+Press, Amsterdam, The Netherlands, 424–429. doi:10.1145/169059.169340
+[133] Jo Vermeulen, Kris Luyten, Elise Van Den Hoven, and Karin Coninx. 2013. Cross-
+ing the Bridge over Norman’s Gulf of Execution: Revealing Feedforward’s True
+Identity. In Proceedings of the SIGCHI Conference on Human Factors in Computing
+Systems. ACM, Paris France, 1931–1940. doi:10.1145/2470654.2466255
+[134] Bryan Wang, Gang Li, Xin Zhou, Zhourong Chen, Tovi Grossman, and Yang Li.
+2021. Screen2Words: Automatic Mobile UI Summarization with Multimodal
+Learning. In The 34th Annual ACM Symposium on User Interface Software and
+Technology. ACM, Virtual Event USA, 498–510. doi:10.1145/3472749.3474765
+[135] Yuan Wang, Mingyu Li, and Haibo Chen. 2026. From Imperative to Declarative:
+Towards LLM-friendly OS Interfaces for Boosted Computer-Use Agents. In
+Proceedings of the 21st European Conference on Computer Systems. 296–310.
+arXiv:2510.04607 [cs.OS] doi:10.1145/3767295.3803576
+[136] Charles Wiecha, William Bennett, Stephen Boies, John Gould, and Sharon
+Greene. 1990. ITS: A Tool for Rapidly Developing Interactive Applications.
+ACM Transactions on Information Systems 8, 3 (July 1990), 204–236. doi:10.1145/
+98188.98194
+[137] Jacob O. Wobbrock, Shaun K. Kane, Krzysztof Z. Gajos, Susumu Harada, and
+Jon Froehlich. 2011. Ability-Based Design: Concept, Principles and Examples.
+ACM Transactions on Accessible Computing 3, 3 (April 2011), 1–27. doi:10.1145/
+1952383.1952384
+[138] Jason Wu, Eldon Schoop, Alan Leung, Titus Barik, Jeffrey P. Bigham, and
+Jeffrey Nichols. 2024. UICoder: Finetuning Large Language Models to Generate
+User Interface Code through Automated Feedback. arXiv:2406.07739 [cs.CL]
+doi:10.48550/arXiv.2406.07739
+[139] Jason Wu, Xiaoyi Zhang, Jeff Nichols, and Jeffrey P Bigham. 2021. Screen
+Parsing: Towards Reverse Engineering of UI Models from Screenshots. In The
+34th Annual ACM Symposium on User Interface Software and Technology. ACM,
+Virtual Event USA, 470–483. doi:10.1145/3472749.3474763
+[140] Zheng Wu, Heyuan Huang, Xingyu Lou, Xiangmou Qu, Pengzhou Cheng,
+Zongru Wu, Weiwen Liu, Weinan Zhang, Jun Wang, Zhaoxiang Wang, and
+Zhuosheng Zhang. 2026. VeriOS: Query-Driven Proactive Human-Agent-GUI
+Interaction for Trustworthy OS Agents. arXiv:2509.07553 [cs.CL] doi:10.48550/
+arXiv.2509.07553
+[141] Yuan Xu, Shaowen Xiang, Yizhi Song, Ruoting Sun, and Xin Tong. 2026. Due-
+tUI: A Bidirectional Context Loop for Human-Agent Co-Generation of Task-
+Oriented Interfaces. In Proceedings of the 2026 CHI Conference on Human Fac-
+tors in Computing Systems. ACM, Barcelona Spain, 1–22. doi:10.1145/3772318.
+3790441
+[142] Tom Yeh, Tsung-Hsiang Chang, and Robert C. Miller. 2009. Sikuli: Using GUI
+Screenshots for Search and Automation. In Proceedings of the 22nd Annual
+ACM Symposium on User Interface Software and Technology. ACM, Victoria BC
+Canada, 183–192. doi:10.1145/1622176.1622213
+[143] Keen You, Haotian Zhang, Eldon Schoop, Floris Weers, Amanda Swearngin,
+Jeffrey Nichols, Yinfei Yang, and Zhe Gan. 2024. Ferret-UI: Grounded Mobile UI
+Understanding with Multimodal LLMs. arXiv:2404.05719 [cs]
+[144] Chaoyun Zhang, Shilin He, Liqun Li, Si Qin, Yu Kang, Qingwei Lin, Saravan
+Rajmohan, and Dongmei Zhang. 2025. API Agents vs. GUI Agents: Divergence
+and Convergence. doi:10.48550/ARXIV.2503.11069
+[145] Chaoyun Zhang, He Huang, Chiming Ni, Jian Mu, Si Qin, Shilin He, Lu Wang,
+Fangkai Yang, Pu Zhao, Chao Du, Liqun Li, Yu Kang, Zhao Jiang, Suzhen
+Zheng, Rujia Wang, Jiaxu Qian, Minghua Ma, Jian-Guang Lou, Qingwei Lin,
+Saravan Rajmohan, and Dongmei Zhang. 2025. UFO2: The Desktop AgentOS.
+doi:10.48550/ARXIV.2504.14603
+[146] Jiacheng Zhang, Jiawen Li, Maryam Arab, and Steve Oney. 2025. Multi-Click:
+Cross-Tab Web Automation via Action Generalization. In Proceedings of the
+38th Annual ACM Symposium on User Interface Software and Technology. ACM,
+Busan Republic of Korea, 1–10. doi:10.1145/3746059.3747780
+[147] Xiaoyi Zhang, Lilian De Greef, Amanda Swearngin, Samuel White, Kyle Murray,
+Lisa Yu, Qi Shan, Jeffrey Nichols, Jason Wu, Chris Fleizach, Aaron Everitt, and
+Jeffrey P Bigham. 2021. Screen Recognition: Creating Accessibility Metadata
+for Mobile Applications from Pixels. In Proceedings of the 2021 CHI Conference
+on Human Factors in Computing Systems. ACM, Yokohama Japan, 1–15. doi:10.
+1145/3411764.3445186
+[148] Xiong Zhang and Philip J. Guo. 2018. Fusion: Opportunistic Web Prototyp-
+ing with UI Mashups. In Proceedings of the 31st Annual ACM Symposium on
+User Interface Software and Technology (UIST ’18). Association for Computing
+Machinery, New York, NY, USA, 951–962. doi:10.1145/3242587.3242632
+[149] Xiaoyi Zhang, Anne Spencer Ross, Anat Caspi, James Fogarty, and Jacob O.
+Wobbrock. 2017. Interaction Proxies for Runtime Repair and Enhancement of
+Mobile Application Accessibility. In Proceedings of the 2017 CHI Conference on
+Human Factors in Computing Systems (CHI ’17). Association for Computing
+Machinery, New York, NY, USA, 6024–6037. doi:10.1145/3025453.3025846
+[150] Hongbin Zhong, Fazle Faisal, Luis França, Tanakorn Leesatapornwongsa,
+Adriana Szekeres, Kexin Rong, and Suman Nath. 2026.
+ActionEngine:
+From Reactive to Programmatic GUI Agents via State Machine Memory.
+arXiv:2602.20502 [cs.AI] doi:10.48550/arXiv.2602.20502
+[151] Tim Zindulka, Jannek Maximilian Sekowski, Florian Lehmann, and Daniel
+Buschek. 2025. Exploring Mobile Touch Interaction with Large Language Mod-
+els. In Proceedings of the 2025 CHI Conference on Human Factors in Computing
+Systems. ACM, Yokohama Japan, 1–21. doi:10.1145/3706598.3713554

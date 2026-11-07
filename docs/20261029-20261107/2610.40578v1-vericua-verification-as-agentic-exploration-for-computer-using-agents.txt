@@ -1,0 +1,941 @@
+Title: VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+URL Source: https://arxiv.org/pdf/2610.40578v1
+
+Published Time: Fri, 30 Oct 2026 04:52:51 GMT
+
+Number of Pages: 29
+
+Markdown Content:
+# VeriCUA: Verification as Agentic Exploration for Computer-Using Agents   
+
+> Qiushi Sun 1,2* , Da Yu 1, Alexander Knop 1, Amer Sinha 1, Lingpeng Kong 2, Ben Kao 2, Ravi Kumar 1and Pritish Kamath 1
+> 1Google, 2The University of Hong Kong
+
+Building and scaling computer-using agents (CUAs) across desktop, mobile, and web environments requires reliable task-completion verification for data curation, evaluation, and reinforcement learn-ing. Typical automated approaches prompt vision-language models (VLMs) to judge trajectories or generate programs to inspect application state. However, both rely on partial views of complex digital environments. VLM judges are restricted to supplied observations, while generated programs depend on accessible state. These views can omit decisive evidence or leave completion judgments unsupported. Tailoring separate verifiers to different platforms and access settings adds further engineering cost. We present VeriCUA, a platform-agnostic framework for verification through agentic exploration. It treats verification as dynamic evidence gathering and assessment within a shared procedure for online and offline settings across platforms and observation modalities. After inspecting the available context to construct a task rubric, the verifier selects GUI or code checks for unresolved requirements and combines their findings under explicit evidence rules. Experiments show improved agreement with reference labels over the compared baselines across these settings, with the largest offline gains on hard cases and stronger rejection of false completion claims online. Further analyses connect these gains to complementary evidence and test-time exploration. 
+
+1. Introduction 
+
+Vision-language models (VLMs) have enabled computer-using agents (CUAs) to navigate the digital world through software interfaces (Rawles et al., 2025; Xie et al., 2024; Zhou et al., 2024). Given a natural-language instruction, an agent observes the interface, plans, and acts, leaving a trajectory of thoughts, actions, and observations. Digital tasks span applications in which success can depend on visual presentation, application records, or changes to persisted files. A trajectory can appear successful even when edits remain unsaved or an operation fails without a visible warning. The agent may also report completion after fulfilling only part of the instruction. Accepting such a run as successful produces a false positive, making the distinction between attempted actions and their actual effects central to verification. Developing these agents therefore requires reliable judgments throughout evaluation, data curation (Sun et al., 2025), and reinforcement learning (Xue et al., 2026a), including applications for which no task-specific checker has been supplied. An execution can be verified online from the resulting machine state or offline from its retained trajectory. Evidence can come from rendered interfaces, structured observations, or artifacts such as files and database records. VLM judges assess trajectories from selected observations (Pan et al., 2024), while automatically generated checkers inspect application state through model-written programs (Xue et al., 2026b). A fixed set of frames may omit a decisive effect, and a generated query may target state that does not answer the verification question. Platform-native signals support more specialized judgments and validation (Chae et al., 2025; Sun et al., 2026b), but their availability varies with the application and access setting. Agentic approaches actively inspect trajectories or environments (Cui et al., 2026; Sanayei et al., 2026; Wan et al., 2026). A shared procedure must seek relevant evidence under these access constraints and ground its conclusions in the observations. 
+
+> Corresponding author(s): qiushisun@connect.hku.hk, pritishk@google.com
+> * This work was done during Qiushi’s internship at Google. arXiv:2610.40578v1 [cs.AI] 29 Oct 2026
+
+VeriCUA: Verification as Agentic Exploration for Computer-Using Agents Task & Trajectory  Env & Rubric  Agentic Exploration  Verdict                          
+
+> Observation
+> Live Machine online ▲
+> files databases
+> settings system services
+> Recorded Trajectory recorded ▼
+> action log screen frames
+> a11ytrees
+> Action Space
+> GUI both ▲▼
+> get_frame zoom ocr
+> read_a11y screenshot
+> Code online ▲
+> API / system state find read_file sqlite_query + plugin
+> generate scripts note_exists() text_matches() …
+> Online Environment
+> “Create a new note in Markor named
+> 2023_08_31_real_elephant.txt with the following text: Don't forget to water the plants while I'm away. ”
+> 12479
+
+Rubric Synthesis            
+
+> instruction +environment
+> Markor app · its files and preferences
+> r1 hard a note file exists …
+> r2 hard inside Markor's folder
+> r3 hard its content matches …
+> · · ·
+> r5 soft no other note changed
+> scout the device, then read its state
+> $ find …txt
+> /Documents/
+> markor/…txt
+> 1
+> find
+> in markor/
+> attested r1, r2
+
+… $ read_file  
+
+> Don't forget
+> to water …
+> 6
+> read_file
+> text matches
+> attested r3
+
+… 10  
+
+> screenshot
+> open in editor
+> attested r3
+> 10 reads, 16 checkers , then the fold
+
+Rubric Met?   
+
+> r1 r2
+> r3 · · ·
+> r5
+
+SUCCESS        
+
+> ground truth
+> SUCCESS
+> Recorded Trajectory
+> “I'd like to make the picture's contrast stronger to really bring out the main subject . Could you assist me in
+> boosting the contrast ?”
+> 124
+> 689
+
+Rubric Synthesis             
+
+> instruction +environment
+> GIMP on Ubuntu · berries.png
+> r1 hard contrast is higher …
+> r2 hard dialog closed, edit kept
+> r3 hard the image is saved
+> · · ·
+> r6 soft size, layers unchanged
+> 3 audit paths, 17 probes: forward backward ↔
+> 3
+> get_frame
+> S-curve set
+> attested r1
+
+… 9 
+
+> get_frame
+> dialog gone
+> attested r2
+
+… 15    
+
+> zoom
+> unsaved changes
+> attested refutes r3
+> the agent's “done” is asserted and never counts
+
+Rubric Met?    
+
+> ?r1 r2
+> r3 · · ·
+> r6
+> ? = not decidable
+
+FAIL 
+
+> ground truth
+> FAIL
+
+Figure 1 | VeriCUA inspects the available environment or recording before constructing a rubric, then gathers evidence to verify its requirements. To address these evidence and access limitations, we present VeriCUA, a platform-agnostic framework that formulates CUA verification as agentic exploration (Figure 1). It provides a shared procedure for offline and online verification using the sources and inspection tools available in each setting. Verification begins after the executing agent’s attempt ends. The verifier first explores the available context to understand the app and its task artifacts, then uses these observations with the instruction to construct a rubric of fine-grained requirements. This context helps interpret task concepts and locate potential evidence, especially when the application is unfamiliar. The verifier chooses GUI or code tools to check the rubric’s requirements. Findings from these checks reveal what remains unresolved and guide further inspection of relevant frames, artifacts, or another available source. VeriCUA’s unified design separates the verification workflow from the interfaces through which evidence is obtained. Offline verification navigates retained screen frames and action logs, using structured observations such as accessibility trees when recorded. Online verification can inspect the accessible machine state left by the executing agent through GUI or code tools, including files, databases, and system services. These sources answer different questions about the requested outcome. An action log records an attempted edit, while a file read can show whether the edited content persisted. A report that the task is complete remains a claim to verify. The framework links findings to their supporting observations and records source properties such as frame timing or state persistence. Explicit evidence rules combine the findings into a task verdict while retaining which requirements are supported, refuted, or unresolved. We evaluate this shared procedure in offline and online scenarios on multiple platforms. VeriCUA achieves higher agreement with reference labels than the compared baselines in both settings. It also rejects more false completion claims than the VLM judge in the online study. The action-space study shows that adding code-based state reads enables more decisions without increasing false positives. At a matched number of verification passes, adding visual evidence improves agreement and decision coverage compared with repeating the same configuration. 
+
+2VeriCUA: Verification as Agentic Exploration for Computer-Using Agents 
+
+Our contributions are summarized below: • General-Purpose Agentic Verification. VeriCUA formulates CUA verification as agentic exploration, providing a shared paradigm for offline and online tasks across platforms and available evidence sources. • Adaptive Evidence Gathering. Context inspection grounds task rubrics in the available environment or recording. The verifier selects GUI or code checks for unresolved requirements and combines findings under source-specific evidence rules. • Evaluation Across Platforms. Experiments show improved agreement with reference labels across the evaluated platforms. Analyses show how evidence access and complementary exploration affect decision coverage and reliability. 
+
+2. Related Work 
+
+Computer-Using Agents and Their Evaluation. Computer-using agents are evaluated on web, mobile, and desktop tasks (Rawles et al., 2025; Xie et al., 2024; Zhou et al., 2024), with dedicated environments covering scientific applications (Sun et al., 2026c). These benchmarks typically use task-specific programmatic evaluators to check the resulting application state. Human-labeled tra-jectory datasets provide reference judgments across applications (Sun et al., 2026a), while audits of benchmark evaluators identify errors in the checks used to produce reference labels (Xie et al., 2025). Benchmarks of environment-aware judges assess evidence acquisition and verification of states and execution processes (Shi et al., 2026). Completion judgments also support data curation and training beyond benchmark evaluation. Trajectory synthesis pipelines use verifier scores to select examples (Sun et al., 2025), and continual reinforcement learning relies on automated feedback during environment adaptation (Xue et al., 2026a). Rubric-based reward modeling further uses synthetic criteria derived from preferred and rejected responses (Liu et al., 2026). Safety-oriented evaluation additionally examines whether agent behavior satisfies workflow constraints (Sun et al., 2026b). The range of applications and evaluation criteria creates demand for verification that can locate relevant evidence through available interfaces, including tasks without a dedicated evaluator. 
+
+Verifying Trajectories and Reward Models. VLM judges assess task completion from trajectory observations (Pan et al., 2024), while structured critics evaluate task requirements or intermediate milestones (Li et al., 2026). Task-adaptive rubrics can be generated from task descriptions to guide trajectory evaluation (Ding, 2026). Generated verifiers construct programs that inspect application state (Xue et al., 2026b). Reward benchmarks evaluate the reliability of trajectory judgments against reference labels across tasks and platforms (Lin et al., 2025; Sun et al., 2026a). Agent-based evaluators assess intermediate task requirements in code-generation workflows (Zhuge et al., 2025). Agentic approaches gather additional evidence by iteratively inspecting recorded trajectories (Wan et al., 2026) or interacting with the execution environment (Cui et al., 2026). Evidence-first verification separates investigation from validation, checking proposed claims against their state or trace sources before accepting rubric verdicts (Sanayei et al., 2026). These approaches motivate both seeking task-relevant evidence and assessing how it supports a judgment. VeriCUA builds its rubric after inspecting the available environment or recording, then selects GUI or code checks for unresolved requirements. Source-aware rules combine the resulting findings within a shared offline and online verification workflow. 
+
+> 3VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+3. Method 
+
+3.1. Verification as Active Evidence Gathering 
+
+Given an instruction 𝑔 , an executing agent produces a trajectory 𝜏 = [𝑜 0, 𝑎 0, . . . , 𝑜 𝑇 ] of observations and actions, together with any recorded reasoning, and leaves the environment in state 𝑠 𝑇 . VeriCUA begins after this attempt ends and assesses whether the execution fulfilled 𝑔 using the sources available to the verifier. Although task completion is binary, the verifier outputs 𝑦 ∈ { success , fail , abstain },allowing abstention when the gathered evidence is insufficient to support a decision. The available sources S = {𝑆 1, . . . , 𝑆 𝑚 } can include a retained trajectory, recorded accessibility trees ( a11ytrees ), a frozen machine snapshot, or accessible post-execution machine state. Offline verification uses retained observations, while online verification can inspect exposed machine state alongside any retained execution records. When a requirement concerns a change made during execution, an available pre-execution reference can also serve as a source. The shared workflow in Figure 1 begins with context inspection , which gathers information about the application and available observations into context 𝑐 . Rubric synthesis uses 𝑔 and 𝑐 to produce requirements 𝑅 that make the instruction checkable. During active exploration , the verifier selects checks for these requirements and uses their results to decide what to inspect next. Finally, rule-based arbitration combines the findings under the setting’s evidence rules and handles any unresolved requirements. At step 𝑘 , an inspection action 𝛼 𝑘 = (𝑣 𝑘 , 𝑥 𝑘 ) ∈ A (S) pairs a tool 𝑣 𝑘 with arguments 𝑥 𝑘 . Let E𝑘 −1 denote the inspection record before this step, initialized with any retained context-inspection outputs E0.The verifier selects and executes the next check according to  
+
+> 𝛼 𝑘
+
+∼ 𝜋 𝑉 ( · | 𝑔, 𝑐, 𝑅, E𝑘 −1), Execute (𝛼 𝑘 , S) −→ ( ˜𝑜 𝑘 , 𝑡 𝑘 ), (1) where ˜ 𝑜 𝑘 is the returned tool observation and 𝑡 𝑘 records its evidence type and source attributes, assigned by the tool-execution layer (the harness ). The executed check (𝛼 𝑘 , ˜𝑜 𝑘 , 𝑡 𝑘 ) and its associated findings are added to form E𝑘 . A finding assesses how an observation supports or refutes a particular rubric requirement. The verifier continues until the hard requirements are settled or its inspection budget is exhausted. After 𝐿 inspection steps, the arbiter derives a verdict from E𝐿 .
+
+3.2. Environment-Aware Rubric Synthesis 
+
+An instruction specifies the requested result but may leave its application-specific interpretation implicit. A request to save a note, for example, does not necessarily identify the application’s storage directory or explain which view reveals whether the note persisted. Generating requirements without this context can introduce assumptions about files or interface elements that the application does not expose. Before constructing the rubric, VeriCUA uses the available inspection tools to gather context 𝑐 . Online inspection can identify application packages, relevant directories, and exposed database schemas; offline inspection reviews the recorded steps, frames, and available structured observations. From the instruction 𝑔 and observed context 𝑐 , the verifier constructs a rubric 𝑅 = {( 𝑟 𝑖 , ℎ 𝑖 )} 𝑛 𝑖 =1, where each 𝑟 𝑖 is a checkable task requirement and ℎ𝑖 ∈ { hard , soft } indicates whether it is mandatory for success or an additional check. Requirements can concern a resulting state or a change relative to an available pre-execution reference. Each hard requirement must be justified by the outcomes requested in the instruction, while context supplies its application-specific meaning and helps locate evidence. In the note-saving example, the 
+
+> 4
+
+VeriCUA: Verification as Agentic Exploration for Computer-Using Agents Live Machine 
+
+Trajectory  what the agent saw and did  also in a recording         
+
+> 14710 actions open_app click input_text
+
+… complete  
+
+> reasoning “The filename and extension are correctly set. Now I will click OK to create the file.” … “The note has been created with the requested text and saved. The task is now complete.”
+
+Surface  what the machine shows now           
+
+> screenshot
+> UI dump
+> <EditText text="Don't forget to water the plants …"/>
+> <TextView text="2023_08_31_real_elephant.txt"/>
+> current_activity →net.gsantner.markor/.MainActivity
+> volatile: corroborates; decides alone only under stricter agreement
+
+Persisted State  what no recording keeps                      
+
+> files
+> …/markor/2023_08_31_real_elephant.txt
+> 49 B·modified 15:37 (run began 15:34)
+> app data
+> shared_prefs/DOCUMENT_MOD_TIMES.xml
+> shared_prefs/…markor_preferences.xml
+> system services
+> dumpsys activity ·settings_get ·pm_list
+> packages, focus, system settings
+> harness artifacts
+> clipboard_read ·submitted_answer
+> what the agent handed back
+
+VLM judge   
+
+> one pass over the export
+> 1 read frames and the agent's claim untyped
+
+VeriCUA                 
+
+> scout the device, then read where the evidence lives
+> scout package, notebook dir, prefs map
+> find note file located r1, r2 attested
+> read_file text matches r3 attested
+> file_stat modified after 15:34 r4 attested
+> screenshot note on screen (volatile) r3 attested
+> …3 more reads, each typed attested
+> 16 checkers , then the verdict
+
+generated verifier    
+
+> one script against one piece of state
+> 1 script file_exists(note_path) True →untyped
+
+Figure 2 | VeriCUA gathers evidence from retained trajectories and, when accessible, the current interface and underlying machine state. Each read retains its source attributes. requested text and persistence are task requirements; a discovered directory is a place to inspect for evidence. This distinction keeps evidence locations from becoming additional conditions for success. The rubric guides subsequent checks, which assign each requirement a status of met, unmet, or unknown. Soft checks provide additional findings without relaxing any hard requirement. 
+
+3.3. Adaptive Hybrid Action Space 
+
+The action space connects the rubric to the sources that can answer its requirements. Figure 2 distinguishes three views of task state: • Trajectory. Retained frames, actions, and reasoning record what the executing agent observed and attempted. The verifier can search the action log, inspect selected frames, and read recorded 
+
+a11ytrees when available. • Surface. The current machine interface can be inspected through a new screenshot or a UI hierarchy read. A recorded screenshot belongs to the historical trajectory; this view provides a fresh observation of the accessible machine. • Persisted State. Files, application databases, and stored settings can retain effects that the current interface does not show. Code tools can inspect them through file reads, database queries, or queries to exposed services. The harness records persistence for each read. Alongside stored artifacts, live machine access provides volatile observations such as current UI dumps and harness artifacts. GUI tools support visual inspection through frame selection, region enlargement, and optical char-acter recognition (OCR), while code tools query exposed machine state. The online verifier can also synthesize a checker : a sequence of permitted reads paired with a predicate that evaluates a requirement. The harness executes the reads; structured predicates use a restricted evaluator, while visual or semantic comparisons use a model judgment. A single online inspection action 𝛼 𝑘 can execute a checker comprising several reads and its predicate evaluation. The verifier chooses its next inspection from the findings already collected, focusing on requirements 
+
+5VeriCUA: Verification as Agentic Exploration for Computer-Using Agents 
+
+that remain unresolved within the available access. A text match may leave persistence unresolved and prompt a file read; an unclear frame may prompt a crop or inspection of a later frame. The harness records the executed tool, arguments, and source metadata, including frame timing or the persistence of queried state. The executed read determines these attributes, which are attached to the resulting findings. The complete tool inventory is given in Appendix A.2. 
+
+3.4. Evidence Discipline 
+
+VeriCUA links each finding to an executed read, then applies source constraints and corroboration rules before assigning requirement statuses. 
+
+Grounded Findings. Each finding identifies a rubric requirement, states the support or refutation inferred from an observation, and cites the executed check that returned the observation. The harness rejects citations that match no executed call and attaches each valid citation’s observation and source attributes to the finding. Source attributes and corroborating probes then determine how each linked assessment contributes to a requirement’s status. 
+
+Source-Aware Evidence. The attested /asserted source labels distinguish observations of task state from records of the executing agent’s intent or claims. A post-action frame, a file read, or a database query can provide attested evidence. The executing agent’s completion message and a pre-action frame showing an intended operation are asserted evidence for that operation’s outcome. Asserted evidence can direct further inspection but cannot alone mark a requirement met. Source attributes further constrain what an observation can support, including whether a recorded image precedes or follows the action whose effect is being checked. Online reads distinguish per-sistent artifacts from volatile interface state, which can answer different questions about the same requirement. For example, a screen displaying edited text can support its visible contents, while a file read can check whether that text was saved. A finding must address the task requirement, and its observation must satisfy the source conditions for the inference being made. 
+
+Rule-Based Arbitration. The arbiter applies the setting’s confirmation and refutation rules to the stored findings E𝐿 , assigning each requirement a status of met, unmet, or unknown. A met status requires attested support, while unmet requires corroborating refutations from separate probes. Evidence that does not settle the requirement leaves it unknown. The task verdict is success when all hard requirements are met, and fail when any is unmet. If some remain unknown and none is unmet, the task is unresolved and follows the setting’s abstention or fallback policy. Aggregation is deterministic for fixed findings and rules; the stored records allow confirmation thresholds to be re-evaluated without repeating inspection actions. 
+
+3.5. Online and Offline Instantiations 
+
+Online and offline verification share the same workflow over the sources illustrated in Figure 2. Access conditions determine the available checks and the treatment of unresolved tasks. 
+
+Online. Online machine access allows the verifier to combine GUI inspection with code-based checks of stored artifacts. Task-specific checkers can be reused across repeated executions of the same task with compatible application schemas. Persistent attested reads can confirm requirements, while volatile observations provide corroboration. The verifier abstains on unresolved tasks to avoid assigning training or filtering labels unsupported by the collected evidence. 
+
+> 6VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+Offline. VeriCUA audits fixed, time-stamped recordings through multiple paths, seeking support through forward inspection and refutations through backward inspection. A requirement is met when every completed path provides attested support. For tasks left unresolved, the reported configuration uses an initial judgment : a single-pass VLM assessment of the retained trajectory computed before exploration and withheld from the audit paths. This fallback supplies the final verdict while unresolved requirements remain unknown. Detailed setting rules and inspection budgets are given in Appendices A.1 and B.3. 
+
+4. Experiments 
+
+4.1. Experimental Setup Benchmarks. In online environments, we run AndroidWorld (Rawles et al., 2025) on an Android emulator, OSWorld (Xie et al., 2024) in a virtual machine, and ScienceBoard (Sun et al., 2026c) in its scientific desktop environment. Each episode is executed by the benchmark’s own agent scaffold, and the verifier probes the resulting machine state after the episode ends. For offline verification, we evaluate recorded WebArena trajectories from three executing agents (Zhou et al., 2024) and the human-labeled OSReward trajectories (Sun et al., 2026a), which span four platforms and several agents. 
+
+Protocol. All verifiers and baselines run on gemini-3-flash-preview , and the backbone study re-runs them on gemini-3.1-pro-preview . In online environments, gold is each benchmark’s official evaluator and the executing agents also run on gemini-3-flash-preview . On WebArena we provide a11ytree variants of the input beyond the GUI, to the verifier and the judges alike. The remaining protocol details are provided in Appendix B. 
+
+Baselines. We compare against a VLM judge, an automatically generated verifier, and two structured judges. Implementation details are provided in Appendix B.2. • VLM judge. A single-pass judge such as TRM (Sun et al., 2025), which assesses the supplied observations in one model call and returns a verdict or a score. • Auto-Generated Verifier (Xue et al., 2026b). A model-generated evaluator script per task, run once against the machine for a binary verdict. • CUAJudge (Xue et al., 2026a). A checklist judge that derives key points from the task and checks them against sampled frames in one call. • OS-Themis (Li et al., 2026). A milestone judge that checks ordered milestones and reviews them. The VLM judge runs in both settings, the auto-generated verifier only in online verification, and CUAJudge and OS-Themis only in offline verification. 
+
+Metrics. We report agreement with gold, precision, recall, and F1 for the success class, and the false positive rate, with abstentions counted as fail. For verifiers that abstain we also report the decision rate and the accuracy on decided episodes. Verdict conventions are given in Appendix B.4. 
+
+4.2. Online Verification Accuracy and False Positives. Across the three online environments, VeriCUA has the highest accuracy and lowest false-positive rate (Table 1). The auto-generated verifier has higher accuracy than the VLM judge in each environment. The largest gap is on ScienceBoard, where generated checks are 
+
+> 7VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+Table 1 | Performance in online environments. 
+
+Environment Judge Prec Rec F1 Acc False Positive Rate ↓ Decided Decided Acc 
+
+AndroidWorld VLM judge 79.3 69.7 74.2 78.4 15.4 100% 78.4% Auto-Generated verifier 77.8 84.8 81.2 82.4 16.9 100% 82.4% 
+
+VeriCUA 90.6 87.9 89.2 90.5 7.7 82% 95.1% 
+
+OSWorld VLM judge 68.2 75.0 71.4 73.4 27.9 100% 73.4% Auto-Generated verifier 70.6 78.1 74.2 75.9 25.9 100% 75.9% 
+
+VeriCUA 80.3 71.3 75.5 79.5 13.9 78% 88.7% 
+
+ScienceBoard VLM judge 42.9 60.0 50.0 71.6 24.8 100% 71.6% Auto-Generated verifier 50.9 72.5 59.8 76.9 21.7 100% 76.9% 
+
+VeriCUA 77.4 60.0 67.6 86.4 5.4 70% 91.6% 
+
+not reliably aligned with the target scientific software. Scripts constructed without context inspection can query incorrect state locations. VeriCUA inspects the application context before generating checks, and its false-positive rate is roughly a quarter of the generated verifier’s. The generated verifier has higher recall on OSWorld and ScienceBoard, while VeriCUA has higher precision and accuracy. 
+
+Deciding and Abstaining. Both baselines return a verdict on every episode, so their decided accuracy equals their overall accuracy. VeriCUA abstains when its findings cannot settle the task or when decided verification passes disagree. Its accuracy on decided episodes is higher across all three environments. Counting abstentions as fail can lower recall without adding false positives. This policy favors conservative selection of successful trajectories for data curation or reward assignment. 
+
+4.3. Offline Verification 
+
+Table 2 | Performance in offline verification. 
+
+Judge OSReward-Hard OSReward WebArena AndroidWorld OSWorld 
+
+Acc BalAcc Acc BalAcc Acc BalAcc Acc BalAcc Acc BalAcc TRM 57.4 64.8 82.2 83.1 79.6 79.8 88.3 89.6 80.3 73.7 CUAJudge 63.4 62.5 83.7 82.6 81.3 81.8 91.2 90.7 83.4 78.2 OS-Themis 65.7 63.2 80.2 79.8 75.4 74.3 89.4 89.0 82.1 79.0 
+
+VeriCUA 70.4 68.3 87.2 86.3 82.7 83.1 94.3 94.1 86.3 81.2 
+
+Across Benchmarks and Difficulty. In offline verification, VeriCUA has the highest accuracy and balanced accuracy across the benchmarks in Table 2. On OSReward, its accuracy advantage over the strongest compared judge is larger on the hard subset than on the full set. The gains on hard trajectories support active evidence gathering when task completion is difficult to assess from fixed observations. 
+
+Robustness and Evidence Limits. On WebArena, VeriCUA remains ahead across the three rollout agents and when baseline judges receive accessibility trees alone. The per-agent and observation comparisons are reported in Appendix C.2. Offline verification is limited by the observations retained in the recording. When these do not resolve the task, VeriCUA uses its initial-judgment fallback. This 
+
+> 8VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+occurs on 23% of WebArena trajectories. Appendix D presents online and offline examples with the evidence underlying their verdicts. 
+
+5. Analysis 
+
+5.1. GUI Versus Hybrid Action Space GUI Only versus Hybrid. On online AndroidWorld, adding code-based state checks to GUI inspection increases the decision rate and recall while leaving false positives unchanged (Figure 3). In the paired analysis, every additional correct decision from the code channel is supported by a file or application-store read. Access to stored state therefore resolves requirements that GUI observations leave unsettled. 
+
+5.2. The Effect Of Observation Different Observations. On WebArena, adding a11ytrees to screenshots raises VeriCUA’s decision rate while leaving accuracy unchanged. Trees alone yield the highest decision rate and lowest cost, at lower accuracy. Table C.2 in Appendix C.2 reports the observation-input ablation. The comparison with baseline judges uses trajectories from three rollout agents. Their accuracy changes little between tree-only and combined inputs, and VeriCUA remains ahead under both settings (Figure 4b). Per-agent results are given in Table C.4. 
+
+More Observations. We also vary the number of final frames given to the single-call OSReward judge (Figure 4a). Additional frames improve its accuracy on the hard subset, but the judge remains below VeriCUA. Accuracy on the full set changes only modestly. 
+
+5.3. Test-Time Exploration Combining Passes. On the multi-pass AndroidWorld suite, three passes use the default configuration of code and structured-state checks. An additional pass enables visual inspection through screenshots and file-image reads, referred to as the vision fallback. All passes and the auto-generated baseline share one restored snapshot per episode. The combination rule retains a decided verdict and abstains when decided passes disagree. Combining the default passes gives modest gains over the strongest single pass. Adding the visual pass improves agreement and decision rate further, both reaching 87% (Figure 5a). The visual pass also improves these metrics when the number of passes is matched. 0 25 50 75 100  
+
+> %
+> Precision Recall F1 Accuracy Decision rate Decided acc. False-pos. rate
+> +4 +30 +20 +14 +37 +7 0
+> GUI only hybrid
+
+Figure 3 | Each metric of VeriCUA with GUI actions alone and with the hybrid action space on the online AndroidWorld suite. Hollow markers are GUI only, filled markers the hybrid space, and the column at the right gives the change.        
+
+> 9VeriCUA: Verification as Agentic Exploration for Computer-Using Agents 15816 VeriCUA (adaptive)
+> last N frames given to the single-call judge
+> 50 60 70 80 90
+> %
+> (a) Last N frames for a single-call judge, OSReward
+> OSReward OSReward-Hard accuracy balanced acc.
+> 72 76 80 84
+> Accuracy on WebArena (%)
+> VeriCUA CUAJudge TRM OS-Themis
+> (b) Judges given a11ytrees
+> a11ytrees only screenshots + a11ytrees
+
+Figure 4 | More observation for a single-call judge. (a) The OSReward judge reading the last 𝑁 frames of each trajectory, with VeriCUA at the right; OSReward’s default is five. (b) The WebArena judges reading a11ytrees alone or with screenshots, against VeriCUA (dashed). Combined verdicts produce fewer incorrect fail decisions than majority voting over the same passes (Table C.5, Appendix C.3). Table 3 | Accuracy under matched budgets. 
+
+Judge OSReward OSReward-Hard 
+
+TRM (N=10) 83.5 58.5 CUAJudge 84.8 64.5 
+
+VeriCUA 86.4 68.7 
+
+Matched Budget. We also compare accuracy un-der a matched verification budget on the flash back-bone (Table 3). The protocol allocates repeated runs to TRM, a fixed step limit to CUAJudge, and an exploration limit to VeriCUA. VeriCUA retains higher accuracy on OSReward and OSReward-Hard. Restricting its budget produces a small accuracy decrease from the default configuration while pre-serving the lead over the compared judges. 
+
+Detecting False Completion Reports. We analyze false completion reports across the three online environments, using an AndroidWorld subset (Figure 5b). VeriCUA rejects about 80% of these reports and outperforms both baselines in each environment. The difference is largest on ScienceBoard, where the generated verifier rarely rejects an incorrect completion claim. Figure D.1 in Appendix D illustrates an AndroidWorld case in which reads of the media store refute the agent’s report. one draw two draws + vision three draws three draws + vision 60 70 80 90 100 
+
+> %
+
+(a) Verifier passes combined, AndroidWorld 
+
+> agreement decision rate decided accuracy majority vote
+> AndroidWorld (14) OSWorld (74) ScienceBoard (40) 025 50 75 100
+> rejected (%)
+
+(b) False completion reports rejected 
+
+> VeriCUA VLM judge Auto-Generated verifier
+
+Figure 5 | (a) Combining verifier passes improves agreement and decision rate. (b) Rejection of the agent’s false completion reports. 
+
+> 10 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+5.4. Gains From A Stronger Backbone 
+
+Table 4 | Backbone comparison on OSReward-Hard.                        
+
+> Judge Acc BalAcc Flash Pro ΔFlash Pro Δ
+> CUAJudge 63.4 62.7 −0.7 62.5 58.4 −4.1 OS-Themis 65.7 66.1 +0.4 63.2 61.1 −2.1
+> VeriCUA 70.4 73.1 +2.7 68.3 69.2 +0.9
+
+Replacing the flash backbone with the pro backbone improves VeriCUA’s accu-racy and balanced accuracy on OSReward-Hard (Table 4). The compared judges show smaller or negative changes, indicating that stronger models benefit the verifica-tion methods differently. All frameworks improve in the online AndroidWorld com-parison, with VeriCUA retaining the high-est accuracy on both backbones (Table C.8, Appendix C.4). 
+
+5.5. Confident Failures and Gold-Label Audit 0 50 100   
+
+> Initial FAILs retained (%)
+> 80 90 100
+> Failure precision (%) WebArena 92.0%
+> 88.4%
+> OSReward full 92.7%
+> 83.8% OSReward-Hard 88.9% 80.0%
+> Initial Selected
+
+Figure 6 | Failure precision and retention. For offline verification, we compare initial fail judgments with the subset that explo-ration also resolves as fail. Selection raises failure precision on each benchmark while re-taining fewer of the initial failure judgments (Figure 6). Disagreements can also identify suspected er-rors in the reference labels. A blinded model adjudicator supports VeriCUA on 63% of the flagged trajectories, with the clearest support on OSWorld. These results suggest that verifi-cation can help identify failed trajectories and prioritize suspected label errors for inspection. Appendix C.6 details the supporting analyses. 
+
+6. Conclusion 
+
+We presented VeriCUA, a platform-agnostic framework for verifying computer-using agents through agentic exploration. The verifier inspects available context before constructing a task rubric, then selects GUI or code checks to gather evidence for unresolved requirements. Source-aware arbitration combines the findings within a shared workflow for offline recordings and online environments. Across the evaluated platforms, VeriCUA improves agreement with reference labels over the compared baselines, with fewer false positives online and the largest offline gains on hard trajectories. Analyses show that complementary evidence sources and verification passes improve decision coverage, while stronger backbones further improve accuracy. These results support agentic verification for CUA evaluation and motivate its use in data curation and reinforcement learning. 
+
+References 
+
+H. Chae, S. Kim, J. Cho, S. Kim, S. Moon, G. Hwangbo, D. Lim, M. Kim, Y. Hwang, M. Gwak, D. Choi, M. Kang, G. Im, B. Cho, H. Kim, J. H. Han, T. Kwon, M. Kim, B. woo Kwak, D. Kang, and J. Yeo. Web-shepherd: Advancing PRMs for reinforcing web agents. In The Thirty-ninth Annual Conference 
+
+> 11 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+on Neural Information Processing Systems , 2025. URL https://openreview.net/forum?id= G2kMroO9UV .C. Cui, J. Huang, S. Wang, L. Zheng, Q. Kong, and Z. Zeng. Agentic reward modeling: Verifying gui agent via progressive trajectory-grounded interaction, 2026. URL https://arxiv.org/abs/ 2602.00575 .L. Ding. Adarubric: Task-adaptive rubrics for reliable llm agent evaluation and reward learning. 2026. URL https://github.com/alphadl/AdaRubrics .Z. Li, Z. Wu, Y. Zhao, B. Yang, J. Xie, Z. Liu, Z. Liu, K. Jin, J. Liang, Z. Li, F. Wu, B. Zhou, Z. Wang, and Z. Ding. Os-themis: A scalable critic framework for generalist gui rewards, 2026. URL 
+
+https://arxiv.org/abs/2603.19191 .H. Lin, X. Tan, Y. Qin, Z. Xu, Y. Shi, Z. Li, G. Li, S. Cai, S. Cai, C. Fu, K. Li, and X. Sun. Cuarewardbench: A benchmark for evaluating reward models on computer-using agent, 2025. URL https://arxiv. org/abs/2510.18596 .T. Liu, R. Xu, T. Yu, I. Hong, C. Yang, T. Zhao, and H. Wang. OpenRubrics: Towards scalable synthetic rubric generation for reward modeling and LLM alignment. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 17417– 17437, San Diego, California, United States, July 2026. Association for Computational Linguistics. ISBN 979-8-89176-390-6. doi: 10.18653/v1/2026.acl-long.791. URL https://aclanthology. org/2026.acl-long.791/ .J. Pan, Y. Zhang, N. Tomlin, Y. Zhou, S. Levine, and A. Suhr. Autonomous evaluation and refinement of digital agents. In First Conference on Language Modeling , 2024. URL https://openreview. net/forum?id=NPAQ6FKSmK .C. Rawles, S. Clinckemaillie, Y. Chang, J. Waltz, G. Lau, M. Fair, A. Li, W. E. Bishop, W. Li, F. Campbell-Ajala, D. K. Toyama, R. J. Berry, D. Tyamagundlu, T. P. Lillicrap, and O. Riva. Androidworld: A dynamic benchmarking environment for autonomous agents. In The Thirteenth International Conference on Learning Representations , 2025. URL https://openreview.net/forum?id= il5yUQsrjC .R. Sanayei, R.-G. Dumitru, S. Hou, M. Rezaei, H. Riaz, R. Vacareanu, M. Yang, Y. Liu, M. Surdeanu, and D. Y. Zhang. Evidence-first agentic verification, 2026. URL https://arxiv.org/abs/2610. 17724v1 .W. Shi, Y. Wang, Y. Zhao, Y. Chen, F. Feng, X. Hao, X. Su, Q. GU, H. Su, X. Cai, and X. He. AJ-bench: Benchmarking agent-as-a-judge for environment-aware evaluation. In Findings of the Association for Computational Linguistics: ACL 2026 , pages 25371–25413, San Diego, California, United States, July 2026. Association for Computational Linguistics. ISBN 979-8-89176-395-1. doi: 10.18653/ v1/2026.findings-acl.1269. URL https://aclanthology.org/2026.findings-acl.1269/ .Q. Sun, K. Cheng, Z. Ding, C. Jin, Y. Wang, F. Xu, Z. Wu, C. Jia, L. Chen, Z. Liu, et al. Os-genesis: Automating gui agent trajectory construction via reverse task synthesis. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 5555–5579, 2025. Q. Sun, K. Cheng, Y. Wang, B. Yang, H. Yan, L. Chen, F. Xu, Z. Ding, N. Chen, J. Cao, et al. Osreward: Instituting standardized evaluation for cross-platform computer-use reward models. arXiv preprint arXiv:2607.28609 , 2026a. 
+
+> 12 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+Q. Sun, M. Li, Z. Liu, Z. Xie, F. Xu, Z. Yin, K. Cheng, Z. Li, Z. Ding, Q. Liu, Z. Wu, Z. Zhang, B. Kao, and L. Kong. OS-sentinel: Towards safety-enhanced mobile GUI agents via hybrid validation in realistic workflows. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 9529–9553, San Diego, California, United States, July 2026b. Association for Computational Linguistics. ISBN 979-8-89176-390-6. URL https: //aclanthology.org/2026.acl-long.431/ .Q. Sun, Z. Liu, C. Ma, Z. Ding, F. Xu, Z. Yin, H. Zhao, Z. Wu, K. Cheng, Z. Liu, J. Wang, Q. Li, X. Tang, T. Xie, X. Feng, X. Li, B. Kao, W. Wang, B. Qi, L. Kong, and Z. Wu. Scienceboard: Evaluating multimodal autonomous agents in realistic scientific workflows. In The Fourteenth International Conference on Learning Representations , 2026c. URL https://openreview.net/forum?id= bJvwJahJeF .Y. Wan, Z. Zhang, J. Wang, and L. Zhu. Seekjudge: A practical reward framework for reinforcement learning in computer-use agents. arXiv preprint arXiv:2607.23263 , 2026. T. Xie, D. Zhang, J. Chen, X. Li, S. Zhao, R. Cao, T. J. Hua, Z. Cheng, D. Shin, F. Lei, Y. Liu, Y. Xu, S. Zhou, S. Savarese, C. Xiong, V. Zhong, and T. Yu. OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer environments. In The Thirty-eight Conference on Neural Information Processing Systems Datasets and Benchmarks Track , 2024. URL https://openreview. net/forum?id=tN61DTr4Ed .T. Xie, M. Yuan, D. Zhang, X. Xiong, Z. Shen, Z. Zhou, X. Wang, Y. Chen, J. Deng, J. Chen, B. Wang, H. Wu, J. Chen, J. Wang, D. Lu, H. Hu, and T. Yu. Introducing osworld-verified. xlang.ai , July 2025. URL https://xlang.ai/blog/osworld-verified .T. Xue, Z. Liao, T. Shi, Z. Wang, K. Zhang, D. Song, Y. Su, and H. Sun. Autonomous continual learning for environment adaptation of computer-use agents, 2026a. URL https://arxiv.org/abs/ 2602.10356 .T. Xue, C. Peng, M. Huang, L. Guo, T. Han, H. Wang, J. Wang, X. Zhang, X. Yang, D. Zhao, J. Ding, X. Ma, Y. Xie, P. Pei, X. Cai, and X. Qiu. Evocua: Evolving computer use agents via learning from scalable synthetic experience, 2026b. URL https://arxiv.org/abs/2601.15876 .S. Zhou, F. F. Xu, H. Zhu, X. Zhou, R. Lo, A. Sridhar, X. Cheng, T. Ou, Y. Bisk, D. Fried, U. Alon, and G. Neubig. Webarena: A realistic web environment for building autonomous agents. In The Twelfth International Conference on Learning Representations , 2024. URL https://openreview.net/ forum?id=oKn9c6ytLx .M. Zhuge, C. Zhao, D. R. Ashley, W. Wang, D. Khizbullin, Y. Xiong, Z. Liu, E. Chang, R. Krishnamoorthi, Y. Tian, Y. Shi, V. Chandra, and J. Schmidhuber. Agent-as-a-judge: Evaluate agents with agents. In Forty-second International Conference on Machine Learning , 2025. URL https://openreview. net/forum?id=Nn9POI9Ekt .
+
+> 13 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+Appendix Contents 
+
+A Implementation Details 15 
+
+A.1 Verification Settings . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15 A.2 Action Space and Evidence Types . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 A.3 Evidence Aggregation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 A.4 Read-Only Enforcement . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17 A.5 Online Environment Adapters . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17 A.6 Recorded Observation Processing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17 
+
+B Experimental Setup and Evaluation Protocol 18 
+
+B.1 Evaluation Sets . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18 B.2 Baseline Implementations . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18 B.3 Verifier Configuration . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19 B.4 Evaluation Metrics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19 
+
+C Additional Results and Analysis 19 
+
+C.1 Action Space and Evidence Rules . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19 C.2 Observation Inputs and Rollout Agents . . . . . . . . . . . . . . . . . . . . . . . . . . 20 C.3 Test-Time Scaling and Budget . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21 C.4 Backbone Comparisons . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22 C.5 Computational Cost . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23 C.6 Confident Failures and Gold-Label Audit . . . . . . . . . . . . . . . . . . . . . . . . . 23 
+
+D Case Studies 24 
+
+D.1 Online Environments . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24 D.2 Recorded Trajectories . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26 
+
+E Limitations and Broader Impacts 27 F Prompts 28 
+
+F.1 Recorded-Trajectory Verification . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 28 F.2 Online Verification . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 29 
+
+> 14 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+A. Implementation Details 
+
+A.1. Verification Settings 
+
+Table A.1 lists what each setting determines at each stage of the procedure. Table A.1 | What each setting determines in the shared procedure. 
+
+Stage Aspect Online environment Recorded trajectory Inspect context 
+
+application context packages, directories, stores, and exposed schemas recorded steps, frames, and structured observations 
+
+Synthesize rubric 
+
+grounded task requirements instruction and observed machine context instruction and observed recording context 
+
+Explore evidence gathering adaptive GUI reads and code checks, including synthesized checkers up to 𝐾 audit paths, seeking support and refutations attested types environment read, UI dump, harness artifact post-effect frame, precise read, computation, structured state source attributes persistence, persistent or volatile frame timing, before or after the relevant action 
+
+Arbitrate requirement confirmation one persistent attested confirmation attested support from every completed path unresolved task abstention, counted as fail in binary evaluation initial-judgment fallback 
+
+> 15 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+A.2. Action Space and Evidence Types 
+
+Table A.2 lists the verbs by state source and modality, together with the evidence type each one stamps. Table A.2 | The action space by state source and modality, with the evidence type each verb stamps. 
+
+State Source Modality Verbs Evidence Type Class actions and reasoning 
+
+text find_steps , inspect_action agent claim asserted code compute sandboxed computation attested 
+
+screen frames GUI overview , get_frame , zoom ,
+
+ocr 
+
+post-effect frame; precise read attested pre-action frame asserted 
+
+a11ytrees structured read_a11y , search_a11y structured state attested 
+
+machine code file_exists , find , list_dir ,
+
+file_stat , read_file ,
+
+sqlite_query , content_query 
+
+environment read (persistent) attested code dumpsys , current_activity ,
+
+settings_get , getprop ,
+
+pm_list 
+
+environment read (persistent or volatile) attested GUI, structured 
+
+screenshot , ui_dump screenshot; UI dump (volatile) attested text submitted_answer ,
+
+clipboard_read 
+
+harness artifact attested 
+
+The getter inventory has seventeen verbs, listed in Table A.3 with their persistence tags. The image-reading verbs are enabled in the vision fallback configuration, clipboard_read runs last because it disturbs the screen, and a miss from find counts only as weak evidence. Table A.3 | Persistence tags of the online getter inventory.  
+
+> persistent
+
+settings_get , getprop , file_exists , file_stat , read_file ,
+
+list_dir , find , sqlite_query , content_query , pm_list ,
+
+view_file_image  
+
+> volatile
+
+dumpsys , ui_dump , current_activity , clipboard_read ,
+
+submitted_answer , screencap (the screenshot verb of Table A.2) 
+
+Extension Contract. A new source enters as exactly (i) its read verbs, (ii) its evidence types with their attested or asserted classification, and (iii) an initial view for the cold-start judgment; every later stage consumes types, so nothing downstream changes. The accessibility channel entered this way, and the machine channel repeated the pattern with its own inventory. 
+
+A.3. Evidence Aggregation 
+
+On recorded trajectories, up to 𝐾 audit paths gather support through forward inspection and seek refutations through backward inspection. The default 𝐾 = 3 permits early stopping after two paths agree on every hard requirement. A requirement is met only through attested support from every completed path and unmet only with corroborating refutations from separate probes. If the evidence 
+
+> 16 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+does not settle the task, the initial judgment supplies the fallback verdict without adding attested support to unknown requirements. In online environments, initial inspection maps the device’s packages, stores, and schemas before rubric synthesis. The observed context informs the rubric and subsequent checker construction; each requirement receives checkers on more than one surface where possible; predicates are evaluated by a restricted evaluator or, for semantic comparisons, by a judge call; a requirement is met by one persistent attested confirmation and unmet by two corroborating refutations (the unmet_min 
+
+threshold, which trades decided episodes for precision when raised). An unresolved task produces an abstention, which binary evaluation counts as fail. Across passes, the combination rule takes the decided verdict and abstains when two decided verdicts disagree. 
+
+A.4. Read-Only Enforcement 
+
+On recordings the read-only property is structural, since every verb is a pure function of files on disk. On a machine the verbs come from a fixed allowlist, arguments that could smuggle shell control are rejected, and a digest of the plan’s persistent targets is compared before and after execution. 
+
+A.5. Online Environment Adapters AndroidWorld. In online environments, VeriCUA runs against AndroidWorld on an Android emulator. The harness has root access over adb , so every store the benchmark’s own evaluator can read is readable by the verifier. Each episode is executed by the benchmark’s agent scaffold; when it ends, the harness saves the device state as a snapshot and verification runs against that snapshot, so any verification pass can be replayed on the identical end state. Before the episode starts, the harness records a pre-state anchor of the application storage, against which requirements about a change are compared. The agent’s submitted answer is extracted by the harness and exposed through the 
+
+submitted_answer getter as the artifact under test. The emulator is a headless Pixel 6 image at API level 33 (Android 13) with root access over adb .Snapshots are taken through the emulator console once the official evaluator has run. 
+
+OSWorld and ScienceBoard. OSWorld runs in a virtual machine and ScienceBoard in its own scientific desktop environment. Both are verified through the same allowlisted read-only getters over the machine, and ScienceBoard’s evaluator reads the state of the scientific applications inside the VM. Both use the virtual machine images that the benchmarks ship, without modification. 
+
+A.6. Recorded Observation Processing 
+
+A recorded trajectory enters as the agent’s actions and reasoning, its screen frames, and, when the platform recorded them, its a11ytrees . Frame semantics, whether frame 𝑖 captures the state before or after action 𝑖 , is declared per dataset and determines the post-effect and pre-action evidence types. The a11ytrees are condensed before they are read. OSReward trajectories are pure GUI with pre-action frame semantics; WebArena trajectories carry a11ytrees .The condenser writes one line per node of the browser’s accessibility dump, indented by depth, with the node id, role, name, and ten retained properties such as value, checked, focused, and url. Ignored nodes and nameless nodes without properties are dropped, and names are cut to 110 characters. A read returns at most 150 lines with a note on how many nodes were left out, a query returns at most 40 matching lines, and a search across steps returns the first match in each of up to 12 steps. Each 
+
+> 17 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+trajectory enters as one record that lists, per step, the agent’s thought and action, the page URL, and the paths of the screenshot and the tree. 
+
+B. Experimental Setup and Evaluation Protocol 
+
+B.1. Evaluation Sets 
+
+Table B.1 summarizes the evaluation sets. Table B.1 | Evaluation sets.                     
+
+> Set Size Gold Notes
+> OSReward-Hard 284 human labels hard subset of OSReward OSReward full 1019 human labels WebArena 715 official checkers 239 / 235 / 241 rollouts by Claude Sonnet 4.6, Gemini 3.1 Pro, Gemini 3 Flash AndroidWorld 116 official evaluator M3A Agents OSWorld, online 361 official evaluator one rollout per task; actor success 44.3% ScienceBoard, online 169 official evaluator actor success 23.7%
+
+Multi-Pass Suite. The multi-pass suite keeps every snapshot on which the agent claimed completion but gold says fail, on which the configurations disagree, or on which any pass abstained. 
+
+B.2. Baseline Implementations Offline Verification. TRM scores the trajectory from 1 to 5 in a single call from the instruction, every thought and action, and the last three frames; CUAJudge checks up to six task-derived key points against the first and last of up to six frames in a single call; OS-Themis verifies up to four ordered milestones over up to eight frames and reviews them in a second call. The three offline judges run under one harness at temperature 0, with images downsampled to a long side of 1280 pixels, the first and last frames pinned, no self-consistency voting, and a parse failure mapped to fail. TRM thresholds its 1–5 score at 4 and is the only judge that sees the agent’s thoughts. CUAJudge collapses the original four-stage pipeline into one call, dropping the dedicated frame-selection and init-versus-final modules. OS-Themis collapses the multi-agent critic to two calls with the budget cut to four milestones and eight frames against the original six and twelve; Table C.6 shows that restoring the original budget changes little. 
+
+Online Environments. The online VLM judge answers in one word from the instruction and the final screenshot and never abstains; the auto-generated verifier writes one evaluator script per task with full device access and runs it once. The auto-generated verifier receives the instruction with its concrete parameters, the same generic device context our synthesis receives, unrestricted host-side adb and Python, and the agent’s submitted answer on answer-scored tasks. It does not receive the trajectory, the results of context inspection, or the pre-state anchor, and it runs last on each end state. 
+
+> 18 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+Majority Voting. Majority voting combines the same three verifier draws by vote with abstentions folded to fail. 
+
+B.3. Verifier Configuration Offline Verification. The default runs 𝐾 = 3 paths and stops after two when they agree on the status of every hard requirement, which happens on about two fifths of the trajectories. A path spends up to four tool calls gathering support and then at least four, or two per hard requirement, hunting refutations. Each call returns one observation, frames are downscaled to at most 1288 pixels on the long side, and only the last eight images stay in context. The rubric comes from three candidate decompositions consolidated in a fourth call. The sealed initial judgment reads the last five frames together with the thought and action log and is reused only as the fallback. 
+
+Online Environments. Rubric synthesis draws two candidate rubrics at temperature 0.7 and consol-idates them in a third call at temperature 0; checker synthesis makes two parallel calls at temperature 0.7 and asks for two checkers per hard requirement on different surfaces where the state allows it; context inspection uses one call over at most three packages and six databases, followed by one schema probe; a semantic predicate costs one judge call at temperature 0 over at most three images. No call carries a token cap, and each has a 180-second timeout with up to six retries. 
+
+B.4. Evaluation Metrics 
+
+The binary evaluation treats success as the positive class. Abstentions are counted as fail for agreement, precision, recall, F1, and the false positive rate. For verifiers that abstain, we also report the decision rate and the accuracy on decided episodes. 
+
+C. Additional Results and Analysis 
+
+C.1. Action Space and Evidence Rules Action-Space Ablation. The values behind Figure 3 are in Table C.1. Table C.1 | Action-space ablation in the online AndroidWorld environment.                      
+
+> Action Space Prec Rec F1 Acc False Positives Decided Decided Acc
+> GUI only 86.4 57.6 69.1 77.0 3/41 45% 87.9%
+> Hybrid (default) 90.6 87.9 89.2 90.5 3/41 82% 95.1%
+
+Evidence Rules And Recall. Figure C.1 shows which arbiter rules carry the result on the first AndroidWorld suite and how episode recall falls with the number of hard requirements.      
+
+> 19 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents 0246810
+> episodes of agreement lost when the rule is removed
+> volatile evidence decides alone sole-instrument verbs nine other rules (each)
+> 860 to 1
+
+(a) Rules that carry the result    
+
+> 1234
+> hard requirements in the rubric
+> 025 50 75 100
+> episode recall (%)
+
+(b) Recall as a conjunction 
+
+> 69 to 82% per requirement expected conjunction observed recall
+
+Figure C.1 | Evidence rules and recall on the first AndroidWorld suite. 
+
+C.2. Observation Inputs and Rollout Agents VeriCUA By Observation Input. Table C.2 gives VeriCUA’s accuracy, decision rate, share of verdicts resting on structured evidence, and cost under each observation input on WebArena. Table C.2 | VeriCUA by observation input on WebArena. 
+
+Input Acc BalAcc Decided Structured Evidence Tokens 
+
+Screenshots 80.0 80.0 33% 0% 234K Screenshots + a11ytrees 80.0 80.0 75% 73% 252K 
+
+a11ytrees 76.7 76.7 85% 93% 178K 
+
+WebArena Per Rollout Agent. The WebArena results combine trajectories collected from three rollout agents. Table C.3 gives the results for each agent and for the combined set. Table C.3 | WebArena results by rollout agent and overall. 
+
+Rollout Agent Overall 
+
+Claude Sonnet 4.6 Gemini 3.1 Pro Gemini 3 Flash Acc BalAcc Acc BalAcc Acc BalAcc Acc BalAcc 
+
+VeriCUA (GUI + a11ytree ) 79.9 80.3 84.3 85.3 83.8 83.9 82.7 83.1 
+
+CUAJudge 79.1 79.8 82.1 83.4 82.6 81.9 81.3 81.8 TRM 76.2 77.0 79.1 80.8 83.4 81.0 79.6 79.8 OS-Themis 70.3 69.8 80.0 79.4 75.9 74.1 75.4 74.3 
+
+Tree-Fed Baselines On WebArena. The judges are re-run with a11ytrees alone as their input, in place of the GUI and a11ytree input of Table C.3, per rollout agent and overall (Table C.4). VeriCUA retains its GUI and a11ytree input in this comparison. 
+
+> 20 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+Table C.4 | Accuracy and balanced accuracy on WebArena with the judges reading a11ytrees .
+
+Claude Sonnet 4.6 Gemini 3.1 Pro Gemini 3 Flash Overall Acc BalAcc Acc BalAcc Acc BalAcc Acc BalAcc 
+
+VeriCUA (GUI + a11ytree ) 79.9 80.3 84.3 85.3 83.8 83.9 82.7 83.1 
+
+CUAJudge, tree-fed 77.8 77.9 83.0 84.3 82.6 80.0 81.1 80.8 TRM, tree-fed 74.5 74.9 80.4 81.4 80.9 77.4 78.6 78.1 OS-Themis, tree-fed 74.5 73.5 79.6 78.7 78.0 74.9 77.3 75.7 
+
+C.3. Test-Time Scaling and Budget Multi-Pass Combination In The Online Environment. The multi-pass AndroidWorld suite compares repeated runs of the default code and structured-state configuration with a run that enables visual inspection, called the vision fallback. These verifier runs and the auto-generated baseline share one restored snapshot per episode. Table C.5 reports individual and combined results. Adding visual inspection improves agreement and decision rate over repeated default runs, including at a matched pass count. The combination rule also produces fewer incorrect fail verdicts than majority voting. Table C.5 | Multi-pass combination in the online environment.                                                
+
+> Pass Agreement Decision Rate Decided Acc False Positives Wrong fails
+> draw 1 75.7 72.2 91.6 34draw 2 79.1 77.4 92.1 34draw 3 77.4 67.0 94.8 13draw with vision fallback 76.5 73.0 90.5 35three draws combined 80.9 78.3 95.6 22
+> three draws + vision fallback 87.0 87.0 96.0 22draws 1, 2 + vision (equal cost) 84.3 85.2 94.9 32three draws, majority vote 80.0 100 80.0 320 auto-generated verifier 78.3 100 78.3 421
+
+Baseline Budget. Table C.6 reports the OS-Themis budget ablation. Table C.6 | OS-Themis budget ablation, mean balanced accuracy. 
+
+Configuration BalAcc 
+
+OS-Themis, 4 milestones / 8 frames (used in the main text) 74.2 OS-Themis, 6 milestones / 12 frames (original budget) 75.9 CUAJudge 76.8 
+
+> 21 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+C.4. Backbone Comparisons Single-Call Judges On Other Backbones. Results for the single-call judge of OSReward on several backbones appear alongside VeriCUA on gemini-3-flash-preview in Table C.7. Table C.7 | The OSReward single-call judge by backbone, with VeriCUA for reference. 
+
+OSReward-Hard OSReward full Judge Acc BalAcc Acc BalAcc 
+
+VeriCUA (Gemini 3 Flash) 70.4 68.3 87.2 86.3 Gemini 3 Flash 57.0 65.2 87.0 88.2 Gemini 3.1 Pro 61.6 61.6 87.9 88.2 Claude Sonnet 4.6 59.2 68.1 87.7 88.9 Claude Opus 4.6 67.3 68.6 89.5 90.2 Claude Opus 4.8 69.7 69.7 89.7 90.0 GPT-5.5 67.3 67.0 89.5 89.8 
+
+Backbone Study In The Online Environment. Table C.8 repeats the flash-to-pro comparison of Table 4 in the online AndroidWorld environment. Table C.8 | Accuracy and balanced accuracy in the online AndroidWorld environment with each framework on the flash and pro tiers. 
+
+Judge Acc BalAcc Flash Pro Δ Flash Pro Δ
+
+VLM judge 78.4 79.7 +1.3 77.5 78.5 +1.0 Auto-generated verifier 82.4 85.1 +2.7 82.7 85.4 +2.7 
+
+VeriCUA 90.5 91.9 +1.4 90.3 91.8 +1.5 
+
+> 22 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+C.5. Computational Cost 
+
+Token usage per trajectory or episode is reported in Table C.9. Table C.9 | Cost per trajectory or episode. 
+
+Setting Method Tokens 
+
+offline, WebArena (tree-fed, flash) three judges together (4 calls) 43K–61K offline, WebArena (GUI, pro) three judges together (4 calls) 25K offline, OSReward (GUI) three judges together (4 calls) 33K–35K offline, WebArena VeriCUA 150K–208K offline, OSReward VeriCUA 345K–378K online, first suite auto-generated verifier 16.2K (60 s) online, first suite VeriCUA 39.2K (97 s) online, multi-pass suite auto-generated verifier 21K online, multi-pass suite VeriCUA, per pass 43K–51K 
+
+On AndroidWorld, a snapshot load restores the end state in about fifteen seconds. One verifier pass takes about 100 seconds per episode, of which checker synthesis takes about half and predicate evaluation about a third, with getter execution and context inspection taking under ten seconds together. 
+
+C.6. Confident Failures and Gold-Label Audit Confident Failure Verdicts. For offline verification, we start with all initial fail judgments and retain those for which exploration also yields a decided fail. Initial judgments use the last five available frames. Evidence aggregation uses three paths, a met threshold of 0.67, and an unmet fraction of 0.4. Failure precision is the fraction of predicted fail verdicts that match the reference labels. Retention is the selected subset size divided by the number of initial fail judgments. Figure 6 connects these two selections within each cohort; Table C.10 provides their counts. WebArena uses its official reference labels, and OSReward uses human labels. OSReward-Hard is included in OSReward full. Table C.10 | Initial failure judgments and the subset retained after exploration. 
+
+Dataset Total 𝑁 Initial fail Selected fail Retained (%) 
+
+Correct / 𝑛 Prec. (%) Correct / 𝑛 Prec. (%) WebArena 715 381/431 88.4 195/212 92.0 49.2 OSReward full 1019 524/625 83.8 166/179 92.7 28.6 OSReward-Hard 284 148/185 80.0 48/54 88.9 29.2 
+
+Gold-Label Audit. The gold-label audit uses 814 recorded trajectories from AndroidWorld, OSWorld, and WebArena. A trajectory is flagged when a decided VeriCUA verdict contradicts the benchmark’s gold label, which happens on 81 of them. A single-blind adjudicator, a model from a different family than the verifier’s backbone, then re-judges each flagged trajectory from scratch. It sees only the instruction, the agent’s thought and action log, and up to ten evenly spaced frames including the 
+
+> 23
+
+VeriCUA: Verification as Agentic Exploration for Computer-Using Agents 
+
+last one, never the verifier’s verdict, the gold label, or the verifier’s reasoning, and it may answer success, fail, or unsure. A flag counts as confirmed when the adjudicator sides with VeriCUA against gold. Of the 81 flags, 51 are confirmed, 20 refuted, and 10 left unsure, with unsure kept in the denominator. On OSWorld, the adjudicator confirms 37 of 57 flags. A second adjudicator, run under the same blind protocol, confirms 34 of the 51 flags it decides, excluding its unsure cases from that denominator. In the online OSWorld environment, about 18 of VeriCUA’s 28 false positives are episodes that the official evaluator marks fail in error. 
+
+D. Case Studies 
+
+Each card shows the instruction and the frames or machine reads the verifier cited. The summary below it gives the verdict against gold and the baselines, the rubric with each requirement’s final status, and the typed evidence the arbiter used. 
+
+D.1. Online Environments 
+
+The verifier reads the live machine after the episode ends. TRAJECTORY EVIDENCE  
+
+> INSTRUCTION MOBILE
+
+Take one video. 
+
+> STEP 5
+> First clip recording
+
+· · · 
+
+> STEP 8
+> Saved, records again
+
+· · · 
+
+> STEP 10
+> Idle, claims done
+> $ content_query video/media [_data, date_added] Movies/VID_20231015_153539.mp4 1697384139 Movies/VID_20231015_153638.mp4 1697384198 Movies/VID_20231015_153745.mp4 1697384265 $ list_dir /storage/emulated/0/Movies 612562 2023-10-15 15:36 VID_20231015_153539.mp4 2751463 2023-10-15 15:37 VID_20231015_153638.mp4 4219707 2023-10-15 15:38 VID_20231015_153745.mp4 # episode start 1697384045: three new files
+
+MEDIA STORE AND FILE READS 
+
+> VERIFIER READ
+> Three new videos, one asked
+> FOCUSED STATE
+
+MISS REASON The VLM judge sees an idle camera with a saved thumbnail, and the generated script returns on the first video it finds without counting; both certify the run. 
+
+VERIFICATION SUMMARY 
+
+Gold fail Agent claimed complete VLM judge success Generated verifier success VeriCUA fail 
+
+RUBRIC 
+
+✗ Exactly one new video since the episode began. 
+
+◦ The new video sits in a standard media directory. 
+
+EVIDENCE 
+
+• content_query on the video media store, persistent: three rows added after the start. 
+
+• list_dir and find over Movies , persistent: the same three files, written one minute apart. 
+
+• Three of the four verifier passes decide fail on this evidence; the fourth abstains. 
+
+Figure D.1 | A false completion claim refuted from the media store. The agent recorded three clips for one requested video, and both baselines certified the run. 
+
+24 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents TRAJECTORY EVIDENCE  
+
+> INSTRUCTION MOBILE
+
+Add the following songs, in order, City of Stars, Hidden Paths, Distant Memories to my playing queue in Retro music. 
+
+> STEP 5
+
+City of Stars added to the queue 
+
+· · · 
+
+> STEP 14
+
+Third song added 
+
+> STEP 15
+
+Claims done 
+
+> $ sqlite_query music_playback_state.db "SELECT title FROM playing_queue" {"title": "City of Stars"} {"title": "Hidden Paths"} {"title": "Distant Memories"} $ ui_dump contains="City of Stars" cat: /sdcard/_verifier_ui.xml: No such file or directory # 3 database reads decide; 4 ui_dump reads unavailable
+
+DATABASE READ AFTER THE RUN 
+
+> VERIFIER READ
+
+The queue, in order, from the app’s store 
+
+> FOCUSED STATE
+
+MISS REASON The queue lives in the app’s database and does not appear on the final screen; the generated script joined the wrong tables and read an empty queue, and the VLM judge saw only a search view. 
+
+VERIFICATION SUMMARY 
+
+Gold success Agent claimed complete VLM judge fail Generated verifier fail VeriCUA success 
+
+RUBRIC 
+
+✓ Each of the three songs is in the queue. 
+
+✓ The songs follow each other in the asked order. 
+
+✓ The queue holds exactly three songs. 
+
+EVIDENCE 
+
+• sqlite_query on the playback database, located through the environment map, persistent: the three titles in the asked order, on two tables. 
+
+• ui_dump , volatile, four attempts: no dump was produced, so the verdict rests on the store alone. 
+
+Figure D.2 | A success that only the app’s store can attest. The queue is read from the playback database in the asked order, while both baselines fail the run. 
+
+25 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents 
+
+D.2. Recorded Trajectories 
+
+Here the verifier has nothing but the frames and logs the recording kept. TRAJECTORY EVIDENCE  
+
+> INSTRUCTION DESKTOP
+
+In LibreOffice Impress, create a single slide with a black background and write the text ’BREAKING NEWS’ in large white font, centered. Export this slide as an Image (JPG). Open Shotcut, import this image, and place it on a video track. Set its duration to exactly 5 seconds. Export the video clip named ’breaking_news.mp4’ on Desktop. 
+
+> STEP 7
+
+Black slide, empty title box 
+
+EVIDENCE 1: TYPING ACTION 
+
+> STEP 8 TEXT IN TITLE BOX
+
+Text typed into the title box 
+
+· · · 
+
+EVIDENCE 2: PREVIEW FRAME 
+
+> STEP 66 TEXT AT TOP
+
+Text at the top, center empty 
+
+· · · 
+
+> STEP 80
+
+Desktop lists both files 
+
+> FOCUSED STATE
+
+MISS REASON Every judge reads the finished export job and the file on the Desktop as completion, and the one that notices the text at the top takes ’centered’ to mean horizontal only. 
+
+VERIFICATION SUMMARY 
+
+Gold fail Agent claimed complete TRM success CUAJudge success OS-Themis success VeriCUA fail 
+
+RUBRIC 
+
+✗ The text is centered in the video frame. 
+
+◦ Six further requirements on the files, colors, and duration, left unsettled. 
+
+EVIDENCE 
+
+• The preview frame at step 66, post-effect frame: the text sits at the top over an empty black field, read on all three paths. 
+
+• inspect_action at step 7, post-effect frame: the text was typed into the slide’s title placeholder, which fixed its position. 
+
+Figure D.3 | A long desktop recording that every judge passes on the finished export. The verifier reads the preview frame and finds the text at the top rather than centered. TRAJECTORY EVIDENCE  
+
+> INSTRUCTION WEB
+
+Show me products under $25 in "women shoes" category 
+
+> STEP 1
+> Store home, search box
+
+EVIDENCE 1: THE PAGE REACHED 
+
+> STEP 2 KEYWORD SEARCH
+> Keyword search, not the category
+> url: .../catalogsearch/result/ ?q=women+shoes [2939] RootWebArea ’Search results for: ’women shoes” [5699] StaticText ’$29.90’ [5708] StaticText ’$52.92’ [5720] StaticText ’$29.99’ [5729] StaticText ’$27.21’
+
+A11YTREE READ AT STEP 6 
+
+> VERIFIER READ
+> The tree names the page and the prices
+
+EVIDENCE 2: FINAL VIEWPORT 
+
+> STEP 6 MIXED PRICES, NO FILTER
+> Cheap items beside a $42.85 pair
+> FOCUSED STATE
+
+MISS REASON The screenshot judges take three items under $25 in the final viewport as the answer; the URL and page title say keyword search, and the category page with its price filter was never opened. 
+
+VERIFICATION SUMMARY 
+
+Gold fail Agent stopped without a claim TRM success CUAJudge success OS-Themis success VeriCUA fail 
+
+RUBRIC 
+
+✗ The page is the women’s shoes category. 
+
+✗ Every listed price is under $25. 
+
+EVIDENCE 
+
+• read_a11y at step 6, structured state: the URL and the page title name a keyword search for “women shoes”, read on all three paths. 
+
+• The same tree lists several prices above $25, so no price filter was applied. 
+
+Figure D.4 | A web trajectory whose final screen shows cheap shoes. The a11ytree names the page a keyword search rather than the category page and lists prices above the limit. 
+
+26 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents TRAJECTORY EVIDENCE  
+
+> INSTRUCTION MOBILE
+
+How can I transport between the nearest two parks around me? Provide the best public transportation choice. 
+
+> STEP 3
+> Maps opened, Parks chip
+> EVIDENCE 1: THE MAP AT STEP 8
+> STEP 8 CLOSER PARK SKIPPED
+> A closer park beside the user
+
+· · · 
+
+> STEP 20
+> Drive route, before transit
+> EVIDENCE 2: THE ROUTE
+> STEP 21 SHORELINE PARK CHOSEN
+> Shoreline Park chosen, 24 min
+> FOCUSED STATE
+
+MISS REASON TRM and CUAJudge read the final route and the answer as complete; the map that shows a closer park sits 18 steps before the end. 
+
+> VERIFICATION SUMMARY
+
+Gold fail Agent answered, then terminated TRM success CUAJudge success OS-Themis fail VeriCUA fail 
+
+> RUBRIC
+
+✗ The two parks nearest the user. 
+
+◦ Both parks named, and the transit route or its absence stated, left unsettled. 
+
+> EVIDENCE
+
+• The map at step 8, post-effect frame, fetched by every path: a park beside the user’s location that the answer never mentions, while the chosen park lies 1.1 miles away. 
+
+• zoom at step 21, precise read: the route fields name Charleston Park and Shoreline Park. 
+
+Figure D.5 | A mobile recording whose answer reads well. The map 18 steps before the end shows a closer park than the one the agent chose, and two of three judges passed it. 
+
+E. Limitations and Broader Impacts 
+
+VeriCUA trades cost for evidence. A verification pass issues tens of tool calls and model calls per trajectory, an order of magnitude more than a single-call judge, so it suits filtering and reward assignment better than interactive use. On recorded trajectories it abstains wherever the recording holds no evidence for a requirement. Those abstentions are a coverage limit, and online access lifts it only for environments that can be instrumented. A stochastic verifier also needs its draw-to-draw spread reported beside every comparison, as we do. Reliable trajectory verification lowers the cost of training computer-using agents and of auditing benchmark labels. The same machinery could be misused to certify agents that act on real systems, which is one reason VeriCUA never writes to the environment it verifies. 
+
+27 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents 
+
+F. Prompts 
+
+The system prompts below drive rubric synthesis in the two settings and checker synthesis in online environments. Task-specific inputs such as the instruction and the device context are appended at run time. 
+
+F.1. Recorded-Trajectory Verification 
+
+You decompose a computer-use task into atomic, individually checkable requirements for a verifier. Output requirements about the FINAL END-STATE the task demands (what a programmatic checker inspecting files/documents/settings afterwards would verify), NOT about the method or the steps taken. Rules: - Each requirement is one concrete, verifiable condition. - Honor every quantifier/detail: "all"/"each" => ALL; exact names/values/paths => exact. Split compound asks into separate requirements. - Mark hard (must hold for success) or soft (minor/cosmetic). - Do NOT invent process requirements ("must have clicked X"); if the end-state is right, the route does not matter. Output ONLY: ```json {"requirements": [{"id": "r1", "description": "...", "hard": true}, ...]} ``` 
+
+Prompt F.1 | Rubric synthesis on recorded trajectories. 
+
+> 28 VeriCUA: Verification as Agentic Exploration for Computer-Using Agents
+
+F.2. Online Verification 
+
+You author verification requirements for tasks executed on an Android device. Given a task instruction, produce the END-STATE requirements a strict human examiner would check AFTER the task supposedly finished. Rules: - END-STATE only: describe what must be true of the device state, never the procedure ("brightness setting equals maximum", not "user opened settings"). - Atomic: one checkable fact per requirement. Split name vs content vs location. - Strict reading: if the instruction names a value, place, or format, it is required exactly; include implicit artifacts (a created note must exist AND contain the given text). - hard=true for requirements whose failure fails the task; hard=false for cosmetic/soft ones. - Only what the instruction implies: do NOT add adjacent settings, modes, or hygiene the instruction never mentions (no invented requirements). - COUNTS ARE EXACT: "take one video" means exactly one new video was created, not at least one; "log the reimbursable transactions" means exactly that set was added — nothing missing, nothing extra. When the instruction quantifies, produce a requirement for the exact count or exact set of NEW artifacts (relative to the episode start), not mere existence. - Do NOT bind platform-specific encodings or exact constants the instruction does not state: say "the minimum value the system allows", never "(0)". Resolving concrete encodings is the checkers' job, not yours. - Do NOT bind storage locations or app conventions the instruction does not name ("a photo was taken" requires a new image in SOME standard media location, not specifically DCIM). Location is a requirement only when the instruction states one. Output ONLY JSON: ```json {"requirements": [{"id": "r1", "description": "...", "hard": true}]} ``` 
+
+Prompt F.2 | Rubric synthesis in online environments. 
+
+You write CHECKERS that verify end-state requirements on an Android device. A checker is DATA, not a script: a plan of read-only getter calls plus one predicate over their outputs. You cannot write to the device; only these getters exist: {getter_docs} {device_context} Design rules: - For each hard requirement produce 2 checkers probing DIFFERENT surfaces or routes where meaningful (e.g. settings vs dumpsys; direct path vs find). If only one sensible surface exists, 2 independent probes of it are fine. - Prefer broad reads + predicate (list_dir or find + check the listing) over a single narrow existence probe: the task may have been satisfied at a different valid location or filename than the most literal guess. - predicate kinds: "code" (one Python expression over the getter outputs) or "semantic" (a plain-language criterion decided by a separate judge). [rules on polarity, exact-name matching, store representations, and screen-only state omitted for space] 
+
+Prompt F.3 | Checker synthesis in online environments, shortened where marked.

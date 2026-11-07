@@ -1,0 +1,345 @@
+{
+  "date": "20261029-20261107",
+  "date_label": "2026-10-29 ~ 2026-11-07",
+  "generated_at": "2026-11-07 06:58:27 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.07765v1",
+      "route": "20261029-20261107/2611.07765v1-bigrounder-bidirectional-training-unlocks-the-potential-of-gui-grounding",
+      "title": "BiGrounder: Bidirectional Training Unlocks the Potential of GUI Grounding",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 10.0,
+      "evidence": "GUI定位将自然语言指令映射为屏幕坐标，采用双向训练",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2610.39251v1",
+      "route": "20261029-20261107/2610.39251v1-where-to-learn-and-how-far-to-roll-out-efficient-adaptive-training-for-gui-agents",
+      "title": "Where to Learn and How Far to Roll Out: Efficient Adaptive Training for GUI Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向多步GUI智能体的自适应强化学习训练框架，含枢轴选择与一步RL",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2610.39264v1",
+      "route": "20261029-20261107/2610.39264v1-online-dense-reinforcement-learning-with-planning-grounding-agent-for-ui-navigation-on-live-ios-apps",
+      "title": "Online Dense Reinforcement Learning with Planning-Grounding Agent for UI Navigation on Live IOS Apps",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "在真实iOS应用上训练UI导航智能体的在线强化学习与规划-定位分工",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2610.40747v1",
+      "route": "20261029-20261107/2610.40747v1-mage-vl-cowork-a-full-training-recipe-to-learn-hybrid-computer-use-from-evolved-harnesses",
+      "title": "Mage-VL-Cowork: A Full Training Recipe to Learn Hybrid Computer Use From Evolved Harnesses",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "在 29 万合成桌面与网页任务上以 SFT 与 RL 训练的混合计算机使用智能体",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2610.41432v1",
+      "route": "20261029-20261107/2610.41432v1-hybrid-computer-use-a-unified-programmatic-semantic-and-visual-interface-for-general-agents",
+      "title": "Hybrid Computer Use: A Unified Programmatic, Semantic, and Visual Interface for General Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向通用计算机使用智能体的编程、语义与 GUI 视觉统一接口",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.00191v1",
+      "route": "20261029-20261107/2611.00191v1-memu-bench-benchmarking-gui-agents-on-long-horizon-user-interactions",
+      "title": "MemU-Bench: Benchmarking GUI Agents on Long-Horizon User Interactions",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向模糊且依赖历史的移动GUI基准，评估智能体记忆能力",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.01351v1",
+      "route": "20261029-20261107/2611.01351v1-maple-a-multimodal-mobile-agent-with-playbook-learned-experience",
+      "title": "MAPLE: A Multimodal Mobile Agent with Playbook-Learned Experience",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "基于视觉语言模型的移动端GUI智能体，逐步共享经验完成界面导航",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.03634v1",
+      "route": "20261029-20261107/2611.03634v1-webharbor-docking-real-websites-for-evolving-gui-agent-environments",
+      "title": "WebHarbor: Docking Real Websites for Evolving GUI Agent Environments",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "用于训练与评测GUI网页智能体的容器化真实网站环境",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.05263v1",
+      "route": "20261029-20261107/2611.05263v1-jhima-webrl-a-joint-hierarchical-multi-agent-reinforcement-learning-framework-for-long-horizon-web-tasks",
+      "title": "JHiMA-WebRL: A Joint Hierarchical Multi-Agent Reinforcement Learning Framework for Long-Horizon Web Tasks",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向GUI网页智能体的分层多智能体强化学习",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.06544v1",
+      "route": "20261029-20261107/2611.06544v1-mkd2world-a-typed-spatial-markdown-world-model-for-web-agents",
+      "title": "MKD2World: A Typed Spatial MarkDown World Model For Web Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "为GUI智能体联合编码界面布局、语义与位置的类型化空间Markdown状态表示",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2610.40133v1",
+      "route": "20261029-20261107/2610.40133v1-dynarev-benchmarking-web-agents-under-dynamic-goal-revision",
+      "title": "DynaRev: Benchmarking Web Agents under Dynamic Goal Revision",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向真实任务的网页智能体基准评测",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2610.40578v1",
+      "route": "20261029-20261107/2610.40578v1-vericua-verification-as-agentic-exploration-for-computer-using-agents",
+      "title": "VeriCUA: Verification as Agentic Exploration for Computer-Using Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向计算机使用智能体的平台无关任务验证，支撑强化学习与评测",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.00926v1",
+      "route": "20261029-20261107/2611.00926v1-ui-ug-2-advancing-mobile-ui-understanding-and-generation-with-fine-grained-supervision-and-reinforcement-learning",
+      "title": "UI-UG 2: Advancing Mobile UI Understanding and Generation with Fine-Grained Supervision and Reinforcement Learning",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "基于 UI 分类体系与强化学习的移动界面细粒度组件理解",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.02644v1",
+      "route": "20261029-20261107/2611.02644v1-coati-host-grounded-execution-for-installable-mobile-gui-agents",
+      "title": "Coati: Host-Grounded Execution for Installable Mobile GUI Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "可安装于手机本机、带动作核验的移动GUI智能体",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2610.40276v1",
+      "route": "20261029-20261107/2610.40276v1-taskframe-connecting-task-level-planning-with-frame-level-control-for-game-agents",
+      "title": "TaskFrame: Connecting Task-Level Planning with Frame-Level Control for Game Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "视觉语言规划器配合帧级键盘鼠标控制",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.01891v1",
+      "route": "20261029-20261107/2611.01891v1-interface-quilt-modifying-applications-with-computer-use-agents-and-generative-ui",
+      "title": "Interface Quilt: Modifying Applications with Computer Use Agents and Generative UI",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "计算机使用智能体操作现有界面并结合生成式UI",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.02472v1",
+      "route": "20261029-20261107/2611.02472v1-magar-multimodal-agents-for-gui-based-3d-mechanical-assembly-and-minimal-rework",
+      "title": "MAGAR: Multimodal Agents for GUI-Based 3D Mechanical Assembly and Minimal Rework",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "面向 GUI 多模态智能体的 MAGAR-Bench 基准与装配纠错指标",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.03238v1",
+      "route": "20261029-20261107/2611.03238v1-sciencecua-resource-to-skill-construction-and-execution-guided-skill-evolution-for-scientific-computer-use-agents",
+      "title": "ScienceCUA: Resource-to-Skill Construction and Execution-Guided Skill Evolution for Scientific Computer Use Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "面向科学软件操作的计算机使用智能体，从文档构建可复用技能",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2610.41272v1",
+      "route": "20261029-20261107/2610.41272v1-angler-verifier-grounded-benchmarking-with-an-adaptive-attacker-for-web-agents",
+      "title": "ANGLER: Verifier-Grounded Benchmarking with an Adaptive Attacker for Web Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "面向网页智能体的可执行网站红队评测基准",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.05873v1",
+      "route": "20261029-20261107/2611.05873v1-can-llm-agents-learn-to-test-maintaining-scoped-experience-as-testing-evidence-for-mobile-gui-testing",
+      "title": "Can LLM Agents Learn to Test? Maintaining Scoped Experience as Testing Evidence for Mobile GUI Testing",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "维护受控可复用经验的LLM移动GUI测试智能体",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    },
+    {
+      "paper_id": "2611.06939v1",
+      "route": "20261029-20261107/2611.06939v1-a-multi-modal-robotic-framework-for-physical-gui-interaction-testing",
+      "title": "A Multi-Modal Robotic Framework for Physical GUI Interaction Testing",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "通过外部感知手机GUI状态并执行物理触控的非侵入式机器人框架",
+      "first_seen_at": "2026-11-07 06:58:27 UTC",
+      "updated_at": "2026-11-07 06:58:27 UTC"
+    }
+  ]
+}

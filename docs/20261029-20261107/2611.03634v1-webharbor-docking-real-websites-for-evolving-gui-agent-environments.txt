@@ -1,0 +1,2582 @@
+WebHarbor: Docking Real Websites for
+Evolving GUI Agent Environments
+WebHarbor Team and Contributors∗
+ Project Page
+Data & Models
+§ Code
+ABSTRACT
+GUI web agents require realistic and interactive environments that remain sta-
+ble during both evaluation and training. Live website evaluation suffers from
+changing content, access restrictions, and limited coverage of authenticated work-
+flows, while existing synthetic environments for training often lack functional
+depth and visual fidelity. We propose WebHarbor, a suite of 153 executable and
+dockerized website environments that faithfully reconstruct the visual interfaces,
+content, and functional workflows of real-world web services under deterministic
+control. We build WebHarbor through task-driven human-agent collaboration,
+where environments evolve as new tasks expand their functional scope, coding
+agents implement the required changes, and human contributors audit visual fi-
+delity, functional correctness, and task validity. The resulting suite comprises 3,518
+tasks spanning multi-step and post-authentication workflows, where existing works
+often fail to cover. Beyond reliable evaluation, WebHarbor provides high-fidelity
+synthetic web environments for cost-efficient reinforcement learning (RL). We
+demonstrate that a Qwen 4B-level GUI agent trained with RL in WebHarbor gen-
+eralizes to unseen tasks and performs competitively with leading open-source GUI
+web agents across four benchmarks. The code and data are publicly available at
+https://github.com/aiming-lab/WebHarbor.
+1
+INTRODUCTION
+Web agents powered by large language models (LLMs) with multimodal capability interpret rendered
+webpages and complete tasks through browser interactions (Deng et al., 2023; He et al., 2024; Zheng
+et al., 2024; Qin et al., 2025). Their progress depends on environments that support reliable evaluation
+and training. Evaluation requires stable and reproducible outcomes, while reinforcement learning
+(RL) additionally requires executable state transitions and repeatable resets (Qi et al., 2025; Bai
+et al., 2024; Wei et al., 2025; Lai et al., 2025). Live websites offer realistic interfaces, but changing
+content, bot detection, and regional restrictions undermine experimental control. Moreover, live-web
+benchmarks rarely cover authenticated workflows, despite their importance to many everyday user
+requests (He et al., 2024; Xue et al., 2025). In our experiments, about 38% of Online-Mind2Web
+tasks were blocked by bot detection, and 22% of WebVoyager tasks were outdated due to website
+changes. These failures introduce uncontrolled variation into evaluation and prevent agents from
+learning the many workflows hidden behind authentication.
+An alternative should combine realistic visual observations, functional interactions, and persistent
+authenticated state with offline execution and reliable resets. Achieving this balance is challenging:
+commercial websites encompass extensive content and functionality, making complete reconstruction
+impractical, while visually similar replicas may lack correct search, account management, booking,
+or transaction logic. Even apparently functional environments may expose shortcuts, omit plausible
+alternative actions, or leak answers through their interfaces, undermining task validity. The goal
+is to match both what agents observe and how websites respond to their actions, while ensuring
+reproducibility and practical utility for both evaluation and RL.
+Human crafted benchmarks such as WebArena and VisualWebArena offer reproducible applications
+but cover very few websites (Zhou et al., 2024; Koh et al., 2024). Manually reconstructing real
+websites can improve fidelity, but requires substantial effort and remains difficult to scale. Recent
+∗See full author list in Appendix A.
+1
+arXiv:2611.03634v1  [cs.AI]  2 Nov 2026
+
+
+Preprint.
+Figure 1: Comparison on visual fidelity. (a) AutoWebWorld captures broad Amazon cues, but its hero
+and card layout depart from the origin. (b) CUA-Gym recovers the storefront structure while filling
+product slots with generic scenery images. (c) WebArena-Infinity provides no Amazon website,
+its closest page is a lightweight Handshake template without images. (d) WebHarbor combines
+target-like navigation, dense merchandising hierarchy, and product-specific imagery, yielding the
+most coherent and visually faithful environment. See more cases in Appendix D. Zoom in for details.
+Method
+Curation
+# Envs.
+Offline
+Images
+Login
+Evaluation
+WebVoyager (He et al., 2024)
+Human+LLM
+15
+×
+✓
+×
+WebArena (Zhou et al., 2024)
+Human
+6
+✓
+✓
+✓
+Online-Mind2Web (Xue et al., 2025)
+Human
+136
+×
+✓
+×
+DeepShop (Lyu et al., 2025)
+Agent
+1
+×
+✓
+×
+Training
+WebArena-Infinity (Zhou, 2026)
+Agent
+13
+✓
+×
+×
+AutoWebWorld (Wu et al., 2026)
+Agent
+29
+✓
+△
+△
+CUA-Gym (Wang et al., 2026a)
+Agent
+98
+✓
+△
+×
+WebHarbor
+Human+Agent
+153
+✓
+✓
+✓
+Table 1: Comparison of released web agent evaluation and training environments. Images denotes
+image-rich website content. △denotes generated images or partial coverage. Login requires the
+agent to authenticate through the interface. # Envs. follow the actual releases.
+approaches automatically synthesize diverse functional websites (Zhou, 2026; Zhang et al., 2026;
+Wu et al., 2026; Cao et al., 2026; Wang et al., 2026a). However, they typically emphasize newly
+generated worlds over task-grounded reconstructions of real websites, or offer limited multimodal
+content and post-authentication functionality. Table 1 summarizes this coverage gap: existing
+released environments do not jointly provide broad website coverage, offline execution, image-rich
+content, and login-based workflows. The case study in Figure 1 makes the visual-fidelity limitation
+concrete: the compared generated environments either omit the target website or simplify its layout,
+merchandising hierarchy, and product-specific imagery.
+2
+
+
+Preprint.
+To address this gap, we introduce WebHarbor, a suite of 153 executable website environments drawn
+from the website spaces covered by WebVoyager and Online-Mind2Web. WebHarbor uses task-
+conditioned construction: target tasks specify the pages, data, and interaction workflows that each
+environment must support, providing a tractable scope for reconstructing large web content. Coding
+agents then implement the frontend, backend, database, and visual content through a standardized set
+of environment-construction skills. Human contributors inspect the rendered websites, execute the
+target workflows, and revise failures in visual fidelity, functional correctness, data realism, and task
+validity, where fix implementations are done by coding agents. This human-agent process produces
+Dockerized environments that run without access to the target services, reset to controlled initial states,
+and support both public information-seeking tasks and in-depth workflows behind authentication. The
+final resource contains 3,518 tasks covering information retrieval, account management, bookings,
+and transactions, and can be used as a stable benchmark or as an executable training environment.
+In summary, our contributions are threefold.
+(1) We introduce WebHarbor, a suite of 153 controllable web environments and 3,518 tasks with
+authenticated workflows and persistent state changes largely absent from live-web benchmarks.
+(2) We develop a human-agent collaborative construction pipeline that combines task-conditioned
+website implementation by coding agents with iterative human auditing of visual fidelity, func-
+tional correctness, and task validity until approval.
+(3) Experiments across three web agent benchmarks demonstrate that a Qwen 4B agent trained
+with RL in WebHarbor generalizes to unseen tasks and achieves performance competitive with
+leading open-source web agents on live web benchmarks.
+2
+RELATED WORK
+GUI Web Agents
+Web agents have evolved from systems that operate on HTML or accessibility
+representations (Zheng et al., 2024; He et al., 2024) to multimodal agents that integrate webpage
+understanding, reasoning and planning, action grounding, and sequential decision-making to execute
+user instructions (Gur et al., 2024; Koh et al., 2025; Putta et al., 2024). While prior work has
+largely focused on learning from demonstrations (Hong et al., 2024; Cheng et al., 2024; Xu et al.,
+2024; Qin et al., 2025; Wang et al., 2025), recent approaches such as WebRL, WebAgent-R1, and
+OpenWebRL, further optimize agent policies through reinforcement learning based on environment
+interactions (Qi et al., 2025; Wei et al., 2025; Yang et al., 2026). These approaches motivate the
+need for environments that provide realistic visual observations, executable state transitions, and
+reproducible initial conditions. WebHarbor provides such an infrastructure for efficient training and
+reliable evaluation of GUI web agents across diverse website interfaces.
+Web Agent Benchmarks
+Existing benchmarks trade off website coverage, interaction depth, and
+experimental control. MiniWoB++ and WebShop provide controlled settings for browser interaction
+and shopping (Liu et al., 2018; Yao et al., 2023), while Mind2Web expands website coverage but
+relies on cached snapshots that limit interactive exploration (Deng et al., 2023). Live-web bench-
+marks such as WebVoyager, Online-Mind2Web, and DeepShop offer realistic interactions across
+diverse websites (He et al., 2024; Xue et al., 2025; Lyu et al., 2025). Online-Mind2Web, even with
+periodic task updates, however, it remains vulnerable to website changes, bot detection, CAPTCHA,
+and network or geographic restrictions, while offering limited coverage of authenticated and state-
+changing workflows. In contrast, self-hosted benchmarks such as WebArena, VisualWebArena, and
+WorkArena support complex interactions under controlled settings (Zhou et al., 2024; Koh et al.,
+2024; Drouin et al., 2024). However, their limited website coverage, heavyweight deployments, and
+costly environment resets complicate repeated evaluation and online RL training. REAL provides de-
+terministic replicas of 11 real websites with persistent state changes, but starts from pre-authenticated
+states (Garg et al., 2025). WebHarbor bridges these trade-offs with 153 image-rich and executable
+websites and 3,518 tasks, covering both information seeking and authenticated and state-changing
+workflows. Its lightweight SQLite-backed architecture enables fast resets, facilitating reproducible
+evaluation and scalable online RL training across many websites.
+Synthetic Web Environments
+Recent work scales web agent training through environment and
+task synthesis. WebArena-Infinity and InfiniteWeb synthesize functional browser environments from
+documentation, specifications, and visual references (Zhou, 2026; Zhang et al., 2026). AutoWebWorld,
+3
+
+
+Preprint.
+Target task
+Target task
+(a) Live sites
+(b) Synthesis Pipeline
+(c) Evolving environments for RL Training
+Amazon
+GitHub
+Booking.com
+CAPTCHAs
+Site changes
+Access limits
+Target task
+Book a New York hotel
+with free cancellation…
+Coding agent
+Fidelity audit
+Check site behavior
+Contributor
+Propose tasks
+Request
+changes
+Reviewer
+Approve
+GUI agent
+LLM judge
+Reward
+State changes
+Fast Reset
+Answer +
+screenshots
+Barriers
+Human verification
+Unstable results
+Authentication
+Observation
+Action
+Environment 
+Evolving
+Human-in-the-loop
+Figure 2: Overview of WebHarbor. (a) Live websites provide target interfaces and workflows
+but introduce access barriers. (b) Target tasks scope full-stack reconstruction, then coding agents
+implement and evolve each environment, while human reviewers audit visual fidelity, functional
+correctness, and task validity until approval. (c) Dockerized environments support deterministic and
+fast state resets and evidence-grounded rewards for both evaluation and RL.
+CUA-Gym, and WebForge further explore verifiable state transitions, task generation, and difficulty
+control (Wu et al., 2026; Wang et al., 2026a; Yuan et al., 2026). GUI-GENESIS and VeriEnv
+reconstruct real applications as executable environments for agent training (Cao et al., 2026; Chae
+et al., 2026). However, synthesis pipeline with coding agent alone does not guarantee visual fidelity
+and realistic workflow depth. In contrast, WebHarbor emphasizes task-grounded reconstruction of
+real websites with human-validated quality. We cover all websites from WebVoyager and Online-
+Mind2Web, extending task coverage to complex authenticated and state-changing workflows. These
+tasks guide coding agents in iteratively implementing and expanding website functionality, while
+human reviewers audit visual fidelity, functional correctness, and task validity. This approach yields
+153 image-rich environments that combine broad website coverage with human-audited quality,
+supporting both reliable evaluation and scalable RL training.
+3
+WEBHARBOR
+Given a target website and a set of relevant tasks, WebHarbor reconstructs an executable local
+environment that preserves task-relevant interfaces, content, and state transitions. We call this process
+docking: replacing live dependencies with local assets, seeded state, and controlled resets while re-
+taining recognizable visual and functional behavior. Figure 2 illustrates the iterative workflow. Target
+tasks define the reconstruction scope, coding agents use reusable skills to implement the frontend,
+backend, database, and visual content, and human contributors audit the resulting environments.
+Human feedback guides coding agents in repairing visual and functional defects. As new tasks reveal
+missing functionality or shortcuts, the same process expands and refines the environments while
+maintaining deterministic execution and reliable resets.
+3.1
+TASK-DRIVEN DOCKING
+Reconstructing an entire commercial website is impractical, given the significant scale of services
+such as Amazon’s product catalog or YouTube’s video library. Instead, we adopt a task-driven
+reconstruction process that scopes each environment to the functionality and content required by its
+target tasks. Each task specifies entry and terminal pages, observable entities and attributes, required
+browser actions, and persistent state changes. These requirements define the task-relevant support
+surface: the pages, routes, image content, and data needed for realistic interactions.
+We begin with WebVoyager’s 15 websites and 643 tasks (He et al., 2024), whose live-web evalu-
+ation has become less reliable due to website changes. We then extend coverage to all websites
+in Online-Mind2Web (Xue et al., 2025), but exclude its original tasks, which primarily focus on
+information seeking rather than authenticated and state-changing workflows. For these websites,
+human contributors identify core functional areas, and an LLM expands them into candidate work-
+4
+
+
+Preprint.
+flows using its knowledge of common web services. Human contributors then review and refine
+these tasks for functional coverage, feasibility, and interaction depth. The resulting tasks cover
+account management, bookings, purchases, saved items, and other persistent operations. Task-driven
+scoping also facilitates visual and functional fidelity by explicitly defining the observations and
+state transitions that must be reproduced. Beyond task completion, environments preserve natural
+navigation paths and surrounding content, including plausible alternatives and near-miss items that
+prevent trivial shortcuts. This approach bounds reconstruction effort while retaining the interaction
+complexity needed for evaluation and training. The full list of 153 websites is provided in Tables 19
+and 20 in the Appendix. Synthesis prompts are provided in Appendix B.
+3.2
+SKILL-DRIVEN SYNTHESIS AND EVOLUTION
+Task-driven docking defines what an environment should support, while skill-driven synthesis and
+evolution transform these requirements into an executable offline website. For each website, the
+coding agent first explores the target service through a rendered browser, recording its task-relevant
+page hierarchy, navigation paths, URL patterns, interactive controls, and visual appearance. The
+rendered DOM and resolved asset URLs provide references for reconstructing client-rendered
+pages and lazy-loaded content. Guided by these observations and reusable construction skills (see
+Appendix B), the coding agent builds a self-contained web application backed by SQLite and bundled
+with local visual assets. These assets are either downloaded from the target website or replaced with
+visually similar alternatives obtained from public sources. The initial reconstruction is then refined
+through repeated execution of target tasks. For each task, the coding agent interacts with the rendered
+interface and identifies the first unsupported observation or state transition. Missing pages prompt
+the creation of new routes and views, incomplete workflows require additional form handlers and
+persistent state updates, and insufficient content motivates new database records and task-relevant
+alternatives. After each revision, the environment is reset to its seeded state, and the complete
+workflow is executed again. This iterative process allows increasingly diverse and challenging tasks
+to expand and refine the environment until all target workflows can be completed end to end through
+the visible interface with the intended persistent state changes.
+3.3
+HUMAN-IN-THE-LOOP ITERATIVE REFINEMENT
+Automated synthesis provides weak quality control for visual fidelity, long-horizon behavior, and
+task validity. Coding agents may complete target workflows while leaving surrounding interfaces
+visually inaccurate, functionally shallow, or artificially easy. In our pilot study of 26 websites, 13
+environments exhibited visual or asset defects (e.g., images mismatched with descriptions), and 14
+had broken or shallow interactions (e.g., unresponsive buttons). Such issues are often overlooked
+by coding agents during long-horizon environment construction but are readily identified by human
+reviewers. Figure 1 illustrates how fully automated reconstructions may capture coarse website
+layouts while simplifying functionality or omitting important visual content.
+To improve the environment quality, we introduce human-in-the-loop auditing and iterative collab-
+oration. Specifically, We organize human participation into two roles. Contributors specify target
+websites and high-level functional requirements and guide coding agents during construction. Desig-
+nated reviewers then compare reconstructed environments against the target websites and execute
+each task end to end, checking task feasibility, intended interaction sequences, and visual and func-
+tional fidelity. Reviewers translate identified defects into actionable requests for coding agents and
+re-evaluate affected workflows until approval. On average, each environment undergoes 2–3 review
+rounds, each taking 1–2 hours. Reviewers also develop task-specific verifiers and judging rubrics that
+define the grading criteria for LLM-as-a-Judge (Zheng et al., 2023) or agent-as-a-Judge (Zhuge et al.,
+2024). All contributors and reviewers are community volunteers included in the author list.
+3.4
+ENVIRONMENT SUITE
+Through approximately five months of community collaboration involving 57 contributors, iterative
+construction and auditing yielded 153 executable website environments with 3,518 tasks. These
+environments support reliable resets, image-rich observations, and complex authenticated workflows
+for RL training and evaluation. We construct the training set by holding out all 15 WebVoyager
+websites, 15 additional websites, and 20% of tasks from each of the remaining 123 websites,
+5
+
+
+Preprint.
+2,288
+306
+924
+123
+15
+15
+Inner ring
+153 websites
+Outer ring
+3,518 tasks
+Websites:
+Train
+WV-held
+Random-held
+Tasks:
+Train
+Test
+Unallocated
+Figure 3: Train/test split: 123 train and 30 held-
+out sites (inner), and 2,288 train, 306 test, and
+924 unallocated tasks (outer).
+Task capability
+Tasks
+Share (%)
+Sites
+Information/search
+2,282
+64.9
+151
+Account/profile
+161
+4.6
+98
+Content/communication
+100
+2.8
+46
+Transaction/booking
+448
+12.7
+95
+Settings/other state
+527
+15.0
+119
+Authentication required
+1,117
+31.8
+135
+Persistent state change
+1,253
+35.6
+141
+Cross-page reasoning
+1,888
+53.7
+151
+Table 2: Task coverage by LLM-based classification.
+Rows 1–5 are exclusive categories, and rows 6–8
+are non-exclusive properties.
+Community composition
+Members
+Affiliations
+Sites
+Contrib.
+Reviewers
+Both roles
+57
+26
+153
+33
+29
+22
+Project activity
+Per-site collaboration
+Activity
+N
+Merged / median
+Metric
+Mean
+Median
+P90
+GitHub PRs
+348
+313 (89.9%)
+PRs
+3.18
+3
+5
+HF asset PRs
+192
+149 (77.6%)
+Participants
+3.33
+2
+5
+PR comments
+316
+132 words
+Handoffs
+1.49
+1
+3
+Table 3: Community collaboration in WebHarbor. Some early-stage contributors are included in the
+total but may not be reflected in the role-specific counts. In Project activity, the third column reports
+the merged PR count (rate) for repository rows and median word count for PR comments. Handoffs
+count transitions between different authors within the same website.
+yielding 2,288 training tasks. The remaining tasks form the test candidate pool. To ensure the
+reliability of test set, we execute these candidates using five models: GPT-4.1 (OpenAI, 2025a),
+GPT-5.5 (OpenAI, 2026a), GPT-5.6-Sol (OpenAI, 2026b), GPT-6-Astra (OpenAI, 2026c), and
+Qwen3.6-35B-A3B (Qwen Team, 2026) across sizes and model capabilities. We retain only tasks for
+which scripted verifiers and an OpenCode agent powered by GPT-5.6-Sol (anomalyco, 2025) agree
+on most executions. To promote diversity, we further limit each website to two test tasks, producing a
+final test set of 306 tasks. Figure 3 summarizes this final split.
+3.5
+DATASET ANALYSIS
+We analyze WebHarbor along four dimensions. (1) Effective community collaboration: As shown
+in Table 3, 57 members across 26 affiliations collaboratively developed 153 website environments in
+five months. Substantial code contributions, cross-role participation, and iterative reviews demonstrate
+the feasibility of scaling environment construction through coordinated community effort. (2) Broad
+and deep task coverage: Figure 4 demonstrates that WebHarbor achieves both broad semantic
+diversity and substantial interaction depth, rather than relying on repetitive information-seeking
+tasks. Under a size-controlled comparison, WebHarbor exhibits the lowest median nearest-neighbor
+similarity (0.58 versus 0.66–0.76), with its least-similar half covering approximately 91% of websites.
+The dashed cross-set curve shows a median nearest-task similarity of only 0.39 to Online-Mind2Web,
+indicating minimal task overlap and mitigating the risk of data leakage. Moreover, Table 2 presents
+that the suite includes 448 transaction/booking tasks, with 31.8% requiring authentication, 35.6%
+modifying persistent state, and 53.7% involving cross-page reasoning, which remain largely absent
+from existing live-web and synthetic benchmarks. (3) Rich environment implementations: Table 4
+compares WebHarbor to existing synthetic environment suites. WebHarbor leads the compared
+suites in total and per-environment pages, images, asset size, and source lines, with an average of 37.3
+pages, 1,319.9 images, 104.8 MiB of image assets, and 6,610.6 source lines of code per environment.
+6
+
+
+Preprint.
+Metric
+WebArena-Infinity
+AutoWebWorld
+CUA-Gym
+WebHarbor
+Total
+Pages
+115
+636
+1,401
+5,711
+Images
+0
+2,303
+56
+201,946
+Assets (MiB)
+0.0
+183.3
+3.2
+16,030.5
+Lines
+61,536
+104,074
+579,474
+1,011,419
+Mean (per environment)
+Pages
+8.8
+21.9
+14.3
+37.3
+Images
+0.0
+79.4
+0.6
+1,319.9
+Assets (MiB)
+0.00
+6.3
+0.03
+104.8
+Lines
+4,733.5
+3,588.8
+5,913.0
+6,610.6
+Table 4: Environment complexity and implementation breadth. Pages, Images, Assets, and Lines
+denote website routes, bundled image files, bundled image size (MiB), and source lines of code.
+Model performance
+Ranking consistency
+Benchmark
+Qwen3-VL-
+235B-A22B
+Qwen3-VL-
+4B
+GPT-5.1
+Orchard-4B
+(Peng et al., 2026)
+Pairwise
+orderings
+Spearman
+ρ
+Pearson
+r
+WebVoyager
+66.4
+52.6
+55.9
+74.1
+6/6
+(100%)
+1.000
+0.802
+WebHarbor
+76.4
+62.8
+74.7
+78.5
+∆
++10.0
++10.2
++18.8
++4.4
+Table 5: Model performance and ranking consistency on WebVoyager and the same sites of
+WebHarbor. Pairwise orderings counts model pairs whose order is preserved.
+0
+20
+40
+60
+80
+100
+Cumulative tasks (%)
+0.2
+0.4
+0.6
+0.8
+1.0
+Nearest-neighbor cosine similarity
+AutoWebWorld
+CUA-Gym
+WebArena-Inf.
+WebHarbor
+WH→OM2W
+0
+25
+50
+75
+100
+Sites covered (%)
+91%
+Figure 4: Task semantic diversity: nearest-
+neighbor similarity within each suite and to
+Online-Mind2Web (left axis) and cumulative
+site coverage (right axis).
+(4) Consistent benchmark rankings: Table 5
+shows that four agents achieve 4.4–18.8 points
+higher scores on WebHarbor than on live Web-
+Voyager, reflecting reduced interference from con-
+tent drift and access restrictions. Crucially, all six
+pairwise agent rankings are preserved, with a Spear-
+man rank correlation of 1.0 and a Pearson score
+correlation of 0.8, demonstrating strong consistency
+in relative agent performance across the two bench-
+marks. These findings highlight the feasibility of
+community-driven construction, the diversity and
+depth of the resulting environments, and their value
+for both reliable evaluation and scalable RL training.
+4
+EXPERIMENTS
+4.1
+EXPERIMENT SETUP
+RL training & Baseline
+We use OpenWebRL-4B (Yang et al., 2026) as our main baseline because
+it is a SOTA open-source agent trained through online RL on live websites. The synthetic environ-
+ment suites WebArena-Infinity, AutoWebWorld, and CUA-Gym do not release trained checkpoints.
+OpenWebRL is trained on 2,102 WebGym tasks across 704 live websites (Bai et al., 2026). Our
+mirror-trained policy starts from the same SFT checkpoint, OpenWebRL-4B-SFT, and reuses the
+same multimodal multi-turn GRPO (MM-GRPO) objective and ReAct-style GUI harness. At each
+turn, the policy observes the current state screenshot, textual action feedback, and full interaction his-
+tory, and acts through browser tools (e.g., MOUSE_CLICK). For WebHarbor training, each instance
+runs in an isolated and deterministically seeded sandbox through Orchard interface (Peng et al., 2026).
+Table 7 measured latencies show that our environment supports efficient stateful episode turnover and
+timely verification suitable for large-scale RL training. To keep the training framework and agent
+configuration consistent, we retain OpenWebRL’s format-gated GPT-4.1 final-answer reward. We
+7
+
+
+Preprint.
+Model
+WebVoyager
+Online-
+Mind2Web
+Avg.
+Proprietary models
+GPT-4o∗(OpenAI et al., 2024)
+65.1
+34.6
+49.9
+Gemini-3-flash∗(Google, 2025a)
+85.6
+44.8
+65.2
+GPT-5∗(OpenAI, 2025b)
+90.6
+57.7
+74.2
+OpenAI CUA preview∗(OpenAI, 2025c)
+70.9
+58.3
+64.6
+Gemini CUA preview∗(Google, 2025b)
+88.6
+57.3
+73.0
+Open-source models
+UI-TARS-1.5-7B∗(Qin et al., 2025)
+66.4
+31.3
+48.9
+GLM-4.1V-9B-Thinking∗(Team et al., 2026)
+66.8
+33.9
+50.4
+Fara-7B∗(Awadallah et al., 2025)
+73.5
+34.1
+53.8
+MolmoWeb-4B∗(Gupta et al., 2026)
+75.2
+31.3
+53.3
+MolmoWeb-8B∗(Gupta et al., 2026)
+78.2
+35.3
+56.8
+4B model comparison
+Qwen3-VL-4B-Thinking (base)
+52.6∗
+32.0∗
+42.3
+OpenWebRL-4B-SFT
+60.2∗
+47.0∗
+53.6
+OpenWebRL-4B (RL)
+74.1∗
+67.0∗
+70.6
+WebHarbor-4B
+81.2
+70.4
+75.8
+Table 6: Performance on WebVoyager and Online-Mind2Web, excluding invalid trials (e.g., re-
+CAPTCHA). ∗marks results reported by OpenWebRL (Yang et al., 2026). Bold and underlined
+values are the best and second-best results in each column.
+isolate the environments and tasks as the primary difference, investigating whether RL in offline
+synthetic environments can match RL on live websites. Appendix E gives more details.
+Metric
+Mean (s)
+Median (s)
+P90 (s)
+Initialization
+7.43
+6.75
+9.37
+Reset
+6.68
+6.00
+9.00
+Verifier
+4.04
+4.00
+7.00
+Table 7: Latency of WebHarbor operations
+including overhead of data transfer and Or-
+chard management.
+Benchmarks
+We evaluate generalization on four
+benchmarks. Online-Mind2Web contains 300 realis-
+tic tasks across 100+ live websites and provides broad
+coverage of sites and user domains (Xue et al., 2025).
+WebVoyager comprises 643 tasks on 15 popular live
+websites (He et al., 2024). WebArena contains com-
+plex tasks in reproducible self-hosted websites (Zhou
+et al., 2024), where we use a subset of 226 tasks
+adopted by Sun et al. (2025) and Wang et al. (2026b).
+To test authenticated workflows, WebArena-NL dis-
+ables automatic login and provides the account cre-
+dentials in the task description. We also evaluate on the WebHarbor test set, which is free from
+live-web disruptions and covers diverse websites.
+Evaluation Protocol
+Following the evaluation protocol of OpenWebRL, we use a 1280×1000
+viewport and decode with temperature 0.6, top-p 0.95, and top-k 20. Each task receives a fresh
+browser context and a 30-step budget except for WebArena, which uses a 50-step budget. Online-
+Mind2Web uses an o4-mini AgentTrek judge (Xu et al., 2025; Xue et al., 2025). WebVoyager
+and DeepShop use benchmark-specific GPT-4.1 judges checking both the screenshots and the final
+answers. WebArena uses official programmatic state validators. For WebHarbor benchmark, we use
+the verifier to inspect state changes and the final answer.
+4.2
+MAIN RESULTS
+Unseen Benchmarks
+Tables 6 and 9 report four findings. (1) Consistent RL gains. In the
+controlled 4B comparison, WebHarbor-4B obtains the highest live-web average of 75.8, exceeding
+the shared SFT checkpoint by 22.2 points and the live-web-trained OpenWebRL-4B policy by 5.2
+points. Its gains over OpenWebRL-4B hold across all four evaluation settings. (2) Open-source
+competitiveness. WebHarbor-4B achieves the strongest results among the listed open-source agents
+on both live-web benchmarks. (3) Complementary generalization. All 15 WebVoyager websites
+8
+
+
+Preprint.
+Model
+Harness
+Verifier
+Agent-Judge
+Consistency
+GPT-4.1
+GUI
+26.4
+37.9
+93.5
+OpenCode
+1.0
+1.3
+99.6
+GPT-5.5
+GUI
+26.9
+27.4
+98.6
+OpenCode
+79.7
+90.7
+90.2
+GPT-6-Astra
+GUI
+86.7
+95.4
+90.3
+OpenCode
+83.0
+95.7
+88.1
+Qwen3.6-35B-A3B
+GUI
+36.8
+43.4
+92.5
+OpenCode
+57.4
+66.0
+88.7
+4B web agents
+Base
+GUI
+19.7
+24.5
+94.9
+OpenWebRL-4B-SFT
+GUI
+29.1
+35.5
+90.6
+OpenWebRL-4B
+GUI
+19.7
+25.7
+91.6
+WebHarbor-4B
+GUI
+30.0
+41.5
+87.0
+Table 8: Results on the 306-task WebHarbor test set. Verifier and Agent-Judge report pass rates
+under different judge methods, and Cons. reports their judge agreement on trials with both verdicts.
+Model
+Shopping
+Admin
+Reddit
+GitLab
+Map
+Overall
+WebArena (auto-login)
+Qwen3-VL-4B-Thinking
+25.5
+15.8
+15.4
+14.3
+12.5
+17.3
+OpenWebRL-4B-SFT
+36.4
+24.6
+23.1
+23.2
+18.8
+26.1
+OpenWebRL-4B (RL)
+29.1
+21.1
+7.7
+23.2
+9.4
+20.4
+WebHarbor-4B
+32.7
+33.3
+26.9
+25.0
+21.9
+28.8
+WebArena-NL (no auto-login)
+Qwen3-VL-4B-Thinking
+30.9
+12.3
+7.7
+8.9
+12.5
+15.5−1.8
+OpenWebRL-4B-SFT
+30.9
+21.1
+11.5
+19.6
+15.6
+21.2−4.9
+OpenWebRL-4B (RL)
+23.6
+17.5
+7.7
+16.1
+12.5
+16.8−3.6
+WebHarbor-4B
+34.6
+24.6
+3.9
+30.4
+25.0
+26.1−2.7
+Table 9: Success rates (%) of 4B models on WebArena by site, with and without automatic login (NL
+gives the credentials in the task instead). Subscripts give the drop from WebArena to WebArena-NL.
+Bold and underlined values are the best and second-best results in each column of each setting.
+are excluded from WebHarbor training, the original Online-Mind2Web tasks are excluded from the
+WebHarbor task suite, and WebArena uses stateful environments that were developed independently
+of WebHarbor and do not appear in the training data. The results therefore demonstrate transfer to
+unseen websites, unseen task instances, and a distinct environment family. (4) Complex-workflow
+transfer. Table 9 breaks WebArena down by site. WebHarbor-4B leads on four of the five sites in
+both settings. When automatic login is disabled, its overall score drops by only 2.7 points, compared
+with 4.9 and 3.6 points for the OpenWebRL SFT and RL variants, and its lead widens on GitLab (30.4
+vs. 19.6) and Map (25.0 vs. 15.6). Reddit is the exception, where all models stay below 12% and
+WebHarbor-4B solves only one of 26 tasks. The overall gain points to the authenticated workflows
+seen during training. These findings suggest that training in WebHarbor helps agents learn GUI
+policies that generalize well beyond the synthesized environments.
+WebHarbor Benchmark
+Table 8 evaluates GPT-4.1, GPT-5.5, GPT-6-Astra, Qwen3.6-35B-A3B,
+and 4B baselines with a ReAct-style GUI harness and OpenCode equipped with GUI tools. High
+verifier–judge agreement supports test-set reliability. GPT-4.1 favors the GUI harness (26.4 vs.
+1.0), whereas GPT-5.5 and Qwen3.6-35B-A3B benefit from OpenCode. WebHarbor-4B outper-
+forms all 4B baselines, reaching verifier and agent-judge pass rates of 30.0 and 41.5, respectively.
+GPT-6-Astra exceeds 95% under both measures, indicating saturation for frontier models, yet the
+environments remain useful for training competitive small models, transferring gains to live websites,
+and synthesizing more complex computer-use tasks (Wang et al., 2026c).
+9
+
+
+Preprint.
+4.3
+ANALYSIS ON RL GAINS
+0
+10
+20
+30
+40
+50
+Success rate (%)
+Info retrieval
+Multi-page
+Authentication
+Stateful ops
+Trans. & booking
+(a) WebHarbor test set
+34.8
+23.2
+32.6
+16.0
+7.3
+19.9
+29.4
+17.5
+30.8
+21.1
+15.6
+26.4
+14.7
+9.1
+15.2
+0
+10
+20
+30
+40
+50
+Success rate (%)
+(b) WebArena
+29.7
+22.7
+29.7
+14.9
+12.8
+21.3
+31.1
+24.4
+33.3
+22.1
+17.9
+28.4
+28.6
+14.3
+35.7
+SFT
+OpenWebRL-4B
+WebHarbor-4B
+Figure 5: RL gains by task capability.
+To locate where RL training helps, we classify each task
+with GPT-4.1 into capability groups. Figure 5 shows
+that WebHarbor-4B improves over OpenWebRL-4B on
+every group in both benchmarks. Both overall differ-
+ences are significant under paired tests (p<0.01). The
+largest gains fall on authentication (+13.3), multi-page
+navigation (+12.6), and stateful operations (+10.8) on
+WebHarbor, and on transactions (+21.4) and stateful op-
+erations (+10.5) on WebArena. On Online-Mind2Web,
+128 of the 139 tasks valid for all three agents are infor-
+mation retrieval. WebHarbor-4B exceeds SFT check-
+point by 15.1 points on these tasks. The gains con-
+centrate on authenticated and stateful workflows, which
+WebHarbor offers and live web benchmarks largely lack
+in their released task collections.
+5
+CONCLUSION
+We introduce WebHarbor, a comprehensive suite of 153 executable website environments and 3,518
+tasks that bring real-world web interactions into controllable offline settings. Through task-driven
+docking and human-agent collaboration, these environments continuously evolve to support richer
+functionality while preserving visual fidelity and task validity. The resulting suite offers broad
+website coverage, image-rich interfaces, and complex authenticated workflows, with lightweight state
+resets enabling reliable evaluation and efficient RL training. Our held-out test set further provides a
+stable benchmark for assessing GUI web agent capabilities often overlooked by existing benchmarks.
+Furthermore, we demonstrate that a Qwen 4B agent trained entirely in WebHarbor generalizes
+effectively to unseen tasks and achieves competitive performance against leading open-source web
+agents across four benchmarks. We believe WebHarbor can facilitate reproducible evaluation,
+scalable RL training, and sustained community-driven evolution of GUI web agent environments.
+LIMITATIONS
+As an environment suite for GUI web agents, WebHarbor has several limitations.
+(1) WebHarbor imitates target website rather than equaling it, and our claims are bounded
+by the proposed tasks and fidelity auditing by human reviewers. Client-heavy behavior
+(interactive maps, real-time tickers) is approximated or replaced with static surrogates.
+(2) Despite judge consistency checks for the test set of WebHarbor, scripted verifiers and
+model-based judges may overlook valid alternative solutions or subtle failures. This common
+limitation of web agent evaluation calls for more robust evaluation protocols in future work.
+(3) To validate the training value of our synthesized offline environments, we mainly compare
+with OpenWebRL (Yang et al., 2026) which is a SOTA open-source agent trained through
+online RL on live websites. We do not systematically explore alternative supervised fine-
+tuning (SFT) data, general-purpose harnesses such as OpenCode (anomalyco, 2025) and
+CLI-based agents, or other RL algorithms. Due to computational constraints, we train only
+one 4B model and leave generalization across model families and scales to future work.
+ETHICS STATEMENT
+WebHarbor is developed to support open research on GUI web agent evaluation and training. Envi-
+ronment construction involves referencing real websites and obtaining visual assets from original
+services or publicly available alternatives. We acknowledge that website designs, trademarks, and
+visual assets may be subject to third-party rights. Our environments are intended for research and
+benchmarking rather than commercial replication of the original services. Researchers reusing or
+10
+
+
+Preprint.
+redistributing these materials should respect applicable licenses and intellectual property rights. By
+reconstructing websites as self-contained environments, WebHarbor enables agents to practice com-
+plex interactions without repeatedly accessing or modifying live services. Authenticated workflows,
+account management, bookings, and transactions operate within controlled local states, reducing risks
+associated with experiments on live websites. However, synthetic environments cannot fully capture
+the diversity and dynamics of real websites, including evolving content, personalized interfaces,
+access restrictions, and external dependencies. Strong performance in WebHarbor does not guarantee
+equivalent performance or safe behavior on live websites. Agents intended for real-world deployment
+require additional validation and appropriate safeguards. We hope that accessible and reproducible
+environments will support more transparent and responsible research on GUI web agents.
+REFERENCES
+anomalyco. OpenCode: The open source ai coding agent, 2025. URL https://github.com/a
+nomalyco/opencode.
+Ahmed Awadallah, Yash Lara, Raghav Magazine, Hussein Mozannar, Akshay Nambi, Yash Pandya,
+Aravind Rajeswaran, Corby Rosset, Alexey Taymanov, Vibhav Vineet, Spencer Whitehead, and
+Andrew Zhao. Fara-7b: An efficient agentic model for computer use, 2025. URL https:
+//arxiv.org/abs/2511.19663.
+Hao Bai, Yifei Zhou, Mert Cemri, Jiayi Pan, Alane Suhr, Sergey Levine, and Aviral Kumar. Digirl:
+Training in-the-wild device-control agents with autonomous reinforcement learning, 2024. URL
+https://arxiv.org/abs/2406.11896.
+Hao Bai, Alexey Taymanov, Tong Zhang, Aviral Kumar, and Spencer Whitehead. Webgym: Scaling
+training environments for visual web agents with realistic tasks, 2026. URL https://arxiv.
+org/abs/2601.02439.
+Yuan Cao, Dezhi Ran, Mengzhou Wu, Yuzhe Guo, Xin Chen, Ang Li, Gang Cao, Gong Zhi, Hao Yu,
+Linyi Li, et al. Gui-genesis: Automated synthesis of efficient environments with verifiable rewards
+for gui agent post-training. arXiv preprint arXiv:2602.14093, 2026.
+Hyungjoo Chae, Jungsoo Park, and Alan Ritter. Safe and scalable web agent learning via recreated
+websites, 2026. URL https://arxiv.org/abs/2603.10505.
+Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Li YanTao, Jianbing Zhang, and Zhiyong Wu.
+SeeClick: Harnessing GUI grounding for advanced visual GUI agents. In Proceedings of the 62nd
+Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pp.
+9313–9332, Bangkok, Thailand, August 2024. Association for Computational Linguistics. URL
+https://aclanthology.org/2024.acl-long.505.
+Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Sam Stevens, Boshi Wang, Huan Sun, and Yu Su.
+Mind2web: Towards a generalist agent for the web. Advances in Neural Information Processing
+Systems, 36:28091–28114, 2023.
+Alexandre Drouin, Maxime Gasse, Massimo Caccia, Issam H. Laradji, Manuel Del Verme, Tom
+Marty, Léo Boisvert, Megh Thakkar, Quentin Cappart, David Vazquez, Nicolas Chapados, and
+Alexandre Lacoste. Workarena: How capable are web agents at solving common knowledge work
+tasks?, 2024. URL https://arxiv.org/abs/2403.07718.
+Divyansh Garg, Shaun VanWeelden, Diego Caples, Andis Draguns, Nikil Ravi, Pranav Putta, Naman
+Garg, Tomas Abraham, Michael Lara, Federico Lopez, James Liu, Atharva Gundawar, Prannay
+Hebbar, Youngchul Joo, Jindong Gu, Charles London, Christian Schroeder de Witt, and Sumeet
+Motwani. Real: Benchmarking autonomous agents on deterministic simulations of real websites,
+2025. URL https://arxiv.org/abs/2504.11543.
+Google. Gemini 3 flash model card, December 2025a. URL https://deepmind.google/mo
+dels/model-cards/gemini-3-flash/.
+Google. Introducing the gemini 2.5 computer use model, October 2025b. URL https://blog.g
+oogle/innovation-and-ai/models-and-research/google-deepmind/gemi
+ni-computer-use-model/.
+11
+
+
+Preprint.
+Tanmay Gupta, Piper Wolters, Zixian Ma, Peter Sushko, Rock Yuren Pang, Diego Llanes, Yue Yang,
+Taira Anderson, Boyuan Zheng, Zhongzheng Ren, Harsh Trivedi, Taylor Blanton, Caleb Ouellette,
+Winson Han, Ali Farhadi, and Ranjay Krishna. Molmoweb: Open visual web agent and open data
+for the open web, 2026. URL https://arxiv.org/abs/2604.08516.
+Izzeddin Gur, Hiroki Furuta, Austin Huang, Mustafa Safdari, Yutaka Matsuo, Douglas Eck, and
+Aleksandra Faust. A real-world webagent with planning, long context understanding, and program
+synthesis, 2024. URL https://arxiv.org/abs/2307.12856.
+Hongliang He, Wenlin Yao, Kaixin Ma, Wenhao Yu, Yong Dai, Hongming Zhang, Zhenzhong
+Lan, and Dong Yu. WebVoyager: Building an end-to-end web agent with large multimodal
+models. In Lun-Wei Ku, Andre Martins, and Vivek Srikumar (eds.), Proceedings of the 62nd
+Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers), pp.
+6864–6890, Bangkok, Thailand, August 2024. Association for Computational Linguistics. doi:
+10.18653/v1/2024.acl-long.371. URL https://aclanthology.org/2024.acl-long.
+371/.
+Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan
+Wang, Yuxuan Zhang, Juanzi Li, Bin Xu, Yuxiao Dong, Ming Ding, and Jie Tang. Cogagent: A
+visual language model for gui agents, 2024. URL https://arxiv.org/abs/2312.08914.
+Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Chong Lim, Po-Yu Huang, Graham
+Neubig, Shuyan Zhou, Ruslan Salakhutdinov, and Daniel Fried. Visualwebarena: Evaluating
+multimodal agents on realistic visual web tasks, 2024. URL https://arxiv.org/abs/24
+01.13649.
+Jing Yu Koh, Stephen Marcus McAleer, Daniel Fried, and Ruslan Salakhutdinov. Tree search for
+language model agents. Transactions on Machine Learning Research, 2025. ISSN 2835-8856.
+URL https://openreview.net/forum?id=QF0N3x2XVm.
+Hanyu Lai, Xiao Liu, Yanxiao Zhao, Han Xu, Hanchen Zhang, Bohao Jing, Yanyu Ren, Shuntian
+Yao, Yuxiao Dong, and Jie Tang. Computerrl: Scaling end-to-end online reinforcement learning
+for computer use agents, 2025. URL https://arxiv.org/abs/2508.14040.
+Evan Zheran Liu, Kelvin Guu, Panupong Pasupat, Tianlin Shi, and Percy Liang. Reinforcement
+learning on web interfaces using workflow-guided exploration, 2018. URL https://arxiv.
+org/abs/1802.08802.
+Yougang Lyu, Xiaoyu Zhang, Lingyong Yan, Maarten de Rijke, Zhaochun Ren, and Xiuying Chen.
+Deepshop: A benchmark for deep research shopping agents, 2025. URL https://arxiv.or
+g/abs/2506.02839.
+OpenAI. Introducing GPT-4.1 in the api, April 2025a. URL https://openai.com/index/g
+pt-4-1/.
+OpenAI. Gpt-5 system card, August 2025b. URL https://openai.com/index/gpt-5-s
+ystem-card/.
+OpenAI. Computer-using agent, January 2025c. URL https://openai.com/index/compu
+ter-using-agent/.
+OpenAI. Introducing GPT-5.5: A new class of intelligence for real work, April 2026a. URL
+https://openai.com/index/introducing-gpt-5-5/.
+OpenAI. GPT-5.6: Frontier intelligence that scales with your ambition, July 2026b. URL https:
+//openai.com/index/gpt-5-6/.
+OpenAI. GPT-6 Astra: A new generation of intelligence, September 2026c. URL https://open
+ai.com/index/gpt-6-astra/.
+12
+
+
+Preprint.
+OpenAI, Aaron Hurst, Adam Lerer, Adam P. Goucher, Adam Perelman, Aditya Ramesh, Aidan Clark,
+AJ Ostrow, Akila Welihinda, Alan Hayes, Alec Radford, Aleksander M ˛adry, Alex Baker-Whitcomb,
+Alex Beutel, Alex Borzunov, Alex Carney, Alex Chow, Alex Kirillov, Alex Nichol, Alex Paino,
+Alex Renzin, Alex Tachard Passos, Alexander Kirillov, Alexi Christakis, Alexis Conneau, Ali
+Kamali, Allan Jabri, Allison Moyer, Allison Tam, Amadou Crookes, Amin Tootoochian, Amin
+Tootoonchian, Ananya Kumar, Andrea Vallone, Andrej Karpathy, Andrew Braunstein, Andrew
+Cann, Andrew Codispoti, Andrew Galu, Andrew Kondrich, Andrew Tulloch, Andrey Mishchenko,
+Angela Baek, Angela Jiang, Antoine Pelisse, Antonia Woodford, Anuj Gosalia, Arka Dhar, Ashley
+Pantuliano, Avi Nayak, Avital Oliver, Barret Zoph, Behrooz Ghorbani, Ben Leimberger, Ben
+Rossen, Ben Sokolowsky, Ben Wang, Benjamin Zweig, Beth Hoover, Blake Samic, Bob McGrew,
+and Others. Gpt-4o system card, 2024. URL https://arxiv.org/abs/2410.21276.
+Baolin Peng, Wenlin Yao, Qianhui Wu, Hao Cheng, Xiao Yu, Rui Yang, Tao Ge, Alessandro Sordoni,
+Xingdi Yuan, Yelong Shen, et al. Orchard: An open-source agentic modeling framework. arXiv
+preprint arXiv:2605.15040, 2026.
+Pranav Putta, Edmund Mills, Naman Garg, Sumeet Motwani, Chelsea Finn, Divyansh Garg, and
+Rafael Rafailov. Agent q: Advanced reasoning and learning for autonomous ai agents, 2024. URL
+https://arxiv.org/abs/2408.07199.
+Zehan Qi, Xiao Liu, Iat Long Iong, Hanyu Lai, Xueqiao Sun, Wenyi Zhao, Yu Yang, Xinyue
+Yang, Jiadai Sun, Shuntian Yao, Tianjie Zhang, Wei Xu, Jie Tang, and Yuxiao Dong. Webrl:
+Training llm web agents via self-evolving online curriculum reinforcement learning, 2025. URL
+https://arxiv.org/abs/2411.02337.
+Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao
+Li, Yunxin Li, Shijue Huang, et al. Ui-tars: Pioneering automated gui interaction with native
+agents. arXiv preprint arXiv:2501.12326, 2025.
+Qwen Team. Qwen3.6-35B-A3B: Agentic coding power, now open to all, April 2026. URL
+https://qwen.ai/blog?id=qwen3.6-35b-a3b.
+Qiushi Sun, Kanzhi Cheng, Zichen Ding, Chuanyang Jin, Yian Wang, Fangzhi Xu, Zhenyu Wu,
+Chengyou Jia, Liheng Chen, Zhoumianze Liu, Ben Kao, Guohao Li, Junxian He, Yu Qiao, and
+Zhiyong Wu. OS-genesis: Automating GUI agent trajectory construction via reverse task synthesis.
+In Wanxiang Che, Joyce Nabende, Ekaterina Shutova, and Mohammad Taher Pilehvar (eds.),
+Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume
+1: Long Papers), pp. 5555–5579, Vienna, Austria, July 2025. Association for Computational
+Linguistics. ISBN 979-8-89176-251-0. doi: 10.18653/v1/2025.acl-long.277. URL https:
+//aclanthology.org/2025.acl-long.277/.
+V Team, Wenyi Hong, Wenmeng Yu, Xiaotao Gu, Guo Wang, Guobing Gan, Haomiao Tang, Jiale
+Cheng, Ji Qi, Junhui Ji, Lihang Pan, Shuaiqi Duan, Weihan Wang, Yan Wang, Yean Cheng,
+Zehai He, Zhe Su, Zhen Yang, Ziyang Pan, Aohan Zeng, Baoxu Wang, Bin Chen, Boyan Shi,
+Changyu Pang, Chenhui Zhang, Da Yin, Fan Yang, Guoqing Chen, Haochen Li, Jiale Zhu, Jiali
+Chen, Jiaxing Xu, Jiazheng Xu, Jing Chen, Jinghao Lin, and Others. Glm-4.5v and glm-4.1v-
+thinking: Towards versatile multimodal reasoning with scalable reinforcement learning, 2026.
+URL https://arxiv.org/abs/2507.01006.
+Bowen Wang, Dunjie Lu, Junli Wang, Tianyi Bai, Shixuan Liu, Zhipeng Zhang, Haiquan Wang,
+Hao Hu, Tianbao Xie, Shuai Bai, Dayiheng Liu, Que Shen, Junyang Lin, and Tao Yu. Cua-
+gym: Scaling verifiable training environments and tasks for computer-use agents, 2026a. URL
+https://arxiv.org/abs/2605.25624.
+Xinyuan Wang, Bowen Wang, Dunjie Lu, Junlin Yang, Tianbao Xie, Junli Wang, Jiaqi Deng, Xiaole
+Guo, Yiheng Xu, Chen Wu, Zhennan Shen, Zhuokai Li, Ryan Li, Xiaochuan Li, Junda Chen,
+Boyuan Zheng, LI PEIHANG, Fangyu Lei, Ruisheng Cao, Yeqiao Fu, Dongchan Shin, Martin
+Shin, Hu Jiarui, Yuyan Wang, Jixuan Chen, Yuxiao Ye, Danyang Zhang, Yipu Wang, Heng Wang,
+Diyi Yang, Victor Zhong, Y.Charles, Zhilin Yang, and Tao Yu. Opencua: Open foundations for
+computer-use agents. In D. Belgrave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz, M. Ghassemi, and
+N. Chen (eds.), Advances in Neural Information Processing Systems, volume 38, Main Conference,
+pp. 139756–139806. Curran Associates, Inc., 2025. doi: 10.52202/085713-4669.
+13
+
+
+Preprint.
+Zhaoyang Wang, Yiming Liang, Xuchao Zhang, Qianhui Wu, Siwei Han, Anson Bastos, Rujia Wang,
+Chetan Bansal, Baolin Peng, Jianfeng Gao, Saravan Rajmohan, and Huaxiu Yao. SynthAgent:
+Adapting web agents with synthetic supervision. In Maria Liakata, Viviane P. Moreira, Jiajun
+Zhang, and David Jurgens (eds.), Proceedings of the 64th Annual Meeting of the Association for
+Computational Linguistics (Volume 1: Long Papers), pp. 15730–15752, San Diego, California,
+United States, July 2026b. Association for Computational Linguistics. ISBN 979-8-89176-390-6.
+doi: 10.18653/v1/2026.acl-long.716. URL https://aclanthology.org/2026.acl-l
+ong.716/.
+Zhaoyang Wang, Qianhui Wu, Haorui Wang, Simon Yu, Baolin Peng, Canwen Xu, Hao Cheng,
+Wenlin Yao, Boyi Liu, Yite Wang, Jianfeng Gao, and Huaxiu Yao. Agent world model in the wild:
+Computer-use agent environment synthesis. 2026c. URL https://arxiv.org/abs/2610
+.26828.
+Zhepei Wei, Wenlin Yao, Yao Liu, Weizhi Zhang, Qin Lu, Liang Qiu, Changlong Yu, Puyang Xu,
+Chao Zhang, Bing Yin, Hyokun Yun, and Lihong Li. Webagent-r1: Training web agents via
+end-to-end multi-turn reinforcement learning, 2025. URL https://arxiv.org/abs/2505
+.16421.
+Yifan Wu, Yiran Peng, Yiyu Chen, Jianhao Ruan, Zijie Zhuang, Cheng Yang, Jiayi Zhang, Man
+Chen, Yenchi Tseng, Zhaoyang Yu, et al. Autowebworld: Synthesizing infinite verifiable web
+environments via finite state machines. arXiv preprint arXiv:2602.14296, 2026.
+Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tianbao Xie, Amrita Saha, Doyen Sahoo, Tao Yu,
+and Caiming Xiong. Aguvis: Unified pure vision agents for autonomous gui interaction. arXiv
+preprint arXiv:2412.04454, 2024.
+Yiheng Xu, Dunjie Lu, Zhennan Shen, Junli Wang, Zekun Wang, Yuchen Mao, Caiming Xiong, and
+Tao Yu. Agenttrek: Agent trajectory synthesis via guiding replay with web tutorials, 2025. URL
+https://arxiv.org/abs/2412.09605.
+Tianci Xue, Weijian Qi, Tianneng Shi, Chan Hee Song, Boyu Gou, Dawn Song, Huan Sun, and
+Yu Su. An illusion of progress? assessing the current state of web agents. In Second Conference on
+Language Modeling, 2025. URL https://openreview.net/forum?id=6jZi4HSs6o.
+Rui Yang, Qianhui Wu, Yuxi Chen, Hao Bai, Wenlin Yao, Hao Cheng, Baolin Peng, Huan Zhang,
+Tong Zhang, and Jianfeng Gao. Openwebrl: Demystifying online multi-turn reinforcement learning
+for visual web agents, 2026. URL https://arxiv.org/abs/2606.02031.
+Shunyu Yao, Howard Chen, John Yang, and Karthik Narasimhan. Webshop: Towards scalable
+real-world web interaction with grounded language agents, 2023. URL https://arxiv.org/
+abs/2207.01206.
+Peng Yuan, Yuyang Yin, Yuxuan Cai, and Zheng Wei. Webforge: Breaking the realism-reproducibility-
+scalability trilemma in browser agent benchmark, 2026. URL https://arxiv.org/abs/
+2604.10988.
+Ziyun Zhang, Zezhou Wang, Xiaoyi Zhang, Zongyu Guo, Jiahao Li, Bin Li, and Yan Lu. Infiniteweb:
+Scalable web environment synthesis for gui agent training, 2026. URL https://arxiv.org/
+abs/2601.04126.
+Boyuan Zheng, Boyu Gou, Jihyung Kil, Huan Sun, and Yu Su. Gpt-4v(ision) is a generalist web
+agent, if grounded, 2024. URL https://arxiv.org/abs/2401.01614.
+Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhanghao Wu, Yonghao Zhuang,
+Zi Lin, Zhuohan Li, Dacheng Li, Eric Xing, et al. Judging llm-as-a-judge with mt-bench and
+chatbot arena. Advances in neural information processing systems, 36:46595–46623, 2023.
+Shuyan Zhou. Webarena-infinity: Generating browser environments with verifiable tasks at scale.
+shuyanzhou.com, March 2026. URL https://webarena.dev/webarena-infinity/.
+14
+
+
+Preprint.
+Shuyan Zhou, Frank F Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng,
+Tianyue Ou, Yonatan Bisk, Daniel Fried, et al. Webarena: A realistic web environment for building
+autonomous agents. In International Conference on Learning Representations, volume 2024, pp.
+15585–15606, 2024.
+Mingchen Zhuge, Changsheng Zhao, Dylan Ashley, Wenyi Wang, Dmitrii Khizbullin, Yunyang Xiong,
+Zechun Liu, Ernie Chang, Raghuraman Krishnamoorthi, Yuandong Tian, et al. Agent-as-a-judge:
+Evaluate agents with agents. arXiv preprint arXiv:2410.10934, 2024.
+15
+
+
+Preprint.
+A
+AUTHORS & CONTRIBUTION
+Project leads†
+Zhaoyang Wang1, Qianhui Wu2
+Core contributors*
+Boyu Gou3, Demi Wang4, Jiacheng Zhang5, Peichun Hua6, Qize Li7, Shi Qiu1,
+Yifan Jiang8, Yifan Zhang9, Zexu Jin7
+Contributors*
+Baolin Peng2, Bolin Shen10, Chetan Bansal2, Dehan Kong7, Deren Lei11, Dongshen Peng12,
+Fengqing Jiang13,
+Hao Cheng2,
+Haoqing Wang14,
+Jiaming Shan15,
+Jicheng Wang16,
+Jingguang Zhou4,
+Jixuan He1,
+Kaide Zeng1,
+Kangyu Zhu1,
+Lama Moukheiber17,
+Mufan Qiu1,
+Peng Xia1,
+Qihan Sun14,
+Qingwei Lin2,
+Qiushi Sun18,
+Ruichen Zhang1,
+Shuqing Luo1,
+Si Qin2,
+Sicheng Fan19,
+Tao Xiong20,
+Wenlin Yao2, Xinyu Zhang6, Xinyue Zeng21, Xuanrui Li14, Xuchao Zhang2, Yian Wang22, Yichao Liu23,
+Yiming Liang21, Yiyang Zhou1, Yizhu Jiao24, Yuetai Li13, Yurun Chen20, Yuxuan Zhang25, Zheyuan Yang26,
+Zhiyuan Yao20, Zhongyang Li3, Zihao Li24, Zili Wang16, Jianfeng Gao2, Huaxiu Yao1
+AFFILIATIONS
+1. University of North Carolina at Chapel Hill
+2. Microsoft
+3. The Ohio State University
+4. Carnegie Mellon University
+5. University of Michigan
+6. The Chinese University of Hong Kong
+7. WebAgentLab
+8. University of Southern California
+9. University of Delaware
+10. Florida State University
+11. Meta Superintelligence Labs
+12. Stanford University
+13. University of Washington
+14. Queen Mary University of London
+15. University of California, Santa Barbara
+16. University of California, Davis
+17. Georgia Institute of Technology
+18. The University of Hong Kong
+19. Fudan University
+20. Zhejiang University
+21. Virginia Tech
+22. National University of Singapore
+23. Nankai University
+24. University of Illinois Urbana-Champaign
+25. University of British Columbia
+26. Tongji University
+B
+SYNTHESIS PROMPTS
+WebHarbor synthesizes each environment from observations of the target website and a task specifi-
+cation. Website observations define the page hierarchy, navigation, visual design, content structure,
+and interaction patterns. Tasks define the routes, records, account state, and state transitions required
+for evaluation. The synthesis process uses both sources to produce one executable environment.
+Stage 1 reconstructs the interface, backend, data model, authentication flows, and initial seed state.
+Stage 2 defines tasks that cover the website’s main functions and include multi-step workflows.
+Stage 3 executes every task and adds any missing routes, data, forms, or state transitions. Stage 4
+removes answer leakage, adds near-miss alternatives, expands result sets, and checks cross-field
+consistency. Stage 5 finalizes the deterministic seed database and validates reset behavior.
+Table 10 presents the Stage 1 prompt for reconstructing the target interface, backend, assets, authenti-
+cation flows, and deterministic seed state. Table 11 gives the Stage 2 prompt for defining executable
+task contracts with broad functional coverage, calibrated difficulty, and grounded answers. Table 12
+details the Stage 3 execution loop that identifies missing routes, data, forms, and state transitions
+and then replays each repaired workflow. Table 13 specifies the Stage 4 checks for answer leakage,
+near-miss distractors, catalog breadth, and cross-field consistency. Table 14 provides the Stage 5
+prompt for idempotent seeding, benchmark account state, asset pinning, and reset verification. Each
+prompt also states its procedure, constraints, required checks, and output artifacts.
+†Correspondence to Zhaoyang Wang (zhaoyang@cs.unc.edu) and Qianhui Wu (qianhuiwu@microsoft.com).
+*Authors in these two groups are listed alphabetically by first name.
+16
+
+
+Preprint.
+Stage 1: Clone the target website
+Skill: clone-website
+Objective.
+Build a new executable WebHarbor mirror from the observed
+website, with browser-captured evidence, aligned real assets, working
+interactions, authenticated state, and deterministic seed data.
+Target site:
+<REAL_URL>.
+Site slug:
+<SLUG>.
+Scaffold and register.
+Run ./scripts/new_site.py <SLUG>.
+Keep the
+prescribed sites/<SLUG>/ layout and register the site consistently in
+websyn_start.sh, control_server.py, and Dockerfile.
+Derive the port
+from the current registry.
+Do not leave reports, review notes, or
+one-off harvest scripts inside the site directory.
+Observe the live site.
+Define a tracked snapshot contract with
+capture ID and time, locale, timezone, viewport, source URLs,
+requested and final states, and retained screenshot/DOM evidence.
+Drive a real Chromium browser with Playwright.
+Capture the
+post-hydration DOM, resolved image URLs, navigation hierarchy, URL
+patterns, listing and detail views, search, authentication, account
+pages, and state-changing forms.
+Do not use requests or curl as a
+substitute for rendered-page observation.
+Build the mirror.
+Harvest real target images and brand assets; record
+stable entity keys, upstream URLs, local paths, and SHA-256 digests.
+Implement Flask and SQLAlchemy models, password-backed authentication,
+search, account state, entity detail pages, and required CRUD flows.
+Build Jinja2 templates that reproduce the target’s hierarchy,
+typography, navigation, and responsive behavior.
+Every visible filter,
+tab, sort control, form, and persistent action must change meaningful
+state.
+Seed and verify.
+Gate each seed function as a whole, create benchmark
+users and realistic histories, boot the site, and freeze
+instance_seed/<SLUG>.db.
+Build the current image and test the mirror
+on isolated ports.
+Use Playwright to verify decoded images,
+entity-to-image alignment, core page types, narrow and desktop
+viewports, major interactions, saved-state persistence after restart,
+and byte-identical database restoration after reset.
+Stop only the
+test container owned by this run.
+Deliverables.
+Return the registered site code, templates, real assets
+and provenance, stable seed database, retained visual evidence,
+completed checks, and any unresolved blocker.
+Do not proceed to task
+design until the mirror is reachable, non-empty, interactive, and
+resettable.
+Table 10: Skill prompt used in Stage 1 to construct an executable clone of the target website.
+17
+
+
+Preprint.
+Stage 2: Design task contracts
+Skill: design-tasks
+Objective.
+Create 15-20 benchmark tasks for sites/<SLUG>/tasks.jsonl.
+Treat every task as an executable contract between the
+natural-language instruction, the mirror’s interface, its database
+state, and the verifier.
+Reuse applicable WebVoyager tasks verbatim,
+then add tasks grounded in the target site’s real workflows.
+Schema.
+Write one JSON object per line with web_name, a unique id of
+the form <web_name>-<index>, the user-facing ques, the local mirror
+URL in web, and the real upstream_url.
+Keep instructions natural and
+include demo credentials directly when authentication is required.
+Do
+not place expected answers or grading hints in the task text.
+Functional coverage.
+Cover the site’s complete feature surface rather
+than repeating one search flow.
+Include search and filtering,
+browsing and detail inspection, account management, saved state,
+history, comparison, and the site’s characteristic state-changing
+operations such as cart, checkout, booking, messaging, review,
+subscription, or collection management.
+Use several tasks from each
+major functional area.
+Difficulty.
+Include easy tasks of two or three steps, medium tasks of
+four to six steps, and at least 3-5 hard tasks requiring five or more
+steps.
+Hard tasks should require cross-page evidence, visual
+comparison, constraint composition, arithmetic or ranking, or a
+persistent action followed by confirmation.
+Include at least two
+genuine disambiguation tasks for which the seeded account contains
+multiple plausible items and the agent must request clarification
+instead of guessing.
+Grounding.
+Ensure the database contains a stable, page-specific
+answer for every non-disambiguation task.
+Natural searches must
+return at least six plausible results, including near misses.
+The
+answer must not be exposed in a result-card title, count label,
+snippet, sort order, or unique single result when the task is intended
+to require detail-page reasoning.
+Verification.
+Hand-walk every task through the rendered mirror with
+Playwright.
+Confirm that all required routes and controls are
+reachable, the correct answer or state transition exists,
+authenticated actions persist after reload, and ambiguous tasks expose
+at least two valid choices.
+Record missing capabilities for Stage 3.
+Report task count, functional-area coverage, difficulty distribution,
+reused source tasks, and every task that still requires environment
+evolution.
+Table 11: Skill prompt used in Stage 2 to define executable task contracts for the cloned website.
+18
+
+
+Preprint.
+Stage 3: Task-driven environment evolution
+Skill: evolve-env
+Objective.
+Execute every task in sites/<SLUG>/tasks.jsonl and evolve
+the mirror until each workflow can be completed naturally through the
+rendered interface.
+Preserve the target site’s interaction
+conventions and the byte-identical reset invariant while adding
+missing capabilities.
+Browser execution.
+Use Playwright with a real Chromium browser for
+every search, navigation, form submission, login, and state
+verification.
+Save evidence at the important steps.
+Do not
+substitute curl, requests, Flask’s test client, or static template
+inspection for browser interaction; those methods do not expose
+client-side validation, route guards, asynchronous redirects, hidden
+fields, or the DOM seen by the agent.
+Task loop.
+For each task, begin from the deterministic seed, perform
+the instruction end to end, and identify every missing route, template,
+database record, form handler, validation rule, or state transition.
+Extend app.py, Jinja templates, and seed_data.py only as required by
+consistent site behavior.
+Rebuild and replay the complete workflow
+after each change.
+Persistent actions must remain visible after
+navigation and reload, and unrelated account state must remain
+unchanged.
+Detect shortcuts.
+Inspect the rendered search and listing pages for
+task-answer leaks, precomputed answers, unique obvious targets, or
+result ordering that reveals the solution.
+Exercise malformed and
+empty forms, partial queries, multiple detail pages, login persistence,
+and back-navigation.
+Replace exact-match-only search with scored
+matching where needed.
+Add realistic category-adjacent records when
+more than half of the returned items satisfy all task constraints.
+Data discipline.
+Gate every seed function at the function level.
+Seed four benchmark accounts under @test.com with the documented
+shared password and useful pre-existing carts, bookmarks, orders,
+histories, or messages.
+After database changes, regenerate the seed
+database from a clean boot.
+Use paths derived from BASE_DIR; do not
+hard-code machine-specific locations.
+Verification.
+Build the current image, launch an isolated test
+container, reset the affected site, and compare runtime and seed
+database bytes.
+Also test restart separately:
+create persistent
+state through the UI, restart the site without resetting it, and
+confirm that the state survives.
+Re-run all tasks in Playwright and
+verify decoded images, functional controls, persisted state, and
+complete workflows.
+Deliverables.
+Report the pass/fail result for every task, the
+capability added for each failure, retained screenshots, seed-byte
+comparison, and remaining hardening targets.
+Finish only when every
+task is executable and the mirror has no broken form, empty
+destination, placeholder page, or obvious answer leak.
+Table 12: Skill prompt used in Stage 3 to evolve the environment through complete task execution.
+19
+
+
+Preprint.
+Stage 4: Environment hardening
+Skill: harden-env
+Objective.
+Audit every executable task along four dimensions:
+answer
+de-leaking, near-miss distractors, catalog breadth, and cross-field
+consistency.
+The environment must preserve task feasibility while
+preventing an agent from succeeding through a visible answer, a single
+obvious result, or inconsistent data.
+A. De-leak answers.
+Search with the task’s natural query and inspect
+the rendered DOM and screenshot before opening any detail page.
+Remove constraint values from item names, answer text from snippets,
+precomputed comparisons, visible list counts, question-shaped headings,
+pinned answer callouts, and algorithm-revealing labels.
+Check all
+known leak patterns, including fuzzy search that floods an answer
+bucket, a sort order that places the target first, and a pre-curated
+lookup table that reproduces the task wording.
+Move required evidence
+into consistent specs, descriptions, histories, or detail views.
+B. Add near misses.
+For each task, retain 1-3 full matches and add at
+least five plausible items that match the category but fail exactly
+one constraint, such as price, size, color, date, brand, location,
+availability, or required feature.
+Keep the full-match density at or
+below 50%.
+The alternatives must look realistic and support
+meaningful comparison; do not add arbitrary noise.
+C. Broaden the catalog.
+Require each natural query to return at least
+six items from multiple relevant subcategories.
+Expand thin category
+pages and search indexes with real-looking entities, useful metadata,
+and aligned images.
+Preserve the target site’s hierarchy so broader
+coverage increases decision complexity without changing the intended
+answer.
+D. Enforce consistency.
+Treat structured specifications as the source
+of truth.
+Whenever a field changes, regenerate every dependent
+description, feature bullet, tag, variant option, availability label,
+and displayed summary.
+Confirm that listing cards, detail pages,
+account records, and transaction history agree.
+Keep constraint
+values out of names unless the real site uses them as product
+identity.
+Per-task verification.
+Use Playwright to run the natural query,
+capture the results, search the rendered DOM for the answer, count
+full matches and near misses, verify result diversity, click the
+correct detail page through the interface, and compare all related
+fields.
+Record pass/fail evidence for all four dimensions.
+Static
+template review and HTTP probes do not replace this check.
+Final invariants.
+Rebuild after every data change, reset the site,
+and confirm byte equality between runtime and seed databases.
+Re-run
+authenticated and state-changing workflows, inspect desktop and narrow
+viewports, and verify that all required images decode.
+Finish with
+zero answer leaks, at least five near misses per task, broad search
+results, consistent fields, and unchanged task solvability.
+Table 13: Skill prompt used in Stage 4 to strengthen environment fidelity, consistency, and task
+difficulty.
+20
+
+
+Preprint.
+Stage 5: Finalize the seed database
+Skill: seed-database
+Objective.
+Finalize the deterministic seed database and the asset
+side of the mirror.
+The accepted runtime state must survive ordinary
+restart, return exactly after reset, support realistic search and
+authenticated histories, and remain pinned to the matching heavy
+assets.
+Idempotent seeding.
+Audit every seed_*() function in app.py and
+seed_data.py.
+Each function must return before any insert, update, or
+commit when its data already exists.
+Per-row guards are insufficient
+because a no-op commit can still change SQLite metadata.
+Boot from
+the proposed seed, run all seed functions again, reset, restart, and
+compare the complete runtime and seed database bytes after each
+operation.
+Benchmark state.
+Seed the four standard users alice.j@test.com,
+bob.c@test.com, carol.d@test.com, and david.k@test.com with password
+TestPass123!.
+Give each account realistic profile data and the
+site-appropriate histories needed for authenticated tasks, including
+several saved items, cart or bag entries, prior orders or bookings,
+addresses, payment methods, subscriptions, reviews, or messages.
+Catalog and search.
+Materialize runtime entities in SQLAlchemy rather
+than reading request-time JSON from scraped_data.
+Populate
+approximately 50-200 primary entities, 5-15 categories, and multiple
+reviews for popular items where the domain supports them.
+Implement
+scored token-overlap search with stop-word removal and descending
+match score; do not require every query token to match.
+Pin a
+reference date when tasks depend on relative dates.
+Assets and provenance.
+Keep instance_seed/*.db and heavy image
+directories in the WebHarbor HuggingFace dataset according to
+.assetpaths.
+Use ./scripts/extract_assets.sh to stage the asset
+change, review the dataset diff, upload it to the contributor’s
+dataset fork, and obtain the merged asset revision.
+Update
+.assets-revision only after the HuggingFace change is merged.
+Cross-reference the asset and code changes; do not open either PR from
+this run unless explicitly requested.
+Final verification.
+Run the asset checker and registry checker, build
+the image from the current checkout and pinned assets, start an
+isolated container, and require authenticated health for every
+registered site.
+Verify that the affected site serves all core routes,
+all key images decode, reset completes within the operational bound,
+every runtime database equals its seed after reset and startup, and a
+UI state change survives restart before the final reset.
+Deliverables.
+Return the frozen seed database, asset diff and
+revision, database row counts by major model, benchmark-account state,
+scored-search result, build and health results, reset and restart byte
+checks, and exact remaining submission steps.
+Stop only after the
+local code and pinned assets reproduce the accepted environment
+deterministically.
+Table 14: Skill prompt used in Stage 5 to produce a deterministic and resettable seed database.
+21
+
+
+Preprint.
+Website
+ID
+Workflow
+Authenticated task
+Airbnb
+6
+Compare and book
+Use dana.k@test.com / TestPass123! to help me choose from
+my ’Winter cabins’ wishlist. Inspect both saved cabins,
+comparing their nightly rates, ratings and hot-tub amenities;
+check the second cabin’s top review theme and count as well.
+Book the first saved cabin for two guests using its displayed
+dates, and report the selected name, booked dates, total and
+confirmation code alongside the comparison.
+14
+Compare and book
+Help me book a New York cultural tour for three guests using
+bob.c@test.com / TestPass123!. Compare the two cheapest
+Cultural tours by name, price per guest, minimum age and
+activity level. Choose the cheaper tour and book its first
+available date, then report the comparison, booked date, total
+and confirmation code.
+Carvana
+7
+Appraise and accept
+Help me understand the demo valuation for VIN
+1HGCM82633A004352 before accepting an offer. Compare
+Good and Excellent condition at 45,000 miles, and Good
+condition at 60,000 miles, reporting each simulated offer and
+the differences. Log in as bob.c@test.com with password
+TestPass123! and accept the 45,000-mile Good-condition offer.
+Confirm its saved offer code and amount.
+15
+Reconcile and
+shortlist
+I want to compare another Civic with the one I already ordered.
+Log in as alice.j@test.com with password TestPass123! and
+report my scheduled order’s vehicle, monthly payment, term,
+APR and down payment. Find the first 2023 Civic in the
+Honda Civic results and estimate its payment with $1,500
+down over 60 months using Great credit. Save that alternative
+without cancelling my order, and report its price, amount
+financed, payment and the final saved-car list.
+Compass
+7
+Curate and share
+Log in as david.kim@test.com (password webharbor123).
+Create a new collection called ’Austin top picks’ and add
+exactly these two homes: 3305 Dolphin Drive and 1036
+Liberty Park Drive, Unit 38A. Open the collection’s share page
+to confirm both homes appear, then report the share token.
+20
+Submit seller
+inquiry
+Log in as alice.j@test.com (password webharbor123). Read
+the name, email, and phone currently shown on your account
+overview. Use those contact details to submit exactly one Sell
+With Us inquiry for ZIP code 94107 in this local Compass
+environment. Read the confirmation, then report its reference
+number and the submitted name, email, phone, and ZIP. Keep
+your account profile unchanged.
+Table 15: Authenticated and multi-step tasks from five WebHarbor environments (1/2, continued in
+Table 16). Each task requires authentication, a persistent state change, and cross-page reasoning.
+C
+TASK CASE STUDIES AND BENCHMARK COMPARISON
+Tables 15 and 16 present ten authenticated tasks from Airbnb, Carvana, Compass, Thumbtack, and
+YouTube. Each task requires cross-page evidence, an authenticated action, and a persistent state
+change whose result the agent must then verify through the rendered interface.
+The examples cover booking and reservation changes on Airbnb. They cover vehicle research,
+financing, and saved inventory on Carvana, as well as property collections and seller inquiries on
+Compass. The Thumbtack examples cover service requests, hiring, reviews, and messages. The
+YouTube examples cover subscriptions, comments, and Watch Later state. These workflows test
+whether an environment implements account-dependent operations.
+22
+
+
+Preprint.
+Website
+ID
+Workflow
+Authenticated task
+Thumbtack
+12
+Review and
+message
+Log in with the demo account (email: alice.j@test.com,
+password: TestPass123!). My house cleaning project is
+finished but I never left a review. Open the project, note the
+hired pro’s price and their response note, and check their
+profile’s current reviews. Then leave them a 5-star review
+saying they were thorough, including the word "spotless".
+Reopen their profile to confirm your review is the most recent
+one, and message them asking whether they could return for a
+move-out clean next month — follow up asking whether
+they’d bring their own supplies. Report both replies.
+14
+Quote, hire, and
+review
+Log in with the demo account (email: bob.c@test.com,
+password: TestPass123!). Ants have invaded my kitchen.
+Check the cost guide for what an exterminator typically runs,
+then find the exterminators who are Top Pros and request
+quotes for indoor ant treatment in zip 98101 within a week,
+describing the problem. Hire the responder with the most
+reviews, mark the project complete, and leave them a 5-star
+review mentioning the ants. Confirm on their profile that your
+review shows, and tell me their name, their quote, and the
+guide’s typical range.
+YouTube
+2
+Subscribe and save
+Sign in as carol.d@test.com using password TestPass123!.
+Open the AI Uncovered channel and inspect its public playlists
+and uploads. Open its most-viewed upload, subscribe to the
+channel and save that upload to Watch Later. Confirm the
+saved video and the new channel subscription on your account
+page.
+18
+Comment and
+verify
+Sign in as alice.j@test.com using password TestPass123!. Find
+Top 17 New Technology Trends That Will Define 2026 and
+open its watch page. Add the comment "Insightful breakdown
+of trend priorities.", save the video to Watch Later, then verify
+the exact new comment and the saved video in Watch Later.
+Table 16: Authenticated and multi-step tasks from WebHarbor environments (2/2, continued from
+Table 15).
+C.1
+TASK EXAMPLES ACROSS BENCHMARKS
+Tables 17 and 18 place two released tasks from each suite side by side. The task instructions show
+the operations evaluated within an episode and the account state available to the agent.
+WebArena provides a strong controlled comparison. Its examples combine conditional reasoning,
+cross-site information gathering, and persistent writes. WebArena begins each episode from an
+authenticated browser state and evaluates subsequent account-dependent operations.
+Online-Mind2Web and WebVoyager provide broad coverage of live websites, while their released
+tasks concentrate on interactions that are publicly accessible and require no authentication. All 300
+Online-Mind2Web records are marked as not requiring login and include no stored session. Among
+WebVoyager’s 643 released instructions, one explicitly asks the agent to sign in with credentials. The
+selected tasks illustrate their main scope: retrieval, filtering, and comparison over public content.
+The synthesized suites also contain complex state-changing tasks. CUA-Gym supplies task-specific
+initial state, and WebArena-Infinity starts each generated application from seeded state. AutoWeb-
+World contains two explicit-login instructions among 4,322 unique released instructions. These
+systems demonstrate scalable generation of stateful interactions, but explicit authentication is rare.
+WebHarbor systematically includes login as part of task execution. The selected tasks require the
+agent to enter credentials, access account-specific state, complete multi-page actions, persist changes,
+and verify the final state from the interface. Under our fixed GPT-4.1 audit protocol, 1,117 of 3,518
+23
+
+
+Preprint.
+Benchmark / method
+Representative released tasks
+WebArena (Zhou
+et al., 2024)
+Task 1. Go to the merge request on verification functions I have to review, find if the
+author of the merge request responded at the end, and reply "Thank you" if he did.
+Otherwise remind him with a simple @.
+Task 2. Create a folder named real_space in gimmiethat.space repo. Within it, create a
+file named urls.txt that contains the URLs of the 5 most recent posts from the space?
+Online-
+Mind2Web (Xue
+et al., 2025)
+Task 1. Find the weight of baggage allowance for economy class on Qatar Airways.
+Task 2. Find the cheapest used Honda Civic that meets all the following criteria:
+under $25,000, fewer than 30,000 miles, includes Apple CarPlay, adaptive cruise
+control, and blind-spot sensors.
+WebVoyager (He
+et al., 2024)
+Task 1. Find a recipe for a vegan smoothie bowl on Allrecipes that includes bananas
+and leaves, has more than 20 reviews, and a rating of at least 4 stars. Provide a list of
+ingredients, preparation time, and a summary of the recipe steps.
+Task 2. Compare business class flight options from Lisbon to Singapore for a one-way
+trip on March 15, 2024, select one of the flights and see which websites offer its
+booking options. Which one is the cheapest.
+CUA-Gym (Wang
+et al., 2026a)
+Task 1. Check all open PRs across our repos and report on CI status. For any PR with
+failing checks, add a comment tagging the author: ’@{author} — CI is failing on this
+PR. Please check the {check_name} step. Run details: {detail}’. Only comment on
+PRs that don’t already have a CI-failure comment.
+Task 2. I’m preparing for a collaboration announcement. Create a new post with
+image https://picsum.photos/800/800?random=700, caption ’Big announcement
+coming soon! Stay tuned #collaboration’, location ’Downtown Studio’. Then send this
+post to the group chat with Alice and Bob, and also send a text message saying
+’Excited to share this with you both!’
+Table 17: Representative released tasks from controlled, live, synthesized, and WebHarbor suites
+(1/2, continued in Table 18).
+Benchmark / method
+Representative released tasks
+WebArena-
+Infinity (Zhou, 2026)
+Task 1. Approve the pharmacy’s Atorvastatin-to-Rosuvastatin substitution, then
+prescribe Rosuvastatin 10mg tablet at bedtime for hyperlipidemia — qty 30, 5 refills,
+send to CVS #4521.
+Task 2. Create a new invoice for Wellington & Partners in NZD for 16 hours of
+consulting, and send it.
+AutoWebWorld (Wu
+et al., 2026)
+Task 1. Book a flight from London Heathrow to New York JFK on March 17, 2028 in
+economy class, find American Airlines options, select the standard seat with standard
+baggage, fill out booking with first name Alex, last name Johnson, contact email
+alex.johnson@example.com, card number 4111111111111111, review and confirm
+the booking, then view the trip summary
+Task 2. Log into my account using email user@example.com and password
+SecurePass123, then go to payment methods, select PayPal, authorize payment with
+PayPal email paypaluser@example.com
+WebHarbor
+Task 1. Sign in as alice.j@test.com using password TestPass123!. Find Top 17 New
+Technology Trends That Will Define 2026 and open its watch page. Add the comment
+"Insightful breakdown of trend priorities.", save the video to Watch Later, then verify
+the exact new comment and the saved video in Watch Later.
+Task 2. Log in as david.kim@test.com (password webharbor123). Create a new
+collection called ’Austin top picks’ and add exactly these two homes: 3305 Dolphin
+Drive and 1036 Liberty Park Drive, Unit 38A. Open the collection’s share page to
+confirm both homes appear, then report the share token.
+Table 18: Representative released tasks (2/2, continued from Table 17).
+WebHarbor tasks are classified as authentication-dependent. Among them, 457 also require a state
+change and cross-page reasoning. Authentication is therefore evaluated as part of the task workflow.
+24
+
+
+Preprint.
+Figure 6: Comparison of YouTube-related environments. (a) AutoWebWorld uses a welcome template
+with placeholder recommendations. (b) CUA-Gym reproduces the video-feed structure with generic
+thumbnails and irrelevant images. (c) WebArena-Infinity has no YouTube website. Its closest
+YouTube-specific page is an image-free Linked Services template in the Gmail Accounts & Contacts
+environment. (d) WebHarbor provides target-like navigation, video-specific thumbnails, channel
+identity, and engagement metadata such as view counts.
+D
+ENVIRONMENT COVERAGE AND VISUAL EXAMPLES
+A GUI agent observes the rendered interface, including navigation, images, layout hierarchy, and
+metadata. Figure 6 compares these properties across four YouTube-related environments. The
+comparison covers the browsing layout, video thumbnails, channel information, duration labels, and
+engagement metadata available to the agent.
+Figures 7 and 8 show representative pages from 30 WebHarbor environments across commerce,
+travel, media, entertainment, developer tools, and information services. The gallery records the
+variation in page structure, content density, imagery, navigation, and controls covered by the suite.
+D.1
+ENVIRONMENT INVENTORY
+Tables 19 and 20 list all 153 WebHarbor environments and their source-benchmark website coverage.
+Online-Mind2Web groups websites by domain and reports 136 websites. We separate services that
+share a domain into individual environments, yielding 147 environments from Online-Mind2Web.
+Adding the 15 WebVoyager environments, nine of which are shared, gives 153 in total.
+25
+
+
+Preprint.
+Allrecipes
+Amazon
+Apple
+ArXiv
+BBC News
+Booking
+Cambridge Dict.
+Coursera
+ESPN
+GitHub
+Google Flights
+Google Maps
+Google Search
+Hugging Face
+Wolfram Alpha
+Figure 7: Representative pages from 30 WebHarbor environments across commerce, travel, media,
+entertainment, developer tools, and information services (1/2, continued in Figure 8). The examples
+show the page structures, imagery, navigation, metadata, and controls implemented across the suite.
+26
+
+
+Preprint.
+YouTube
+Carnival Cruise
+Marriott
+League of Legends
+Imgur
+Dillard’s
+SoundCloud
+Ticketmaster
+Tumblr
+Porsche
+Backcountry
+Disney
+Wine Access
+Qatar Airways
+TourRadar
+Figure 8: Representative pages from WebHarbor environments (2/2, continued from Figure 7).
+27
+
+
+Preprint.
+Environment
+WV OM2W
+Environment
+WV OM2W
+4shared
+–
+•
+Coolmath4Kids
+–
+•
+9GAG
+–
+•
+Coursera
+•
+•
+AccuWeather
+–
+•
+Craigslist
+–
+•
+Adopt a Pet
+–
+•
+CVS
+–
+•
+Airbnb
+–
+•
+dblp
+–
+•
+AKC
+–
+•
+Dillards
+–
+•
+Allrecipes
+•
+•
+Discogs
+–
+•
+Amazon
+•
+•
+Disney
+–
+•
+Amazon Jobs
+–
+•
+Drugs.com
+–
+•
+America’s Health Rankings
+–
+•
+ESPN
+•
+•
+American Express
+–
+•
+Eventbrite
+–
+•
+Amtrak
+–
+•
+Fandom
+–
+•
+Apartments.com
+–
+•
+FedEx
+–
+•
+Apple
+•
+•
+FlightAware
+–
+•
+ArXiv
+•
+•
+FOX Sports
+–
+•
+B&H Photo
+–
+•
+GitHub
+•
+•
+BabyCenter
+–
+•
+Google Finance
+–
+•
+Backcountry
+–
+•
+Google Flights
+•
+–
+Bandcamp
+–
+•
+Google Map
+•
+•
+BBC News
+•
+–
+Google Search
+•
+–
+Best Buy
+–
+•
+Google Shopping
+–
+•
+Better Business Bureau
+–
+•
+GOV.UK
+–
+•
+Birkenstock
+–
+•
+Healthgrades
+–
+•
+BoardGameGeek
+–
+•
+Healthline
+–
+•
+Booking
+•
+•
+Huggingface
+•
+–
+CA.gov
+–
+•
+iclr
+–
+•
+Cambridge Dictionary
+•
+–
+IGN
+–
+•
+CarMax
+–
+•
+IKEA
+–
+•
+Carnival Cruise
+–
+•
+IMDb
+–
+•
+Cars.com
+–
+•
+Imgur
+–
+•
+Carvana
+–
+•
+Instructure
+–
+•
+Cboe
+–
+•
+IRS Refund Tracker
+–
+•
+CBP.gov
+–
+•
+JCPenney
+–
+•
+Chase
+–
+•
+Kaggle
+–
+•
+Chess.com
+–
+•
+Kelley Blue Book
+–
+•
+Chronicle Jobs
+–
+•
+LandWatch
+–
+•
+CoinMarketCap
+–
+•
+League of Legends
+–
+•
+Compass
+–
+•
+Macy’s Wine Shop
+–
+•
+Cookpad
+–
+•
+Table 19: Provenance of the 153 WebHarbor environments (1/2, continued in Table 20). A bullet
+under WV or OM2W marks that the target site appears in the corresponding WebVoyager or Online-
+Mind2Web source task set. Memberships are non-exclusive: the suite covers 15 WebVoyager and
+147 Online-Mind2Web sites.
+28
+
+
+Preprint.
+Environment
+WV OM2W
+Environment
+WV OM2W
+Marriott
+–
+•
+Statista
+–
+•
+Mayo Clinic
+–
+•
+Steam
+–
+•
+Medicare.gov
+–
+•
+StubHub
+–
+•
+MEGA
+–
+•
+Student.com
+–
+•
+Megabus
+–
+•
+Super Lawyers
+–
+•
+Merriam-Webster
+–
+•
+Target
+–
+•
+Michaels
+–
+•
+TED
+–
+•
+Micro Center
+–
+•
+The Weather Network
+–
+•
+Microsoft Azure
+–
+•
+Thumbtack
+–
+•
+MTA
+–
+•
+Ticketmaster
+–
+•
+NBA
+–
+•
+TourRadar
+–
+•
+NFL
+–
+•
+Trader Joe’s
+–
+•
+NVIDIA
+–
+•
+Trip.com
+–
+•
+NYSE
+–
+•
+Tumblr
+–
+•
+Ohio State University
+–
+•
+U.S. DOJ
+–
+•
+Ohio.gov
+–
+•
+UC Berkeley
+–
+•
+OhioMeansJobs
+–
+•
+Uniqlo
+–
+•
+Parkers
+–
+•
+United Airlines
+–
+•
+Petfinder
+–
+•
+University of Michigan
+–
+•
+PhET Interactive Simulations
+–
+•
+UPS
+–
+•
+Phys.org
+–
+•
+US Appliance
+–
+•
+Porsche
+–
+•
+USCIS.gov
+–
+•
+Public Storage
+–
+•
+USPS.com
+–
+•
+Qatar Airways
+–
+•
+Verizon
+–
+•
+Raising Cane’s
+–
+•
+Versus
+–
+•
+Recreation.gov
+–
+•
+Virginia DMV
+–
+•
+Red Bull
+–
+•
+Walmart Careers
+–
+•
+REMAX
+–
+•
+Wanderlog
+–
+•
+RottenTomatoes
+–
+•
+Weather
+–
+•
+Ryanair
+–
+•
+WebMD
+–
+•
+Samsung
+–
+•
+WebMD Doctor
+–
+•
+SEC.gov
+–
+•
+Wine Access
+–
+•
+SmartAsset
+–
+•
+Wolfram Alpha
+•
+–
+SoundCloud
+–
+•
+Y Combinator
+–
+•
+SourceForge
+–
+•
+Yahoo Finance
+–
+•
+Speedo
+–
+•
+YouTube
+–
+•
+SpotHero
+–
+•
+Zara
+–
+•
+Stanford University
+–
+•
+ZipRecruiter
+–
+•
+Table 20: Provenance of the 153 WebHarbor environments (2/2, continued from Table 19).
+29
+
+
+Preprint.
+E
+RL TRAINING IMPLEMENTATION DETAILS
+We use the established OpenWebRL framework (Yang et al., 2026) to evaluate WebHarbor as an
+RL training substrate. The released live-web-trained reference policy and our mirror-trained policy
+use the same OpenWebRL-4B-SFT initialization, multimodal multi-turn GRPO objective, browser-
+agent interface, and GPT-4.1 reward definition. The WebHarbor adaptation replaces the live task
+pool and browser backend with WebHarbor tasks executed in deterministic mirror sandboxes. This
+design isolates the training signal of the mirrors from any change in policy optimization.
+E.1
+BROWSER AGENT HARNESS
+At each turn, the policy receives the current screenshot, active URL, viewport and tab metadata,
+textual feedback from the previous action, and the complete reasoning and tool-call history. Only the
+current screenshot remains in the multimodal context. Textual history preserves earlier observations
+and action outcomes. Table 21 lists the 13 browser tools shared by live-web and mirror rollouts. The
+harness may execute several tool calls from one response before returning the next observation.
+Tool
+Arguments and function
+Pointer
+click
+point_2d, clicks, button. Click a viewport point with the chosen mouse button.
+hover
+point_2d. Move the pointer to reveal hover states, tooltips, or menus.
+drag
+start_point_2d, end_point_2d, steps. Drag between two viewport
+coordinates.
+Keyboard
+write
+message. Clear the focused field and enter text.
+press_keys
+keys, is_hotkey, presses. Execute sequential keys or a keyboard shortcut.
+Navigation
+scroll
+direction, amount, point_2d. Scroll the page or an element by a viewport
+fraction.
+goto_url
+url. Navigate the active tab directly to a URL.
+go_back
+No arguments. Return to the previous browser history entry.
+wait
+seconds. Pause for page loading or animation.
+Tabs
+new_tab
+No arguments. Open a blank browser tab.
+switch_tab
+tab_index. Activate a tab by its zero-based index.
+close_tab
+No arguments. Close the active tab and select a remaining tab.
+Termination
+done
+response. End the episode and return the final user-facing answer.
+Table 21: Browser action space shared by live-web and WebHarbor mirror rollouts.
+E.2
+TASK VERIFICATION AND AGENT JUDGE
+Each episode executes one task in an isolated image for its website. At startup, the image copies the
+frozen seed into a fresh live database and stores a root-only initial snapshot before the agent begins.
+The harness records the action–observation trajectory, final answer, termination state, browser state,
+and timestamped screenshots. Root-owned evidence separately preserves the site-access log and the
+initial and post-episode database states. The verifier assembles these records after the agent phase so
+that grading uses the observed interaction and protected environment state.
+The reviewer authors a task-specific verifier and a natural-language rubric as two forms of the grading
+contract. The verifier produces the official binary outcome. Depending on the task, it checks required
+answer facts, task-relevant visited routes, the relevant final browser state, and the exact database delta
+between the initial and final snapshots. Mutation checks require the requested additions, updates,
+or deletions and reject changes to unrelated tables, rows, or fields. Read-only tasks require state
+preservation. The rubric specifies the success conditions, acceptable semantic variants, required
+30
+
+
+Preprint.
+Parameter
+WebHarbor RL setting
+Initialization and environment
+Initialization
+OpenWebRL/OpenWebRL-4B-SFT
+Training set
+2,288 tasks from 123 WebHarbor websites, with 15 WebVoyager and 15
+other websites held out
+Episode environment
+One isolated WebHarbor mirror sandbox initialized from a frozen seed
+Viewport
+1280 × 1000 pixels, device-pixel ratio 1
+Rollout and context
+RL iterations
+100
+Effective task groups per iteration
+48 groups retained after dynamic sampling
+Trajectories per task
+5
+Maximum browser steps
+50
+Screenshots in policy context
+Current screenshot only
+History in policy context
+Full prior reasoning, tool calls, and textual environment feedback
+Maximum context length
+32,768 tokens
+Maximum response length
+1,024 tokens per policy turn
+Rollout sampling
+Temperature 0.8, top-p 1.0, top-k disabled
+MM-GRPO optimization
+Advantage estimator
+Group-relative trajectory-reward advantage, applied to all assistant turns
+Dynamic sampling
+Discard task groups with zero reward variance
+PPO epochs
+2
+Asymmetric clipping
+ϵlow = 0.20, ϵhigh = 0.28
+KL / entropy coefficients
+0 / 0
+Global optimization batch size
+256 assistant-turn samples
+Optimizer
+Adam, β = (0.9, 0.98), weight decay 0.1
+Learning rate
+1 × 10−6 with a constant schedule
+Training and rollout backends
+Megatron (TP2, DP4) and eight single-GPU SGLang engines
+Reward
+Optimized reward
+OpenWebRL format gate followed by a binary GPT-4.1 success judgment
+Judge evidence
+Final answer, complete action history, and three recent screenshots
+Task-specific WebHarbor verifier
+Logged as a diagnostic metric only and excluded from the policy objective
+Table 22: RL training configuration of WebHarbor-4B, reusing the OpenWebRL MM-GRPO recipe
+and browser interface.
+interaction or sequence evidence, and failure cases for semantic review. It is used only during grading
+and is never shown to the acting agent.
+The deterministic verifier runs first. The Agent Judge then runs in the same sandbox before it is
+released and audits the completed trial. It receives the task instruction, reviewer-authored rubric,
+complete normalized trajectory, final answer, and screenshots. It may also inspect the verifier
+code and recorded verdict, pristine seed database, live final database, and site code. It returns
+agent_success, agent_failed, or task_error, together with a confidence score, a con-
+cise explanation, verified hard facts, and a verifier-disagreement flag. The task_error label is
+reserved for a concrete environment defect that makes the task impossible, never for an agent mistake.
+The Judge verdict is an audit signal and cannot alter the verifier result. A missing or malformed
+Judge output is recorded as a Judge error while the verifier result remains unchanged. The two signals
+therefore cover different requirements: the verifier provides a reproducible final-outcome check,
+while the Agent Judge can assess semantic equivalence and sequence-dependent rubric items from
+the trajectory. Both remain separate from the optimized OpenWebRL reward described below.
+E.3
+TRAINING CONFIGURATION
+Training starts from the released OpenWebRL SFT checkpoint and applies MM-GRPO to groups
+of five trajectories per task. A trajectory-level reward is converted to a group-relative advantage for
+every assistant turn, and groups with identical rewards are removed by dynamic sampling. The reward
+is OpenWebRL’s format gate followed by a GPT-4.1 success judgment over the final answer, action
+history, and recent screenshots. The task-specific WebHarbor verifier serves only as a diagnostic
+metric. Table 22 lists the full rollout, optimization, and reward settings.
+31

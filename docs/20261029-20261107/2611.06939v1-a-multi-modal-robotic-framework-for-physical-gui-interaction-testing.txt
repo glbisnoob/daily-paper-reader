@@ -1,0 +1,138 @@
+Title: A Multi-Modal Robotic Framework for Physical GUI Interaction Testing
+
+URL Source: https://arxiv.org/pdf/2611.06939v1
+
+Published Time: Fri, 06 Nov 2026 01:01:40 GMT
+
+Number of Pages: 3
+
+Markdown Content:
+# A Multi-Modal Robotic Framework for Physical GUI Interaction Testing 
+
+## Davi Freitas 
+
+Federal University of Pernambuco (UFPE) Brazil dsf3@cin.ufpe.br 
+
+Abstract 
+
+Automated testing of mobile applications remains challenging when realistic user interactions must be reproduced and GUI behavior verified without relying on invasive mechanisms such as instru-mentation or ADB-level control. Existing approaches, including DLD and R-DLD, detect data loss triggered by activity restarts but still depend on system-level access, which limits their applicability on real devices. This doctoral research proposes RFNIT, a multi-modal, fully non-invasive robotic framework for physical GUI interaction testing on smartphones. RFNIT supports end-to-end automation by per-ceiving the device state through external sensing and executing physical interactions, enabling human-like actions while preserving reproducibility and execution accuracy. The framework integrates a vision-based perception module, an LLM-driven reasoning agent, and a robotic actuator capable of per-forming touch, swipe, and typing gestures. Multimodal data, includ-ing external camera images and OCR-extracted text, are combined to identify GUI elements and guide subsequent testing decisions. Preliminary results indicate that RFNIT accurately recognizes buttons, text fields, and virtual keyboards from external camera input, achieving over 85% visual detection accuracy. Ongoing and future work will focus on improving robustness, repeatability, and coverage of GUI states during long-running testing sessions. 
+
+Keywords 
+
+Non-invasive testing, robotics testing, computer vision, mobile applications, GUI testing 
+
+ACM Reference Format: 
+
+Davi Freitas. 2026. A Multi-Modal Robotic Framework for Physical GUI Interaction Testing. In 2026 IEEE/ACM 48th International Conference on Software Engineering (ICSE-Companion ’26), April 12–18, 2026, Rio de Janeiro, Brazil. ACM, New York, NY, USA, 3 pages. https://doi.org/10.1145/3774748. 3787623 
+
+1 Introduction 
+
+Automated testing is essential to ensure software quality and re-liability. However, as applications move beyond smartphones to platforms such as automotive dashboards, industrial controllers, 
+
+> This work is licensed under a Creative Commons Attribution 4.0 International License.
+> ICSE-Companion ’26, Rio de Janeiro, Brazil
+> © 2026 Copyright held by the owner/author(s). ACM ISBN 979-8-4007-2296-7/2026/04 https://doi.org/10.1145/3774748.3787623
+
+IoT devices, and gaming consoles, traditional frameworks like Ap-pium [Hans(2015)], Espresso [Zelenchuk(2019)], and UIAutoma-tor [Google(2025)] become increasingly limited. These tools rely on invasive APIs or instrumentation, which are often unavailable in proprietary or safety-critical environments, forcing many domains to depend on costly, error-prone, and poorly reproducible manual testing. Non-invasive robotic testing has emerged as an alternative to val-idate mobile applications without instrumentation, using external sensors and actuators to simulate human interactions. Approaches such as RoScript [Qian et al.(2025), Mao et al.(2017)] demonstrate the feasibility of physical touch automation; however, by keeping the device static on a bench while a stylus executes gestures, these systems remain limited to two-dimensional touchscreen interac-tions. As a result, motion-dependent sensors, physical buttons, and complex gestures—such as orientation changes, “double chop for flashlight,” “twist for camera,” or NFC-based interactions—remain out of scope for non-invasive automation. To overcome this gap, RFNIT adopts an inverted configuration: the smartphone is mounted directly on the robot, while the stylus and external camera remain fixed in the environment (Figure 1). This design enables the robot to physically manipulate the device, perform controlled rotations, approximate NFC cards, and trig-ger advanced motion-based gestures while still supporting precise touch input. This expands automated testing from simple 2D screen interactions to a broader, multimodal physical interaction space. Preliminary steps of this research were explored in earlier works. An initial RFNIT prototype was presented as a poster at FSE 2024 [Freitas et al.(2024a)], validating the feasibility of robotic-based, less invasive testing on real smartphones. In parallel, a study at SBES 2024 [Freitas et al.(2024b)] investigated robotic-supported data loss detection, providing early evidence that physical device manipula-tion can reduce test invasiveness. These insights directly motivated the design of the fully non-invasive and multimodal RFNIT frame-work proposed in this doctoral research. Building on these insights, this doctoral research proposes RFNIT (Robotic Framework for Non-Invasive Testing), a multi-modal robotic framework that integrates robotics, computer vision, and automated reasoning to execute high-fidelity physical GUI interaction testing on heterogeneous devices. RFNIT provides a two-layer modular architecture: (i) a physical layer that controls actuation and sensing, and (ii) a software layer that abstracts low-level control and exposes a high-level intent-driven API for defining test behaviors. The key differentiators of RFNIT are: 
+
+Multimodal support: execution of touchscreen gestures, physical button presses, controlled device rotations, and advanced gestures arXiv:2611.06939v1 [cs.SE] 30 Oct 2026 ICSE-Companion ’26, April 12–18, 2026, Rio de Janeiro, Brazil Davi Freitas 1
+
+> 2
+> 3
+> 4
+> Camera Suport
+> Retractable Finger
+> Smartphone Gripper
+> Robotic Arm
+> 1
+> 2
+> 3
+> 4
+
+Figure 1: Robotic structure of RFNIT. 
+
+such as double-tap and drag, enabling interaction with both on-screen and hardware-dependent features; 
+
+Real-time adaptation: visual- and OCR-based perception sup-ports responsive interaction, on-the-fly correction of execution deviations, and recovery from unexpected interface changes; 
+
+Device-agnostic design: applicability to Android, iOS, and em-bedded platforms without requiring instrumentation, system-level access, or modifications to the application under test; 
+
+Integration with testing ecosystems: compatibility with Pytest for defining automated oracles, structuring test cases, and integrat-ing RFNIT into continuous testing and CI pipelines. RFNIT aims to push the boundaries of non-invasive test automa-tion by providing a framework capable of validating not only the functional correctness of applications but also the fidelity, robust-ness, and user experience of physical interactions. 
+
+2 Research Problem and Objectives 
+
+Despite the progress in GUI testing automation, a major gap persists between invasive software-level testing and non-invasive physical testing. Invasive methods such as ADB- or instrumentation-based testing can achieve fine-grained control of app states but fail to operate in realistic user conditions. Conversely, robotic systems that execute touch events on real devices are constrained by limited perception and reasoning capabilities. Bridging this gap requires a unified framework that enables robots to interpret and act upon the visual state of the device, autonomously and intelligently. The overarching research problem of this thesis can be summa-rized as follows: 
+
+How can we design a robotic testing framework that performs reliable, autonomous, and human-like GUI interactions on real smartphones without requiring in-vasive system access? 
+
+To address this problem, the research is guided by the following objectives: 
+
+O1 – Develop a non-invasive architecture for automated GUI testing: design a framework that integrates vision-based percep-tion, LLM-driven reasoning, and robotic actuation to perform end-to-end interactions on real devices. 
+
+O2 – Enable multimodal understanding of interface states: 
+
+combine external camera images, and OCR-extracted text to accu-rately identify interactive components and infer app states. 
+
+O3 – Achieve adaptive testing strategies: implement a decision-making mechanism that allows the framework to select the next interaction step based on its perception and testing goals. 
+
+O4 – Evaluate the approach in realistic environments: validate RFNIT’s performance through experiments involving real Android applications, measuring coverage, repeatability, and robustness during long testing sessions. By pursuing these objectives, RFNIT aims to extend the current boundaries of mobile testing automation, bringing together the pre-cision of robotic actuation and the flexibility of AI-driven reasoning. The resulting framework seeks to advance the understanding of how perception, cognition, and physical interaction can coexist in software testing tools for mobile platforms. 
+
+3 Proposed Approach: The RFNIT Framework 
+
+The proposed RFNIT integrates three complementary modali-ties—vision, reasoning, and control—into a unified non-invasive testing architecture (Figure 2). 
+
+3.1 Vision and Perception 
+
+An external camera (Logitech BRIO 4K) captures real-time images of the smartphone screen. The visual processing pipeline combines OpenCV-based preprocessing for perspective correction and bright-ness normalization, layout extraction from Android XML dumps, object detection using YOLOv8 trained on GUI datasets, and text recognition via PaddleOCR. The result is a multimodal representa-tion of the interface that integrates visual and semantic information about buttons, text fields, and interactive regions. 
+
+3.2 Reasoning and Decision-Making 
+
+An LLM acts as a decision-making agent that interprets the visual state of the interface and the testing task to select the next interac-tion. The agent performs goal-driven exploration guided by natural language instructions, reasons about application state transitions and missing elements to identify potential data loss or UI faults, and continuously adapts its strategy based on feedback from prior executions. 
+
+3.3 Physical Interaction 
+
+The robot executes the selected action physically on the smartphone through a controlled actuation mechanism. Each touch, swipe, or typing command is translated into precise servo or actuator control signals. Visual feedback is continuously used to verify whether the intended action produced the expected interface state transi-tion, enabling a closed-loop perception–action feedback cycle that improves robustness and execution accuracy. 
+
+4 Preliminary Results 
+
+A functional RFNIT prototype was implemented using Python, OpenCV, and the Ultralytics YOLOv8 framework. Experiments were conducted on five Android applications (e.g., messaging, weather, and shopping apps), using an external Logitech BRIO 4K camera operating under natural ambient lighting conditions. The system successfully identified interactive components and executed physi-cal tap actions through a robotic actuator with an average precision of 2.0 mm. A Multi-Modal Robotic Framework for Physical GUI Interaction Testing ICSE-Companion ’26, April 12–18, 2026, Rio de Janeiro, Brazil 
+
+Figure 2: RFNIT architecture integrating perception, reason-ing, and physical control for non-invasive testing. 
+
+Visual detection achieved 91% accuracy (mAP@0.5) when bound-ing boxes were compared against ADB-based ground truth. OCR text recognition exceeded 95% accuracy under varying natural light-ing, confirming the robustness of the perception pipeline in realistic, non-controlled scenarios. Furthermore, because the smartphone is rigidly attached to the robotic arm, RFNIT can rotate the device and press its side buttons (volume up/down and power) by aligning the device with a fixed actuator. This enables automated testing of sensor-based and hardware-button interactions that are inaccessi-ble to traditional static robotic setups. These results demonstrate the feasibility of end-to-end multimodal perception and physical interaction without instrumentation. 
+
+5 Evaluation Plan 
+
+The next phase of this research will conduct a comprehensive eval-uation of RFNIT along the following dimensions: 
+
+Coverage and efficiency: Quantitatively compare state coverage, execution time, and the number of unique interaction transitions against established baselines, including DLD and DroidBot. 
+
+Realism and usability: Perform controlled user studies to assess the degree to which robotic actions align with human interaction patterns, focusing on perceived naturalness, gesture fidelity, and operational intuitiveness. 
+
+Reproducibility and robustness: Execute repeated test sessions under varying environmental and device conditions. Metrics such as visual detection precision, action latency, and physical alignment accuracy will be systematically measured to characterize stability and performance. Overall, this evaluation aims to rigorously demonstrate the via-bility of RFNIT as a general-purpose, multimodal, and fully non-invasive robotic testing framework for real mobile devices. 
+
+6 Challenges and Future Work 
+
+Despite promising initial results, several challenges remain: 
+
+Latency and synchronization: Aligning perception, reasoning, and actuation in real time remains complex, especially as gesture complexity increases. 
+
+Visual occlusion and reflection: External cameras are sensitive to glare and variability in ambient light, which can interfere with computer vision pipelines. 
+
+Reasoning reliability: LLMs may produce inconsistent decisions when faced with ambiguous or partially occluded interfaces. 
+
+Scalability: Extending testing to multiple devices and concurrent executions requires sophisticated coordination strategies. To extend the platform’s physical capabilities, we are developing a new robotic gripper that supports rapid smartphone replacement and magnetic USB coupling for automatic power connection. In par-allel, we are designing a dynamic grip reconfiguration mechanism that allows the robot to change the device’s orientation or handed-ness during testing, enabling inversion, rotation, and repositioning to support complex gestures and access to side buttons. 
+
+7 Expected Contributions 
+
+This research is expected to make the following contributions: 
+
+A fully non-invasive robotic testing framework for multi-modal GUI interaction on physical mobile devices, enabling ex-ternal vision–based perception, reasoning-driven action selection, and precise robotic execution without requiring instrumentation or system-level access. 
+
+A publicly available, large-scale dataset composed of synchro-nized camera captures, supporting research on visual understand-ing, GUI element detection, and multimodal test generation. 
+
+Empirical evidence and methodological insights on how large reasoning models can be integrated with physical testing work-flows, including analysis of decision reliability, perception–action coupling, and failure modes in real-world scenarios. 
+
+A conceptual and practical foundation for hybrid AI–robotic testing methodologies , bridging software testing, mobile automa-tion, computer vision, and robotic manipulation to support future research on autonomous, embodied testing agents. 
+
+References

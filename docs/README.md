@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-11-06</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-29 ~ 2026-11-07</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 21 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>10</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>11</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-06 07:56:41 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-07 06:58:27 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日精读 1 篇 9.0 分技术报告，聚焦用规模化经验提升计算机使用智能体。NorthCUA 技术报告展示如何通过经验加速计算机使用智能体，值得关注智能体从真实操作经验中持续学习的方向。普通读者可留意这类“边用边学”的智能体进展，观察其在实际软件操作任务中的表现。</p>
+<p>2026-10-29至11-07共筛读21篇论文，精读10篇、速读11篇，聚焦GUI智能体与网页/电脑操作代理。</p>
+<p>最值得关注的是BiGrounder以双向训练释放GUI定位潜力（10.0分），以及面向GUI智能体的高效自适应训练（9.0分）；动态目标修订、验证式探索等速读工作也值得扫一眼。</p>
+<p>普通读者可先读这两篇精读的高分论文，再按“基准测试—训练效率”线索补看速读列表。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +80,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">10 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="NorthCUA Technical Report: Turbocharging Computer-Use Agents through Experience at Scale">NorthCUA Technical Report: Turbocharging Computer-Use Agents through Experience at Scale</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="BiGrounder: Bidirectional Training Unlocks the Potential of GUI Grounding">BiGrounder: Bidirectional Training Unlocks the Potential of GUI Grounding</span></li><li><span class="dpr-home-dashboard-paper-title" title="Where to Learn and How Far to Roll Out: Efficient Adaptive Training for GUI Agents">Where to Learn and How Far to Roll Out: Efficient Adaptive Training for GUI Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Online Dense Reinforcement Learning with Planning-Grounding Agent for UI Navigation on Live IOS Apps">Online Dense Reinforcement Learning with Planning-Grounding Agent for UI Navigation on Live IOS Apps</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>1</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>10</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -91,12 +93,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">11 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="DynaRev: Benchmarking Web Agents under Dynamic Goal Revision">DynaRev: Benchmarking Web Agents under Dynamic Goal Revision</span></li><li><span class="dpr-home-dashboard-paper-title" title="VeriCUA: Verification as Agentic Exploration for Computer-Using Agents">VeriCUA: Verification as Agentic Exploration for Computer-Using Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="UI-UG 2: Advancing Mobile UI Understanding and Generation with Fine-Grained Supervision and Reinforcement Learning">UI-UG 2: Advancing Mobile UI Understanding and Generation with Fine-Grained Supervision and Reinforcement Learning</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>11</strong></span></div>
 </section>
 </div>
 

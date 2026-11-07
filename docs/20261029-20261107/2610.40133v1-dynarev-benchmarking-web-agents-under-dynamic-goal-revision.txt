@@ -1,0 +1,1010 @@
+Title: DynaRev: Benchmarking Web Agents under Dynamic Goal Revision
+
+URL Source: https://arxiv.org/pdf/2610.40133v1
+
+Published Time: Fri, 30 Oct 2026 04:10:19 GMT
+
+Number of Pages: 35
+
+Markdown Content:
+# DYNA REV : Benchmarking Web Agents under Dynamic Goal Revision 
+
+## Shiqi Zhang 1,2, Guochen Zhou 1, Zesheng Wei 1, Hai Zhao 2, Zhisong Zhang 11City University of Hong Kong 2Shanghai Jiao Tong University 
+
+## szhang2879-c@my.cityu.edu.hk , zhisong.zhang@cityu.edu.hk 
+
+## Abstract 
+
+Web agents are typically evaluated with goals fully specified before execution and fixed there-after, whereas real users often revise their re-quirements during interaction. To study such interactions, we introduce D YNA REV , a bench-mark of 181 tasks to evaluate web agents un-der dynamic goal revision . DYNA REV uses semantic milestones to deliver revisions at task-defined stages, covers additive revisions, un-conditional overrides, and runtime-conditioned overrides, and evaluates correctness, respon-siveness, and efficiency through trajectory-grounded evaluation. Five-model evaluations show that agents often satisfy only part of the task requirements, with performance varying across task sources, revision types, and mod-els. Further analyses reveal varied milestone timing, mixed effects of dynamic delivery, and contrasting revision-handling outcomes, with gains from instruction rewriting while preserv-ing browser state and losses from browser re-sets. D YNA REV provides a testbed for study-ing how web agents adapt to evolving user goals. The code and data are available at 
+
+https://github.com/zsq259/DynaRev .
+
+## 1 Introduction 
+
+Recent advances in large language models (LLMs) have enabled autonomous agents to perceive, rea-son, plan, and act in complex digital environ-ments (Ning et al., 2025; Xi et al., 2025; Mei et al., 2025). Among them, web agents interact with website interfaces through human-like actions such as clicking, typing, and scrolling, allowing them to operate websites without relying on dedicated APIs (Zheng et al., 2024; Lai et al., 2024). They support a wide range of practical tasks such as infor-mation seeking, online shopping, travel planning, and service navigation. With increasingly capa-ble foundation models and agent frameworks, web agents are now able to execute complex multi-step I₀  Find LAX → BOS flights 
+
+LAX  → BOS  M₁ 
+
+> Search
+> LAX → BOS
+
+I₂    
+
+> 6:00 AM $320
+> 11:00 AM $340
+> 11:30 PM $150
+> LAX → BOS
+> daytime
+
+I₃  Nonstop only If Δprice > $150,
+overnight OK 
+
+> M₂
+
+I₁  Avoid overnight    
+
+> M₃ Daytime $320
+> Overnight $150
+> Δ = $170 > $150
+> LAX → BOS
+> Δ ≤ $150: daytime
+> Δ > $150: overnight OK
+> Unconditional Additive
+> {A, B} → {A, B, C} {A, B} → {A, B′}
+> Nonstop
+> $350 9:00 AM → 5:20 PM
+> LAX → BOS
+> Δ > $150: overnight OK
+> nonstop
+> condition met → {A,B′}; otherwise → {A,B}
+> Conditional
+
+Figure 1: Example dynamic goal revision task. 
+
+tasks in realistic environments (Gur et al., 2024; He et al., 2024; Yang et al., 2025). However, most web-agent tasks assume that the user’s goal is fully specified before execution and remains fixed throughout the interaction (Deng et al., 2023; Zhou et al., 2024; Koh et al., 2024; He et al., 2024; Xue et al., 2025; Gou et al., 2025). Real-world user goals are often more dynamic. For example, a user may first ask an agent to find a flight from Los Angeles to Boston, then add “Avoid overnight flights” after viewing the candidates, re-vise this preference to “If daytime flights cost more than $150 extra, overnight flights are acceptable,” and later request nonstop flights only. Such in-teractions are not merely a fixed instruction split across multiple turns: later instructions may add new constraints, override previously active ones, or introduce requirements that apply conditionally based on the web state observed during execution. We refer to this setting as dynamic goal revision .Recent work has begun to recognize goal adaptation as an important agent capability. AgentChangeBench (Rana et al., 2025) studies goal shifts in conversational tool-using agents, DeskCraft (Wang et al., 2026) considers interrup-1arXiv:2610.40133v1 [cs.AI] 29 Oct 2026 tions and corrections in desktop workflows, and In-terruptBench (Zou et al., 2026) evaluates additions, revisions, and retractions in long-horizon web navi-gation. However, three gaps remain in web settings. First, revisions are often injected based on rela-tive trajectory progress rather than task-semantic progress, so agents following different paths may receive the same revision at different task stages. Second, existing settings largely omit conditional revisions whose applicability depends on the web state. Finally, evaluations mainly assess task-level success and recovery cost, with limited analysis of revision-level constraint satisfaction, post-revision responsiveness, and cost–quality trade-offs. To address these gaps, we introduce D YNA REV ,a benchmark for evaluating web agents under dy-namic goal revisions. DynaRev uses semantic mile-stones , task-defined stages of the current goal, to trigger revisions independently of the execution path, and covers additive, unconditional-override, and conditional-override revisions, with condi-tional branches resolved from the web state. We develop a revision-aware, trajectory-grounded eval-uation framework that assesses answer correctness, revision responsiveness, and cost-aware efficiency. We construct 181 dynamic tasks from Online-Mind2Web (Xue et al., 2025) and Mind2Web 2 (Gou et al., 2025), and evaluate five models. Agents often satisfy only part of the task requirements, with performance varying across task sources, revision types, and models. Further analyses reveal substantial variation in milestone timing and mixed effects of dynamic delivery, while instruction rewriting with preserved browser state improves quality and efficiency and browser resets degrade performance. These results reveal behaviors missed by static evaluation. Our contributions are threefold: (i) We formu-late dynamic goal revision for web agents and in-troduce semantic milestone-based revision deliv-ery. (ii) We construct D YNA REV , covering additive revisions, unconditional overrides, and runtime-conditioned overrides. (iii) We develop a revision-aware, trajectory-grounded evaluation assessing correctness, responsiveness, and efficiency. 
+
+## 2 Related Work 
+
+GUI Agents and Web Agents. GUI agents inter-act with graphical interfaces through actions such as clicking, typing, and scrolling to complete user tasks (Zhang et al., 2024; Nguyen et al., 2025). web agents instantiate this setting in browser en-vironments, where agents can also use structured page representations such as HTML and accessibil-ity trees. Representative systems such as SeeAct (Zheng et al., 2024) and WebVoyager (He et al., 2024) demonstrate LLM-based agents operating on real websites. We focus on web agents as the evaluation setting in this work, while dynamic goal revision is relevant to GUI agents more broadly. 
+
+Web Agent Evaluation Benchmarks. The eval-uation of web-agents has progressed from offline action prediction to interactive and real-world ex-ecution. Mind2Web (Deng et al., 2023) evalu-ates agents against human interaction trajectories, while WebArena (Zhou et al., 2024) and Visu-alWebArena (Koh et al., 2024) provide interac-tive sandbox environments with functional eval-uation. WorkArena (Drouin et al., 2024) and WorkArena++ (Boisvert et al., 2024) extend eval-uation to enterprise workflows and compositional tasks. WebVoyager (He et al., 2024) extends evalu-ation to live websites, and more recent benchmarks such as Online-Mind2Web (Xue et al., 2025) and Mind2Web 2 (Gou et al., 2025) further improve task realism and outcome verification. Despite these differences, their tasks generally specify the complete user objective before execution and keep it unchanged throughout the interaction. 
+
+Multi-turn Interaction and Dynamic Goal Re-vision. Multi-turn interaction has been studied in both web and general agent settings. MT-Mind2Web (Deng et al., 2024) evaluates context-dependent sequential instructions, while We-bLINX (Lu et al., 2024) studies real-world web-site navigation through multi-turn dialogue. More recent work directly considers evolving goals: AgentChangeBench (Rana et al., 2025) studies goal shifts in conversational tool-using agents, Intent-Flux (Zhang et al., 2026) evaluates intent drift un-der superseded and withdrawn requirements, while COMPASS (Qin et al., 2026) and RECAP (Mitra et al., 2026) consider evolving constraints and in-tent in multi-turn interactions. Related settings have emerged for GUI agents, including ReInAgent (Jia et al., 2025), DeskCraft (Wang et al., 2026), and most closely, InterruptBench (Zou et al., 2026), which evalu-ates user additions, revisions, and retractions dur-ing long-horizon web navigation. However, these settings do not align revision delivery with task-semantic progress or include conditional revisions 2Construction  Execution 
+
+> Evaluation
+> s₀
+
++ 
+
+> φ(Mₖ, sₜ) = 1
+> s₁
+> M₁
+> Find a daytime nonstop flight from LAX to BOS
+> under $350. Web Agent
+
+I₀   
+
+> Find flights
+> route price
+> daytime nonstop
+> M₁
+
+I₁  
+
+> Daytime only
+> daytime
+> route price
+> M₂
+
+I₂   
+
+> Nonstop only
+> nonstop
+> Bound
+> constraints
+> Trajectory +
+> Final response Claims
+> Revision Responsiveness
+> Quality Check local window
+> I₂
+> Trajectory
+
++ 
+
+> Final response
+> I₁
+> s₂
+> M₂
+> Answer
+> Correctness
+> Score Pass
+> simple → response
+> Verification
+> WRA
+> page → trajectory
+> Cost-aware Efficiency
+
++ T  
+
+> Action steps Token usage CTS / CCS
+
+Figure 2: Overview of benchmark construction, milestone-triggered execution, and revision-aware evaluation. 
+
+whose active requirements depend on the web state. Our work addresses both with semantic milestone-based delivery and runtime-conditioned overrides. 
+
+Fine-grained and Process-aware Agent Evalua-tion. Recent work has moved beyond binary final-task success. Mind2Web 2 (Gou et al., 2025) de-composes complex requirements into fine-grained criteria, while ProBench (Yang et al., 2026) evalu-ates intermediate process information. Dynamic-goal benchmarks also consider adaptation, such as goal-shift recovery in AgentChangeBench (Rana et al., 2025) and post-interruption success and ex-ecution cost in InterruptBench (Zou et al., 2026). Our evaluation binds atomic constraints to individ-ual revisions and verifies them using the agent’s final response and trajectory, while assessing post-revision responsiveness and cost-aware efficiency. 
+
+## 3 Problem Formulation 
+
+We formalize web-agent interaction under dynamic goal revisions. Throughout this section, consider a user who initially asks an agent to “Find me a daytime flight from New York to Los Angeles,” and may revise the request during execution. 
+
+3.1 Web Agent Interaction 
+
+We consider a web agent interacting with a browser environment over multiple steps. At step t, the agent receives observation st and produces action 
+
+at. A trajectory up to state st is represented as 
+
+τt = ( s0, a 0, s 1, a 1, . . . , s t), (1) 
+
+which records the preceding state-action sequence and ends with the latest observed state. 
+
+3.2 Dynamic Goal Revision 
+
+A dynamic goal revision task is defined as 
+
+T = ( I0, {(Mk , I k )}nk=1 ) , (2) 
+
+where I0 is the initial instruction, each Ik (k ≥ 1)is a revision delivered during execution to update the previously specified goal, and n is the num-ber of revisions. Each instruction specifies one or more task constraints, and revisions update which constraints are active. A central challenge is deciding when a revision should be introduced. Triggering at a fixed step or at a fixed relative position along an execution tra-jectory can expose different agents to the same revision at substantially different stages of task progress, since successful web trajectories may vary considerably in both length and structure. We therefore define each milestone Mk as an in-evitable semantic stage of the goal that has already been specified before revision Ik. Importantly, a milestone is derived from the previously specified goal rather than from the revision that will follow it. Any successful execution of the current goal should eventually reach this stage, regardless of the concrete sequence of UI actions used to get there. In the running example, a milestone can be “The initial search for daytime flights from New York to Los Angeles has been completed and the search results have been observed.” A later require-ment such as “Only consider nonstop flights” is introduced after this stage is reached. A trigger ϕ(Mk, s t) ∈ {0, 1} determines whether Mk is reached at state st. If ϕ(Mk, s t) = 1, revision Ik is delivered before the next step. 
+
+3.3 Revision Types 
+
+Using the same flight request, we consider three forms of revision. An additive revision introduces a new constraint while preserving previously active constraints, e.g., “Only consider nonstop flights.” An unconditional override replaces a previously active constraint with a new one, e.g., “Actually, choose an overnight flight instead.” A conditional override replaces a previously active constraint with an alternative only when a specified runtime condition is satisfied, e.g., “If daytime flights cost more than $150 extra, overnight flights are accept-3able.” In a conditional override, the agent must determine the applicable branch and corresponding active constraints from the web state, rather than receiving them from the revision. 
+
+## 4 Benchmark Construction 
+
+We construct dynamic goal revision tasks by trans-forming static goals into sequences of instructions and revisions with explicit constraint bindings, con-structing semantic milestones for revision delivery, and validating task quality and interaction natural-ness. Construction details are in Appendix A. 
+
+4.1 Static-to-Dynamic Task Transformation 
+
+We first decompose the original task goal into atomic constraints, each describing an indepen-dently verifiable requirement. These constraints provide the basic units for revision construction and evaluation. We then construct an initial instruc-tion I0 that is sufficiently specific to form a natural and executable request, while leaving part of the original goal to be introduced during execution. The remaining constraints are organized into a sequence of revisions according to a natural inter-action order. Closely related constraints may be introduced together rather than mechanically sepa-rated into different turns. For override revisions, a previously active constraint is replaced or relaxed; conditional overrides additionally associate the re-placement with a runtime condition that can be ver-ified from the web environment. Each constraint is finally bound to the revision that introduces or modifies it, providing an explicit correspondence between goal evolution and evaluation units. 
+
+4.2 Milestone Construction 
+
+For each revision Ik, we construct its milestone Mk
+
+from the cumulative goal specified by I0, . . . , I k−1.The milestone describes a completed semantic stage that can be identified from the web state, while avoiding specific UI actions, reference-trajectory states, or information from the upcoming revision. We also avoid requiring a particular result configuration; for example, completing a search can constitute a milestone even when no matching candidates are returned. 
+
+4.3 Quality Control 
+
+Generated tasks are checked for both structural validity and interaction naturalness. The initial in-struction must express a coherent executable goal, while subsequent revisions must introduce mean-ingful changes rather than artificial fragments of the original instruction. Milestones must describe semantic stages implied by preceding goals and remain independent of a particular reference trajec-tory or future revision. For conditional overrides, the triggering condition must be observable from the runtime environment. We additionally verify the consistency between revisions and their asso-ciated constraints. Tasks that fail these checks are regenerated or excluded from the benchmark. 
+
+## 5 Revision-Aware Evaluation 
+
+We evaluate agent executions through constraint verification and post-revision behavioral assess-ment, with metrics covering answer correctness, revision responsiveness, and cost-aware efficiency. Implementation details are in Appendix C. 
+
+5.1 Constraint Verification 
+
+Following the Agent-as-a-Judge paradigm (Zhuge et al., 2025; Gou et al., 2025), we evaluate each constraint using the agent’s final response and in-teraction trajectory. Constraints associated with undelivered revisions are counted as unsatisfied. For conditional overrides, we determine the active branch and evaluate the corresponding constraints. Each constraint is decomposed into indepen-dently verifiable claims. According to the required evidence, we classify them into two types: sim-ple claims can be verified directly from the agent’s final response, whereas page claims require sup-porting evidence from web states in the interaction trajectory. A constraint is satisfied only if all of its claims are verified. For task i, we denote the resulting judgment for constraint c by zi,c ∈ { 0, 1}.
+
+5.2 Post-Revision Behavioral Assessment 
+
+Final outcomes alone do not indicate whether an agent actually responds to a revision. For each delivered revision Ii,k , we therefore examine the subsequent local action window and use an LLM judge to determine whether the agent’s behavior is consistent with the revised intent. We denote this binary judgment by Ri,k ∈ { 0, 1}.
+
+5.3 Evaluation Metrics Answer Correctness. Let Ci be the constraints scored for task i. We define its constraint satisfac-tion score qi and task-success indicator yi as    
+
+> qi=1
+> |C i|
+> X
+> c∈C i
+> zi,c .(3)
+
+4yi = 1[qi = 1] . (4) 
+
+At the dataset level, we report mean constraint sat-isfaction and task success rate. For revision-level analysis, let Ci,k denote the constraints introduced or modified by instruction 
+
+Ik. We define their satisfaction score as        
+
+> qi,k =1
+> |C i,k |
+> X
+> c∈C i,k
+> zi,c ,k≥0.(5)
+
+We additionally report Mean First Failure Round (MFFR). For task i, let k∗ 
+
+> i
+
+be the first revision round whose associated constraints are not all satisfied, or ni + 1 if no revision fails. We define    
+
+> MFFR = 1
+> N
+> NX
+> i=1
+> k∗
+> i.(6)
+
+Higher MFFR indicates that the agent satisfies re-vised requirements for more rounds. 
+
+Revision Responsiveness. Window Response Accuracy (WRA) measures whether an agent makes an appropriate behavioral adjustment im-mediately after a delivered revision, independently of the eventual task outcome. Let Rfired  
+
+> i
+
+denote the indices of revisions delivered during task i, and let 
+
+Dfired denote the set of tasks with at least one de-livered revision. We first average responses within each task and then across tasks:     
+
+> WRA = 1
+> |D fired |
+> X
+> i∈D fired
+> 1
+> |R fired
+> i|
+> X
+> k∈R fired
+> i
+> Ri,k .(7)
+
+Cost-aware Efficiency. We measure execution cost in two ways: the number of action steps and token usage. Let ci denote the execution cost of task i under either measure. For a cost threshold 
+
+b, we define Cumulative Task Success (CTS) and Cumulative Constraint Satisfaction (CCS) as         
+
+> CTS( b) =
+> NX
+> i=1
+> yi1[ci≤b].(8)
+> CCS( b) =
+> NX
+> i=1
+> qi1[ci≤b].(9)
+
+CTS counts fully successful tasks, while CCS addi-tionally credits partial constraint satisfaction. We further define cost-aware efficiency as     
+
+> CE = 1
+> N
+> NX
+> i=1
+> qi
+> 
+> 1−ci
+> B
+> 
+> ,(10)
+
+where B is the maximum cost considered in the corresponding curve. CE averages correctness weighted by the remaining budget fraction after each task, jointly capturing task quality and execu-tion efficiency. Appendix D shows its equivalence to the normalized area under the CCS curve. 
+
+## 6 Experiments 
+
+6.1 Experimental Setup Dataset. We construct dynamic tasks from Online-Mind2Web (OM2W; Xue et al., 2025) and Mind2Web 2 (M2W2; Gou et al., 2025), covering web navigation and long-horizon information syn-thesis. From 70 seed tasks per source, our pipeline and manual review retains 181 tasks across three revision types, summarized in Table 1. Scenario details are provided in Appendix E.                          
+
+> Source Type Tasks Avg. Cons. Avg. Rounds OM2W Additive 37 4.76 2.59 Uncond. 39 4.56 2.92 Cond. 31 5.74 3.26 M2W2 Additive 39 9.69 2.97 Uncond. 23 10.04 4.22 Cond. 12 9.75 4.92 Total 181 6.95 3.22
+
+Table 1: Dataset statistics by source and revision type. Avg. Cons. and Avg. Rounds denote average constraint and instruction-round counts. Uncond. and Cond. de-note unconditional and conditional overrides. 
+
+Baselines. We evaluate DeepSeek-V4.1-Flash (DeepSeek-AI, 2026), GPT-6.1-Sol (OpenAI, 2026), Gemini-3.8-Flash (Google DeepMind, 2026), Qwen3.8-Flash (Qwen Team, 2026), and Claude-Opus-5-5 (Anthropic, 2026) as representa-tive baseline web agents, abbreviated as DeepSeek, GPT, Gemini, Qwen, and Claude. 
+
+Implementation. We execute all agents with BrowserGym (de Chezelles et al., 2025) using viewport-restricted AXTree observations, a 100-step budget, and temperature 0. DeepSeek-V4.1-Flash is used for data construction, milestone judg-ing, and offline evaluation. Further execution and evaluation details are in Appendices B and C. 
+
+6.2 Main Results Agents differ in both correctness and comple-tion patterns. Table 2 shows substantial differ-ences in final task performance across agents. Gem-ini achieves the highest mean constraint satisfac-tion (0.735), while DeepSeek has the highest task success rate (43.1%). However, mean satisfaction and strict completion do not induce the same rank-ing: Qwen has a lower Score than Claude (0.604 5Correctness Responsiveness Efficiency Model Score ↑ Success ↑ MFFR ↑ WRA ↑ CE (Steps) ↑ CE (Tokens) ↑ Avg Steps ↓
+
+DeepSeek-V4.1-Flash 0.698 43.1% 2.21 66.8% 0.482 0.637 43.0 GPT-6.1-Sol 0.598 28.2% 1.91 68.8% 0.477 0.554 24.9 
+
+Gemini-3.8-Flash 0.735 42.5% 2.28 69.4% 0.522 0.673 33.1 Qwen3.8-Flash 0.604 39.2% 2.09 68.4% 0.410 0.549 50.9 Claude-Opus-5-5 0.681 36.5% 2.16 68.3% 0.448 0.596 43.8 
+
+Table 2: Main results across all dynamic subsets.                                                                               
+
+> OM2W M2W2 Additive Unconditional Conditional Additive Unconditional Conditional Model Score ↑Steps ↓Score ↑Steps ↓Score ↑Steps ↓Score ↑Steps ↓Score ↑Steps ↓Score ↑Steps ↓
+> DeepSeek-V4.1-Flash 0.780 32.4 0.774 30.6 0.824 38.5 0.570 55.4 0.581 56.5 0.518 62.2 GPT-6.1-Sol 0.793 19.8 0.642 27.7 0.753 23.7 0.404 27.7 0.435 23.2 0.401 29.0
+> Gemini-3.8-Flash 0.795 29.3 0.759 26.2 0.898 30.8 0.606 38.6 0.647 40.9 0.642 40.5 Qwen3.8-Flash 0.804 33.7 0.739 37.1 0.727 39.2 0.394 67.4 0.419 74.3 0.275 80.0 Claude-Opus-5-5 0.858 30.2 0.697 38.9 0.853 31.9 0.480 58.7 0.568 59.1 0.516 54.8
+
+Table 3: Performance breakdown by task source and revision type. 
+
+vs. 0.681), but a higher success rate (39.2% vs. 36.5%). MFFR provides a complementary sequen-tial view: Gemini maintains revised requirements for the most rounds before the first failure (2.28), whereas GPT fails earliest on average (1.91). Fig-ure 3 shows that Claude performs better at low and intermediate thresholds, while Qwen retains more tasks at the highest thresholds. 0.1 0.2 0.3 0.4 0.5 0.6 0.7 0.8 0.9 1.0 
+
+> Score threshold
+> 0.0 0.2 0.4 0.6 0.8 1.0
+> Proportion of tasks
+> DeepSeek-V4.1-Flash GPT-6.1-Sol Gemini-3.8-Flash Qwen3.8-Flash Claude-Opus-5-5
+
+Figure 3: Task-level distribution of constraint satisfac-tion scores. Each point reports the proportion of tasks reaching the corresponding score threshold. 
+
+Performance degrades with task complexity, while revision-type effects are context depen-dent. Table 3 breaks down performance by task source and revision type. M2W2 yields lower scores for every model and revision type and gen-erally requires more action steps, consistent with its higher constraint counts and longer revision se-quences. Revision-type effects, however, interact strongly with task source. Conditional tasks are not the weakest OM2W subset for four of the five mod-els; on M2W2, they produce the lowest score for three of the five agents, including 0.275 for Qwen. Overall, task complexity produces a consistent per-formance gap, whereas differences among revision types vary across sources and agents. 
+
+Revision Satisfaction qi,k 
+
+Model WRA = 1 WRA = 0 
+
+DeepSeek-V4.1-Flash 0.683 0.644 GPT-6.1-Sol 0.587 0.465 Gemini-3.8-Flash 0.720 0.696 Qwen3.8-Flash 0.609 0.577 Claude-Opus-5-5 0.677 0.628 
+
+Table 4: Revision-level analysis conditioned on WRA. 
+
+Immediate responses do not consistently trans-late into satisfied revisions. WRA measures whether an agent makes a locally appropriate be-havioral adjustment immediately after a revision, independently of the eventual task outcome. Al-though WRA ranges from 66.8% to 69.4% across models, its ordering does not closely follow final correctness. Table 4 shows that revisions with WRA = 1 have higher final satisfaction for all five agents, but the gap is modest for most models, and many responsive revisions remain unsatisfied. This divergence shows that immediate behavioral adaptation and eventual revision satisfaction cap-ture different aspects of performance. 
+
+Models exhibit distinct cost–quality trade-offs. 
+
+Accounting for execution cost reveals different budget–performance profiles across agents. GPT uses the fewest action steps (24.9) but has the lowest overall Score (0.598), whereas DeepSeek achieves higher correctness (0.698) with more steps (43.0); nevertheless, their step-based CE is nearly 60 25 50 75 100               
+
+> Action-step budget
+> 015 30 45 60 75
+> Raw cumulative value  CTS (steps)
+> 025 50 75 100
+> Action-step budget
+> 025 50 75 100 125 150 CCS (steps)
+> 0.0M 2.5M 5.0M
+> Token budget
+> 015 30 45 60 75
+> CTS (tokens)
+> 0.0M 2.5M 5.0M
+> Token budget
+> 025 50 75 100 125 150 CCS (tokens)
+> DeepSeek-V4.1-Flash GPT-6.1-Sol Gemini-3.8-Flash Qwen3.8-Flash Claude-Opus-5-5
+
+Figure 4: Cost–quality curves under action-step and token budgets. 
+
+identical (0.477 vs. 0.482). Gemini combines the highest correctness with the second-lowest average action count (33.1 steps) and therefore achieves the highest CE under both action-step and token costs. The cost–quality curves in Figure 4 further show that GPT accumulates performance rapidly under small budgets but plateaus relatively early, while Gemini and DeepSeek continue to improve as additional budget becomes available. 
+
+## 7 Analysis 
+
+7.1 Static vs. Dynamic Delivery 
+
+We compare 30 additive tasks with their original single-turn counterparts, with 15 tasks from each source. The two settings share the same final re-quirements and execution budget, differing only in whether the requirements are given upfront or progressively during execution. Table 5 shows no uniform effect on correctness: GPT and Qwen im-prove on both sources, Claude declines on both, while Gemini shows opposite trends across the two sources. Across all model–task pairs, 32.0% improve, 28.0% worsen, and 40.0% remain un-changed. Despite mixed correctness effects, dy-namic delivery typically requires more actions. 
+
+OM2W M2W2 Model ∆Score ∆Steps ∆Score ∆Steps DeepSeek −0.025 +9 .06 −0.035 +6 .47 
+
+GPT +0 .079 −0.74 +0 .122 +4 .87 
+
+Gemini −0.133 +12 .54 +0 .108 +7 .53 
+
+Qwen +0 .161 +8 .54 +0 .115 −12 .67 
+
+Claude −0.107 +14 .34 −0.169 +10 .93 
+
+Table 5: Changes from static to dynamic additive deliv-ery on paired tasks. ∆ denotes dynamic minus static. 
+
+Trajectory inspection reveals two competing ef-fects. Progressive delivery can reach the final goal through intermediate stages, but it can also intro-duce rework, interface loops, and budget exhaus-tion. Thus, dynamic delivery is neither uniformly beneficial nor harmful; instead, it exposes model-dependent execution behaviors that static evalua-tion may not reveal. Full results are in Appendix F. 
+
+7.2 Revision Handling Strategies 
+
+When a revision is delivered, a natural alternative to continuing from the current execution is to reformu-late the updated goal and restart the task. We there-fore compare revision-handling strategies along three dimensions: instruction representation (origi-nal vs. rewritten), interaction history (retained vs. cleared), and browser state (continued vs. reset). We consider six meaningful combinations, exclud-ing configurations that reset the browser while re-taining interaction history. The baseline retains the original instructions, interaction history, and browser state, corresponding to direct continuation from the current execution. We evaluate all strate-gies with DeepSeek-V4.1-Flash on the same subset of benchmark tasks. Strategy changes are applied only when a revision is delivered, and all config-urations share the same 100-step budget. Table 6 reports task quality and execution cost. 
+
+Strategy Score ↑ Steps ↓ Tokens (k) ↓
+
+Baseline 0.647 50.3 806.7 Rewrite 0.718 44.9 658.8 
+
+Clear 0.648 53.6 667.2 Clear + Rewrite 0.663 52.8 673.4 Reset 0.586 59.7 691.7 Reset + Rewrite 0.525 61.5 843.6 
+
+Table 6: Comparison of revision handling strategies. Rewrite consolidates instructions, Clear removes inter-action history, and Reset resets the browser. 
+
+Rewriting the accumulated instructions while preserving the ongoing execution gives the best overall trade-off, increasing Score from 0.647 to 0.718 while reducing both action steps (50.3 to 44.9) and token usage (806.7k to 658.8k). Clear-ing interaction history alone leaves task quality nearly unchanged (0.648 vs. 0.647) and reduces token usage, but requires more actions. In contrast, 7(a) Reset discards execution progress          
+
+> Search configured
+> SFMOMA · Oct 11 · 1–5 PM →Revision
+> Baseline: Reuse browser state Filter / select vehicle Success
+> 33 steps →→
+> Reset: Homepage
+> Redo destination,
+> date & time
+> Later revs:
+> rep eat
+> Final rev.:
+> 12 steps left
+> Max steps
+> 100
+> →→→
+> Revision: November 2023 → January 2023
+> Target: 16-inch
+> “Looking for the 16-inch MacBook Pro (January 2023) tech specs ...”
+> New tech-spec page
+> Current page: 14-inch model →
+> Immediate response ✓
+> WRA = 1 Final satisfaction ✗
+> January-2023 target not verified
+> 2-bed · 3+ bath
+> $3,395 / month
+> 2-bed · 1 bath
+> $1,800 / month
+> →
+
+$3,395 − $1,800
+= $1,595
+> $1,000    
+
+> Condition holds ✓
+> 1-bath now eligible
+> →Final choice:
+> 3+ bath · $3,395 →
+> Cheapest eligible option not selected ✗
+> (b) Immediate response ≠ final satisfaction (c) Correct condition, wrong final choice
+
+Figure 5: Representative failure cases under dynamic goal revision. 
+
+resetting the browser consistently worsens the over-all quality–cost trade-off: Reset lowers Score to 0.586 and increases steps to 59.7, while Reset + Rewrite further reduces Score to 0.525 and requires the most steps. Comparing Clear with Reset, and Clear + Rewrite with Reset + Rewrite, indicates that retaining the current browser state provides substantial reusable execution progress. Overall, the results favor reorganizing the accumulated goal while continuing from the current execution, rather than treating each revision as a new task. 
+
+7.3 Revision Injection Timing 
+
+A simpler alternative to semantic milestone trigger-ing is to inject revisions at a fixed relative position along the execution trajectory. We therefore ex-amine where milestone-based revision timing falls along relative trajectory progress on a subset of tasks. We focus on the first revision. For task i
+
+and agent a, let ti,a denote the revision-injection step and Li,a the completion length of an execution with only the initial instruction I0. We define 
+
+ri,a = min 
+
+ ti,a 
+
+Li,a 
+
+, 1
+
+
+
+, (11) 
+
+with values above 1 clipped to 1. 1 5 10 15 20 25 30     
+
+> Task
+> 0% 20% 40% 60% 80% 100%
+> Relative injection position  ri, a
+> DeepSeek GPT Gemini Mean 56.8% ±1 SD (28.5 pp)
+
+Figure 6: Relative revision-injection positions across tasks and agents, ordered by mean across agents. 
+
+Figure 6 shows substantial variation in relative injection positions across tasks, with pronounced cross-agent differences for many tasks. The mean is 56.8%, but the standard deviation reaches 28.5 percentage points, indicating that the average posi-tion masks a broad distribution of milestone timing. Thus, even though the mean lies near 60%, a fixed trajectory percentage does not closely represent the same task stage across individual executions. We further quantify cross-agent variation by computing max a ri,a −min a ri,a for each task. The median range is 36.4 and mean 41.3; 70.0% of tasks exceed 20, and 46.7% exceed 40. The same fixed percentage may therefore deliver a revision when different agents have reached substantially different task stages, making cross-agent comparisons less controlled. Semantic milestones instead anchor re-vision delivery to a task-defined stage. We also performed a manual inspection of the milestone-trigger timing, with detailed results in Appendix I. 
+
+7.4 Failure Mode Case Studies 
+
+We inspect trajectories to understand the quantita-tive patterns. Figure 5 shows three representative failure modes. First, browser resets can discard execution progress, forcing repeated work until the step budget is exhausted. Second, immediate adaptation does not ensure eventual satisfaction: an agent may respond appropriately to a revision yet still violate the revised constraint. Third, an agent may correctly resolve a condition but fail to act accordingly, selecting a more expensive option despite identifying a newly eligible cheaper one. 
+
+## 8 Conclusion 
+
+We introduced D YNA REV , a benchmark to as-sess web agents under dynamic goal revisions, featuring semantic milestone triggers, runtime-conditioned overrides, and fine-grained evaluation of correctness, responsiveness, and efficiency. Ex-periments with five models show that immediate adaptation does not ensure final constraint satisfac-tion. Further analyses reveal timing mismatches between fixed-position and milestone-based revi-sions, while instruction rewriting while preserving browser state improves task quality and efficiency. 8Our benchmark provides a foundation for studying web agents’ ability to handle evolving user goals. 
+
+## Limitations 
+
+We acknowledge the limitations of this work. (i) Our benchmark is constructed from static web tasks and may not capture the full diversity of real-world goal changes. (ii) Milestone triggering and evalua-tion rely on imperfect LLM-based semantic judg-ments. (iii) Semantic milestones assume that mean-ingful intermediate task stages can be identified, which may be harder for tasks with highly diverse successful trajectories. 
+
+## References 
+
+Anthropic. 2026. Introducing Claude Opus 5.5. Léo Boisvert, Megh Thakkar, Maxime Gasse, Massimo Caccia, Thibault Le Sellier De Chezelles, Quentin Cappart, Nicolas Chapados, Alexandre Lacoste, and Alexandre Drouin. 2024. Workarena++: Towards compositional planning and reasoning-based com-mon knowledge work tasks. In Advances in Neural Information Processing Systems , volume 37, pages 5996–6051. Curran Associates, Inc. Thibault Le Sellier de Chezelles, Maxime Gasse, Alexandre Lacoste, Massimo Caccia, Alexandre Drouin, Léo Boisvert, Megh Thakkar, Tom Marty, Rim Assouel, Sahar Omidi Shayegan, Lawrence Ke-unho Jang, Xing Han Lù, Ori Yoran, Dehan Kong, Frank F. Xu, Siva Reddy, Graham Neubig, Quentin Cappart, Russ Salakhutdinov, and Nicolas Chapados. 2025. The browsergym ecosystem for web agent re-search. Transactions on Machine Learning Research .Expert Certification. DeepSeek-AI. 2026. Deepseek-v4.1-flash: Pushing the limits of kv cache compression. Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Sam Stevens, Boshi Wang, Huan Sun, and Yu Su. 2023. Mind2web: Towards a generalist agent for the web. 
+
+Advances in Neural Information Processing Systems ,36:28091–28114. Yang Deng, Xuan Zhang, Wenxuan Zhang, Yifei Yuan, See-Kiong Ng, and Tat-Seng Chua. 2024. On the multi-turn instruction following for conversational web agents. In Proceedings of the 62nd Annual Meet-ing of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 8795–8812. Associ-ation for Computational Linguistics. Alexandre Drouin, Maxime Gasse, Massimo Caccia, Issam H. Laradji, Manuel Del Verme, Tom Marty, David Vazquez, Nicolas Chapados, and Alexandre Lacoste. 2024. WorkArena: How capable are web agents at solving common knowledge work tasks? In Proceedings of the 41st International Conference on Machine Learning , volume 235 of Proceedings of Machine Learning Research , pages 11642–11662. PMLR. Google DeepMind. 2026. Gemini 3.8 Flash. Boyu Gou, Zanming Huang, Yuting Ning, Yu Gu, Michael Lin, Botao Yu, Andrei Kopanev, Wei-jian Qi, Yiheng Shu, Jiaman Wu, Chan Hee Song, Bernal Jimenez Gutierrez, Yifei Li, Zeyi Liao, Hanane Nour Moussa, TIANSHU ZHANG, Jian Xie, Tianci Xue, Shijie Chen, and 7 others. 2025. Mind2web 2: Evaluating agentic search with agent-as-a-judge. In The Thirty-ninth Annual Conference on Neural Information Processing Systems Datasets and Benchmarks Track .Izzeddin Gur, Hiroki Furuta, Austin Huang, Mustafa Safdari, Yutaka Matsuo, Douglas Eck, and Alek-sandra Faust. 2024. A real-world webagent with planning, long context understanding, and program synthesis. In International Conference on Learning Representations , volume 2024, pages 52690–52717. Hongliang He, Wenlin Yao, Kaixin Ma, Wenhao Yu, Yong Dai, Hongming Zhang, Zhenzhong Lan, and Dong Yu. 2024. Webvoyager: Building an end-to-end web agent with large multimodal models. In 
+
+Proceedings of the 62nd Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 6864–6890. Haitao Jia, Ming He, Zimo Yin, Likang Wu, Jianping Fan, and Jitao Sang. 2025. Reinagent: A context-aware gui agent enabling human-in-the-loop mobile task navigation. Preprint , arXiv:2510.07988. Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Lim, Po-Yu Huang, Graham Neu-big, Shuyan Zhou, Russ Salakhutdinov, and Daniel Fried. 2024. Visualwebarena: Evaluating multimodal agents on realistic visual web tasks. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,pages 881–905. Hanyu Lai, Xiao Liu, Iat Long Iong, Shuntian Yao, Yux-uan Chen, Pengbo Shen, Hao Yu, Hanchen Zhang, Xiaohan Zhang, Yuxiao Dong, and Jie Tang. 2024. Autowebglm: A large language model-based web navigating agent. In Proceedings of the 30th ACM SIGKDD Conference on Knowledge Discovery and Data Mining , pages 5295—-5306. Xing Han Lu, Zdenˇ ek Kasner, and Siva Reddy. 2024. WebLINX: Real-world website navigation with multi-turn dialogue. In Proceedings of the 41st Interna-tional Conference on Machine Learning , volume 235 of Proceedings of Machine Learning Research , pages 33007–33056. PMLR. Kai Mei, Xi Zhu, Wujiang Xu, Wenyue Hua, Mingyu Jin, Zelong Li, Shuyuan Xu, Ruosong Ye, Yingqiang Ge, and Yongfeng Zhang. 2025. Aios: Llm agent operating system. In Proceedings of the 2nd Confer-ence on Language Modeling (COLM 2025) .
+
+9Kushan Mitra, Dan Zhang, Hannah Kim, and Estevam Hruschka. 2026. Recap: Rewriting conversations for intent understanding in agentic planning. In Find-ings of the Association for Computational Linguistics: EACL 2026 , pages 2015–2033. Dang Nguyen, Jian Chen, Yu Wang, Gang Wu, Namy-ong Park, Zhengmian Hu, Hanjia Lyu, Junda Wu, Ryan Aponte, Yu Xia, Xintong Li, Jing Shi, Hongjie Chen, Viet Dac Lai, Zhouhang Xie, Sungchul Kim, Ruiyi Zhang, Tong Yu, Mehrab Tanjim, and 11 others. 2025. GUI agents: A survey. In Findings of the As-sociation for Computational Linguistics: ACL 2025 ,pages 22522–22538, Vienna, Austria. Association for Computational Linguistics. Liangbo Ning, Ziran Liang, Zhuohang Jiang, Haohao Qu, Yujuan Ding, Wenqi Fan, Xiao-yong Wei, Shanru Lin, Hui Liu, Philip S. Yu, and Qing Li. 2025. A sur-vey of webagents: Towards next-generation ai agents for web automation with large foundation models. In Proceedings of the 31st ACM SIGKDD Confer-ence on Knowledge Discovery and Data Mining V.2 ,KDD ’25, page 6140–6150, New York, NY, USA. Association for Computing Machinery. OpenAI. 2026. Introducing GPT-6.1 Sol. Tian Qin, Felix Bai, Ting-Yao Hu, Raviteja Vemulapalli, Hema Swetha Koppula, Zhiyang Xu, Bowen Jin, Mert Cemri, Jiarui Lu, Zirui Wang, and Meng Cao. 2026. Compass: Benchmarking constrained opti-mization in llm agents. Preprint , arXiv:2510.07043. Qwen Team. 2026. Qwen3.8-Flash-Next: A new archi-tecture, towards ultimate cost-efficiency. Manik Rana, Calissa Man, Jeffrey Paine, Anotida Ex-pected Msiiwa, Ahan M R, Kevin Zhu, Vasu Sharma, and Sunishchal Dev. 2025. Agentchangebench: A multi-dimensional evaluation framework for goal-shift robustness in conversational AI. In NeurIPS 2025 Workshop on Bridging Language, Agent, and World Models for Reasoning and Planning .Wenkai Wang, Tao Xiong, Jingchen Ni, Yunpeng Bao, Xiyun Li, Tianqi Liu, Hongcan Guo, Zilong Huang, and Shengyu Zhang. 2026. DeskCraft: Benchmark-ing desktop agents on professional workflows and human-in-the-loop collaboration. arXiv preprint arXiv:2606.03103 .Zhiheng Xi, Wenxiang Chen, Xin Guo, Wei He, Yiwen Ding, Boyang Hong, Ming Zhang, Junzhe Wang, Sen-jie Jin, Enyu Zhou, Rui Zheng, Xiaoran Fan, Xiao Wang, Limao Xiong, Yuhao Zhou, Weiran Wang, Changhao Jiang, Yicheng Zou, Xiangyang Liu, and 9 others. 2025. The rise and potential of large lan-guage model based agents: a survey. Science China Information Sciences , 68(2):121101. Tianci Xue, Weijian Qi, Tianneng Shi, Chan Hee Song, Boyu Gou, Dawn Song, Huan Sun, and Yu Su. 2025. An illusion of progress? assessing the current state of web agents. In Second Conference on Language Modeling .Ke Yang, Yao Liu, Sapana Chaudhary, Rasool Fakoor, Pratik A Chaudhari, George Karypis, and Huzefa Rangwala. 2025. Agentoccam: A simple yet strong baseline for llm-based web agents. In International Conference on Learning Representations , volume 2025, pages 97533–97565. Leyang Yang, Ziwei Wang, Xiaoxuan Tang, Sheng Zhou, Dajun Chen, Wei Jiang, and Yong Li. 2026. ProBench: Benchmarking GUI agents with accu-rate process information. Proceedings of the AAAI Conference on Artificial Intelligence , 40(32):27547– 27555. Chaoyun Zhang, Shilin He, Jiaxu Qian, Bowen Li, Liqun Li, Si Qin, Yu Kang, Minghua Ma, Guyue Liu, Qingwei Lin, et al. 2024. Large language model-brained gui agents: A survey. arXiv preprint arXiv:2411.18279 .Yanjie Zhang, Bowen Cao, Zixin Chen, and Yushi Sun. 2026. When users change their minds: Measuring and repairing intent drift in llm agents. Preprint ,arXiv:2609.32520. Boyuan Zheng, Boyu Gou, Jihyung Kil, Huan Sun, and Yu Su. 2024. Gpt-4v(ision) is a generalist web agent, if grounded. In Forty-first International Conference on Machine Learning .Shuyan Zhou, Frank F. Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, Uri Alon, and Gra-ham Neubig. 2024. Webarena: A realistic web en-vironment for building autonomous agents. In The Twelfth International Conference on Learning Repre-sentations .Mingchen Zhuge, Changsheng Zhao, Dylan R. Ashley, Wenyi Wang, Dmitrii Khizbullin, Yunyang Xiong, Zechun Liu, Ernie Chang, Raghuraman Krishnamoor-thi, Yuandong Tian, Yangyang Shi, Vikas Chandra, and Jürgen Schmidhuber. 2025. Agent-as-a-judge: Evaluate agents with agents. In Forty-second Inter-national Conference on Machine Learning .Henry Peng Zou, Chunyu Miao, Wei-Chieh Huang, Yankai Chen, Yue Zhou, Hanrong Zhang, Yaozu Wu, Liancheng Fang, Zhengyao Gu, Zhen Zhang, Kening Zheng, Fangxin Wang, Yi Nian, Shanghao Li, Wen-zhe Fan, Langzhou He, Weizhi Zhang, Xue Liu, and Philip S. Yu. 2026. When users change their mind: Evaluating interruptible agents in long-horizon web navigation. Preprint , arXiv:2604.00892. 
+
+## A Benchmark Construction Details 
+
+This section provides additional details for the static-to-dynamic task transformation described in Section 4. The construction procedure follows five stages: constraint decomposition, initial instruction construction, revision and milestone organization, quality control, and constraint binding. 10 A.1 Constraint Decomposition 
+
+We first decompose each source task into a set of atomic constraints. Each constraint describes a single independently verifiable requirement and is designed to avoid semantic overlap with the others. The resulting constraints serve as the shared units for subsequent revision construction and evalua-tion. Tasks with too few constraints to support mean-ingful multi-round decomposition are excluded at this stage. This prevents the construction procedure from producing artificial revisions by fragmenting a goal that is naturally expressed in a single turn. 
+
+A.2 Initial Instruction Construction 
+
+The atomic constraints are separated according to whether they are necessary for forming a natural ini-tial request. We refer to constraints that are needed to specify a coherent and executable starting goal as required constraints, while constraints that can be naturally introduced later are treated as later 
+
+constraints. The initial instruction I0 contains the required 
+
+constraints. If these constraints alone leave the target underspecified, a small number of later con-straints may also be included to make the request sufficiently clear. The objective is to keep I0 exe-cutable without prematurely exposing requirements that can naturally arise during subsequent interac-tion. Before constructing the initial instruction, we also check whether the target website is accessi-ble. Tasks affected by persistent access failures, ab-normal redirections, or similar issues that prevent meaningful execution are excluded from further construction. 
+
+A.3 Revision and Milestone Organization Revision organization. The remaining con-straints are organized into a sequence of revisions according to a natural interaction order. Closely re-lated constraints may be introduced together when they would normally be expressed in the same user turn, rather than being mechanically separated to increase the number of revisions. Additive revi-sions directly introduce previously unspecified re-quirements while preserving the constraints that are already active. 
+
+Milestone construction. Each revision Ik is paired with a semantic milestone Mk that deter-mines when it is delivered. The milestone is de-rived only from the cumulative goal specified by 
+
+I0, . . . , I k−1, rather than from the upcoming revi-sion Ik. We describe milestones as completed se-mantic stages of the currently specified task rather than particular UI actions or reference-trajectory states. The milestone description also avoids unneces-sarily requiring a specific result configuration. For example, completing a search stage can constitute a milestone even if the search returns no match-ing candidates. This distinction prevents milestone triggering from depending on incidental properties of the current web state rather than on task progress itself. 
+
+Eligible override constraints. For tasks contain-ing override revisions, we distinguish between core 
+
+and preference constraints. Core constraints define the fundamental task object or objective, such as the target product category, search subject, or desti-nation. Preference constraints describe attributes that users may naturally revise during execution, such as color, price range, rating, or ranking prefer-ence. Override revisions are constructed only from 
+
+preference constraints. 
+
+Unconditional overrides. The construction of an unconditional override is separated into replace-ment planning and timeline organization. We first select an eligible preference constraint and choose an alternative value from the same semantic di-mension. Replacement candidates are primarily collected from values observed in the source tasks; when the available candidates are insufficient, addi-tional alternatives in the same semantic dimension are generated and reviewed for consistency with the task context. The selected original preference and its replace-ment are then incorporated into the multi-round timeline. The original preference is introduced be-fore the override, while the later revision explicitly replaces it with the new requirement. Separating replacement selection from timeline generation re-duces interference between deciding what should change and deciding when and how that change should be expressed. 
+
+Conditional overrides. Conditional overrides re-tain the original preference as the default require-ment and activate an alternative only when a speci-fied runtime condition is satisfied. The condition must be observable from the web environment dur-ing execution and should introduce an additional 11 environment-state judgment rather than reducing to a direct restatement of the preference replacement itself. We consider two types of conditions. Numerical-threshold conditions are defined over observable quantities such as price differences, rating dif-ferences, or distance, and activate the alternative branch when the relevant value crosses a specified threshold. Existence conditions depend on whether a particular type of option is available, such as whether an item is in stock or whether a direct flight exists. For conditional-override construction, the se-lected replacement pair is combined with a con-dition appropriate to the task context and constraint dimension, and the resulting branch structure is then incorporated into the multi-round timeline. 
+
+A.4 Quality Control 
+
+Generated tasks are reviewed for both structural validity and interaction naturalness. The initial in-struction must specify a coherent executable goal, while subsequent revisions must introduce mean-ingful changes rather than artificial fragments of the source instruction. Milestones must describe se-mantic stages implied by previously specified goals, remain independent of the upcoming revision, and avoid dependence on a particular sequence of UI operations. For conditional overrides, the runtime condition must be observable from the web environment and the alternative branch must remain meaningful in the underlying task context. We also check the consistency of the revision sequence and the con-straints that it is intended to introduce or modify. When an instance fails these checks, the rele-vant construction stage is regenerated. Tasks that remain invalid after the prescribed retries are ex-cluded from the final benchmark. 
+
+A.5 Constraint Binding 
+
+After a task passes quality control, each atomic con-straint is bound to the instruction that introduces or modifies it. This correspondence records the prove-nance of each evaluation requirement and allows the evaluation pipeline to distinguish constraints associated with different stages of goal evolution. Constraint binding is performed as a separate post-processing stage rather than jointly with revi-sion generation. Generating revisions and bindings simultaneously may encourage artificially regular partitions in which each revision is constructed merely to correspond to a convenient subset of constraints. Separating the two stages allows revi-sion construction to prioritize natural interaction structure while preserving an explicit instruction– constraint correspondence for later evaluation. 
+
+## B Execution Details 
+
+B.1 Interaction Context 
+
+At each step, the agent receives the accumulated user instructions, the complete action history, and web observations from the interaction trajectory. To control context growth, we retain the full web ob-servations for only the five most recent interaction steps. Earlier observations are replaced with a fixed placeholder, while their corresponding actions re-main in the context. Thus, the complete instruction and action histories are preserved throughout execu-tion, while detailed web-state history is maintained within a fixed recent window. 
+
+B.2 Revision Delivery and Termination 
+
+Revisions are delivered when their corresponding semantic milestones are reached. If the agent de-clares completion while revisions remain pending and execution budget remains, the completion is intercepted, the next pending revision is delivered, and execution continues. A run terminates when the agent calls done af-ter all revisions have been delivered, or when the maximum execution step limit is reached. 
+
+B.3 Environment Configuration 
+
+All agents are executed through BrowserGym with Playwright-controlled headless Chromium. Obser-vations use the viewport-restricted AXTree repre-sentation. The same execution configuration, in-cluding the context-management strategy, is ap-plied to all evaluated agents. 
+
+## C Evaluation Details 
+
+This section provides implementation details omit-ted from Section 5, focusing on claim construction, trajectory evidence retrieval, and post-revision be-havioral assessment. 
+
+C.1 Claim Construction and Verification 
+
+For each constraint to be evaluated, the claim gen-erator receives the constraint, the agent’s final re-sponse, and the task context, and produces one or more independently verifiable claims together with their verification types. For constraints containing 12 relative-time expressions, we additionally provide the task execution date to resolve the temporal ref-erence. Claim decomposition is used when a single con-straint requires multiple verification instances. For example, if a constraint requires every returned ho-tel to provide free breakfast, the evaluator generates a separate claim for each returned hotel. This al-lows each hotel to be verified independently while preserving the original constraint as a single task requirement. Claims of type simple are verified directly from the agent’s final response, whereas page claims are passed to the trajectory evidence retrieval proce-dure described below. 
+
+C.2 Trajectory Evidence Retrieval 
+
+For each page claim, we first identify the subject whose property or web evidence must be verified. We then inspect the final recorded web state. If it already provides sufficient evidence, the claim is verified directly from this state. Otherwise, we search the trajectory beginning from the delivery of the instruction to which the constraint is bound. The claim subject is used as an anchor for lightweight lexical matching over subsequent web states, producing a small set of candidate states. Only these candidates are passed to the page verifier. A lexical match is used only for candidate re-trieval and is not itself treated as evidence. Can-didate states are examined in trajectory order, and the first state judged to provide sufficient evidence is used to verify the claim. If no retrieved state pro-vides sufficient evidence, the page claim is treated as unverified. 
+
+C.3 Post-Revision Behavioral Assessment 
+
+For each delivered revision, we examine at most the next three agent actions, stopping earlier if an-other revision is delivered or the task terminates. The resulting action window is evaluated by the behavioral judge to determine whether the agent responds consistently with the revised intent. 
+
+## D Equivalence between Cost-aware Efficiency and CCS AUC 
+
+For the CCS curve defined in Eq. 9, 
+
+1
+
+N B 
+
+Z B
+
+> 0
+
+CCS( b) db = 1
+
+N B 
+
+Z B
+
+> 0
+> N
+
+X
+
+> i=1
+
+qi 1[ci ≤ b] db 
+
+= 1
+
+N B 
+
+> N
+
+X
+
+> i=1
+
+qi
+
+Z B
+
+> 0
+
+1[ci ≤ b] db 
+
+= 1
+
+N B 
+
+> N
+
+X
+
+> i=1
+
+qi(B − ci)= 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+qi
+
+
+
+1 − ci
+
+B
+
+
+
+= CE .
+
+(12) 
+
+The last expression is exactly the cost-aware ef-ficiency score defined in Eq. 10. Therefore, CE is equivalent to the normalized area under the CCS curve. 
+
+## E Dataset Details 
+
+Among the 140 sampled seed tasks, 99 contribute at least one retained dynamic task to the final bench-mark. We assign each retained seed task to one scenario category and report their proportions in Figure 7. 21.2% 18.2% 15.2% 13.1% 10.1% 5.1% 7.1% 4.0%                
+
+> Shopping & Product/Service Comparison 21 (21.2%) Culture, Entertainment & Hobbies 18 (18.2%) Academic & Technical Resources 15 (15.2%) Travel & Transportation 13 (13.1%) Local Services & Activities 10 (10.1%) Public Information & News 5(5.1%) Jobs & Careers 7(7.1%) Housing & Real Estate 3(3.0%) Administrative & Public Services 4(4.0%) Health & Medical 3(3.0%)
+
+Figure 7: Scenario distribution of retained seed tasks. 
+
+## F Static vs. Dynamic Delivery 
+
+Model Better Worse Unchanged DeepSeek 8 9 13 GPT 15 9 6Gemini 9 7 14 Qwen 11 3 16 Claude 5 14 11 All 48 42 60 
+
+Table 7: Pairwise Score changes under dynamic deliv-ery. 
+
+We report the full results for the static–dynamic comparison in Table 9. The experiment uses the same 30 paired additive tasks as in Section 7, with 15 tasks from each source. Static denotes the orig-inal single-turn task, while Dynamic denotes its additive counterpart with requirements delivered progressively. 13 Model ≥0.1 ≥0.2 ≥0.3 ≥0.4 ≥0.5 ≥0.6 ≥0.7 ≥0.8 ≥0.9 ≥1.0 DeepSeek-V4.1-Flash 81.8% 81.8% 79.6% 77.9% 76.2% 72.9% 68.0% 59.1% 45.9% 43.1%                                         
+
+> GPT-6.1-Sol 86.7% 82.9% 74.6% 69.1% 64.6% 54.7% 49.7% 37.6% 28.7% 28.2% Gemini-3.8-Flash 89.0% 87.3% 86.2% 81.8% 80.1% 78.5% 71.8% 56.4% 44.2% 42.5% Qwen3.8-Flash 69.1% 69.1% 68.0% 67.4% 67.4% 64.1% 58.6% 51.4% 40.9% 39.2% Claude-Opus-5-5 81.2% 80.7% 79.6% 79.0% 77.9% 74.0% 65.7% 53.0% 39.8% 36.5%
+
+Table 8: Task-level distribution of constraint satisfaction scores. Each column reports the percentage of tasks reaching the corresponding score threshold.                                                     
+
+> OM2W M2W2 Score Steps Score Steps Model Static Dynamic Static Dynamic Static Dynamic Static Dynamic DeepSeek 0.909 0.884 20.67 29.73 0.616 0.581 45.00 51.47 GPT 0.791 0.870 18.07 17.33 0.307 0.429 26.20 31.07 Gemini 0.953 0.820 16.13 28.67 0.534 0.642 30.47 38.00 Qwen 0.822 0.983 25.13 33.67 0.337 0.452 74.80 62.13 Claude 0.939 0.832 20.13 34.47 0.738 0.570 43.00 53.93
+
+Table 9: Full results for static and dynamic additive delivery on paired tasks. 
+
+## G Score Threshold Results 
+
+Table 8 reports the detailed values underlying Fig-ure 3. 
+
+## H Round-wise Results 
+
+For diagnostic analysis, we additionally group con-straint satisfaction and behavioral responsiveness by instruction round. Let Dk denote the tasks for which qi,k is defined. We compute      
+
+> CSS k=1
+> |D k|
+> X
+> i∈D k
+> qi,k .(13)
+
+For k ≥ 1, CSS k measures satisfaction of con-straints introduced or modified by the k-th revision, while CSS 0 corresponds to the initial instruction. Let Dfired  
+
+> k
+
+denote the tasks in which the k-th revision is delivered. We similarly define      
+
+> WRA k=1
+> |D fired
+> k|
+> X
+> i∈D fired
+> k
+> Ri,k .(14)
+
+Table 12 reports both quantities by round. Since later rounds contain fewer observations, we pool rounds 4 and above into I4+ .
+
+## I Milestone Trigger Validation 
+
+We conduct a small manual inspection of milestone-trigger timing on 30 sampled cases. For each trig-ger, annotators inspect the milestone description, the web state at which the revision is triggered, and the immediately preceding state. They indepen-dently answer two binary questions: (Q1) whether the milestone is satisfied at the trigger state, and (Q2) whether it was already satisfied at the preced-ing state. We derive a three-way timing label from these judgments: a trigger is early if the milestone is not yet satisfied at the trigger state, aligned if it is satisfied at the trigger state but not at the preceding state, and late if it was already satisfied one step earlier.          
+
+> Annotator Early Aligned Late Annotator 1 0.0% 90.0% 10.0% Annotator 2 10.0% 76.7% 13.3%
+
+Table 10: Human judgments of milestone-trigger tim-ing. 
+
+Both annotators judge the large majority of sam-pled triggers as aligned, although they differ on several cases near the semantic transition boundary. Table 11 reports their agreement. They agree on 25 of 30 three-way timing labels (83.3%), with Co-hen’s κ = 0 .438 . Agreement is higher on the two underlying binary judgments, reaching 90.0% for both Q1 and Q2.          
+
+> Judgment Agreement Cohen’s κ
+> Q1: Trigger state 90.0% 0.000 Q2: Previous state 90.0% 0.516 Three-way label 83.3% 0.438
+
+Table 11: Agreement between the two human annota-tors. 
+
+14 Model Metric I0 I1 I2 I3 I4+ 
+
+DeepSeek-V4.1-Flash CSS 70.8% 68.2% 62.9% 59.3% 50.3% WRA – 64.8% 68.9% 61.3% 72.0% 
+
+GPT-6.1-Sol CSS 63.1% 60.6% 50.0% 45.5% 28.5% WRA – 69.1% 63.9% 50.0% 46.7% Gemini-3.8-Flash CSS 74.3% 76.2% 64.2% 57.0% 68.7% 
+
+WRA – 69.9% 70.3% 61.3% 65.6% Qwen3.8-Flash CSS 61.8% 58.0% 55.8% 50.4% 37.6% WRA – 67.8% 70.7% 65.5% 71.4% Claude-Opus-5-5 CSS 70.8% 67.1% 60.9% 63.3% 40.2% WRA – 70.6% 63.2% 59.3% 69.2% 
+
+Table 12: Round-wise constraint satisfaction score (CSS) and window response accuracy (WRA). 
+
+## J Prompt Templates 
+
+J.1 Task Construction J.1.1 Constraint Extraction 
+
+System 
+
+You are an expert at analyzing task instructions. Your job is to extract the constraints that an evaluator can actually check. 
+
+User 
+
+Given the following task instruction, extract all constraints and output a JSON object. A constraint is a condition, requirement, or filter stated in the instruction that can be checked from the final answer and/or a cited page. Output format: “‘json {{ "original_instruction": "...", "constraints": [ {{"id": 1, "description": "..."}}, {{"id": 2, "description": "..."}} ]}} “‘ Rules: - Each constraint must describe exactly one thing — do not merge multiple constraints into one - Write each constraint as a clear, self-contained statement - Preserve logical structure inside a single constraint when the original instruction expresses alternatives or conjunctions. - If the original instruction contains an OR relation (e.g., "A or B"), keep it as ONE composite constraint with the OR relation explicit. - Do not split one OR condition into two separate atomic constraints. - Extract what the instruction asks for, at the same scope it was written. Do not invent extra requirements or promote a vague overall goal into a per-item rule. - Skip wording that is only subjective or scene-setting (e.g. fun, nice, good). If a sentence mixes that with a concrete requirement, keep the concrete part. Here are some examples: **Example 1:** Task instruction: ‘Show me the list of Men’s Blazers, Black, Size M on Uniqlo.‘ “‘json {{ "original_instruction": "Show me the list of Men’s Blazers, Black, Size M on Uniqlo.", "constraints": [ {{"id": 1, "description": "Product type must be Blazers"}}, {{"id": 2, "description": "Must be from the Men’s category"}}, {{"id": 3, "description": "Color must be Black"}}, {{"id": 4, "description": "Size must be M"}} ]}} “‘ **Example 2:** Task instruction: ‘Find Mac external hard drives with capacity greater than 2TB, sorted by price from lowest to high, showing availability.‘ “‘json {{ "original_instruction": "Find Mac external hard drives with capacity greater than 2TB, sorted by price from lowest to high, showing availability.", "constraints": [ {{"id": 1, "description": "Product type must be external hard drives"}}, {{"id": 2, "description": "Must be compatible with Mac"}}, {{"id": 3, "description": "Capacity must be greater than 2TB"}}, {{"id": 4, "description": "Results must be sorted by price from lowest to highest"}}, {{"id": 5, "description": "Availability must be shown"}} ]}} “‘ **Example 3:** Task instruction: ‘I am a DC Comics fan. Could you find three comic books from different 
+
+15 series written by the same author as Injustice: Gods Among Us Year One that feature Batman (excluding Injustice itself)? Please provide the links to the homepage of Injustice and these comic books on DC comic’s official website.‘ “‘json {{ "original_instruction": "I am a DC Comics fan. Could you find three comic books from different series written by the same author as Injustice: Gods Among Us Year One that feature Batman (excluding Injustice itself)? Please provide the links to the homepage of Injustice and these comic books on DC comic’s official website.", "constraints": [ {{"id": 1, "description": "Comics must be found on DC.com"}}, {{"id": 2, "description": "The comics must be written by the same author as Injustice: Gods Among Us Year One"}}, {{"id": 3, "description": "Each of the comics kept after Year One must feature Batman"}}, {{"id": 4, "description": "The final answer must identify exactly three comic books besides Year One"}}, {{"id": 5, "description": "The three comic books must be from different series"}}, {{"id": 6, "description": "Injustice: Gods Among Us Year One itself must be excluded from the three comic books"}}, {{"id": 7, "description": "The final answer must include a DC.com page link for Injustice: Gods Among Us Year One"}}, {{"id": 8, "description": "The final answer must include a DC.com page link for each of the three comic books"}} ]}} “‘ Now extract constraints from the following task instruction: Task instruction: {task} 
+
+J.1.2 Initial Instruction Construction 
+
+System 
+
+You are an expert at analyzing website homepages and determining what information is required to initiate a search or action. 
+
+User 
+
+You are given a list of task constraints and a description of a website’s homepage. Step 1: For each constraint, classify whether it is REQUIRED by the homepage to initiate the first search or action, or whether it can be added LATER after seeing results. A constraint is REQUIRED only if the homepage has a form field or input that MUST be filled with this information before the user can proceed. Preferences, filters, and secondary refinements that do not block initial navigation are LATER. Step 2: Design I0 as the minimum but naturally complete starting request. **Principle:** - I0 should be phrased as a natural user instruction that expresses a complete intent - Start with REQUIRED constraints; if they alone form a natural complete request, use only those - If REQUIRED constraints alone would result in an unnatural or vague request that obscures the user’s core intent, you may supplement by selecting constraints from LATER that clarify the main goal or subject matter - Avoid over-supplementing; only add what is necessary to express the user’s genuine intent - Do NOT make I0 over-complete by including every constraint. If a constraint can naturally be refined after initial results (e.g., source/site preference, ranking preference, secondary filters), prefer leaving it for later turns. - I0 must explicitly include the core topic/subject of the task; avoid generic openings that only describe an action - Avoid underspecified I0 such as "search for products", "look for guides", or other action-only phrasing without the task’s key subject The key criterion is whether I0 would sound like something a real user would naturally say when starting the task, with their core intent clearly expressed. {previous_step4_context} Homepage description: {homepage_description} Constraints: {constraints} Output format: “‘json {{ "classification": [ {{"id": 1, "required": true, "reason": "homepage has a destination field"}}, {{"id": 2, "required": false, "reason": "this is a filter, not a homepage field"}} ], "i0": "..." }} “‘ Here are some examples: **Example 1:** Homepage description: Trip.com train search form (Trains tab). Departure station and arrival station inputs must be filled before Search will run. The form also has a departure date/time control, but it already has a default. High-speed vs other train types is not a required homepage field. Constraints: “‘json {{ "constraints": [ {{"id": 1, "description": "Must be a high speed train ticket"}}, {{"id": 2, "description": "Departure time must be before 23:00"}}, {{"id": 3, "description": "Origin must be Shanghai"}}, {{"id": 4, "description": "Destination must be Beijing"}} 
+
+16 ]}} “‘ “‘json {{ "classification": [ {{"id": 1, "required": false, "reason": "high-speed is not a blocking field on the train search form"}}, {{"id": 2, "required": false, "reason": "departure date/time already has a default; before 23:00 is not required to run Search"}}, {{"id": 3, "required": true, "reason": "departure-station field must be filled before Search can run"}}, {{"id": 4, "required": true, "reason": "arrival-station field must be filled before Search can run"}} ], "i0": "Find a high speed train ticket from Shanghai to Beijing." }} “‘ **Example 2:** Homepage description: DC.com comics catalog. Titles can be browsed without filling the search box. Character, series, quantity, and link details are later refinements. Constraints: “‘json {{ "constraints": [ {{"id": 1, "description": "Comics must be found on DC.com"}}, {{"id": 2, "description": "The comics must be written by the same author as Injustice: Gods Among Us Year One"}}, {{"id": 3, "description": "Each of the comics kept after Year One must feature Batman"}}, {{"id": 4, "description": "The final answer must identify exactly three comic books besides Year One"}}, {{"id": 5, "description": "The three comic books must be from different series"}}, {{"id": 6, "description": "Injustice: Gods Among Us Year One itself must be excluded from the three comic books"}}, {{"id": 7, "description": "The final answer must include a DC.com page link for Injustice: Gods Among Us Year One"}}, {{"id": 8, "description": "The final answer must include a DC.com page link for each of the three comic books"}} ]}} “‘ “‘json {{ "classification": [ {{"id": 1, "required": false, "reason": "already on DC.com; not a blocking homepage field"}}, {{"id": 2, "required": false, "reason": "catalog can be browsed without filling search; author is not a required homepage field"}}, {{"id": 3, "required": false, "reason": "character filter after seeing the author’s comics"}}, {{"id": 4, "required": false, "reason": "quantity can be decided after results"}}, {{"id": 5, "required": false, "reason": "series diversity is a later refinement"}}, {{"id": 6, "required": false, "reason": "exclusion is a later refinement"}}, {{"id": 7, "required": false, "reason": "answer-format link, not needed to start the search"}}, {{"id": 8, "required": false, "reason": "answer-format links, not needed to start the search"}} ], "i0": "On DC.com, find Injustice: Gods Among Us Year One and other comic books by the same author." }} “‘ Now classify and design I0. 
+
+J.1.3 Additive Revision and Milestone Construction 
+
+System 
+
+You are an expert at designing natural multi-turn user interactions for GUI tasks. Your job is to arrange a list of constraints into a natural multi-turn instruction sequence, simulating how a real user would progressively refine their request during task execution. For each subsequent instruction, you also define a milestone that determines when it should be injected. 
+
+User 
+
+Given the original task instruction, its extracted constraints, and the pre-designed I0, complete the multi-turn instruction sequence and define milestones. ## Part 1: Instruction Sequence **I0:** - Already provided — do not modify it **Subsequent instructions:** - Introduce remaining constraints (those NOT in I0) in the order a real user would naturally think of them after seeing intermediate results - A constraint should be introduced later if the user would only think of it after seeing some results or making progress - Do NOT repeat or restate constraints that are already clearly expressed in I0 - Each turn after I0 must introduce one or more remaining Step1 constraints not already covered by earlier turns. Do not add requirements beyond the provided constraints, including extra filters, optimization goals, or output details. - If I0 already covers all constraints, do not invent a follow-up; return only I0. - Avoid weak increments such as tone strengthening, exclusion of obvious negatives, or restating the same constraint with different wording — these do not count as new revisions - Group constraints that a user would naturally say together in the same turn. Do NOT split 
+
+17 constraints of the same type across multiple turns just to inflate the count - Each Step1 constraint should be introduced exactly once by one instruction. I0 covers some constraints; subsequent instructions should cover the rest. - For composite constraints (including OR/AND relations), treat the full logic expression as one unit and introduce it in one instruction without changing its operators. - Do not rewrite logical type across turns (OR must remain OR; AND must remain AND). - Avoid artificial decomposition: if only one natural follow-up remains, keep the sequence concise but still natural. **Style:** - All instructions should be written in natural user voice, as if the user is speaking directly - Use phrasing like "Show me...", "Only show...", "Now set..." rather than task description style ## Part 2: Milestones For each instruction i_k (k >= 1), define a milestone that triggers its injection. A milestone is a **branch-robust semantic task state** reached after correctly completing i0 through i_{{k-1}}. It should describe user-visible task progress, not UI mechanics or system internals. How to produce each milestone: 1. Summarize what prior instructions have semantically established (intent/state, not actions). 2. Phrase that as a user-understandable task state that remains valid across common branches (including empty-result branches). 3. Check two conditions: (a) saying i_k at this state would not feel abrupt for the user, and (b) among stages satisfying (a), this is an earlier one that is reliably reachable by diverse agent trajectories. Quality guidance: - Derive the milestone only from i0..i_{{k-1}}; never leak content from i_k. - Prefer semantic state wording over UI-surface wording. - Avoid implementation-specific language such as "system processed/registered/executed...". - A milestone should hold across all branches that correct prior execution can produce. When a concrete phrasing like "X is displayed" is branch-robust for this task, use it; otherwise phrase more general. - Necessity is a baseline, not a goal — multiple stages on a correct completion path usually satisfy it. Prefer an earlier candidate over one that restates i0’s full terminal condition, since the latter collapses the milestone into an i0-completion check. Examples illustrating the principle: - "The search has been constrained to the previously requested criteria, including cases with zero matches" — rather than "A non-empty result list is displayed". - "The query scope defined by prior constraints is established" — rather than "The system has registered the user’s criteria". - "The sofa browsing context is active with black leather candidates visible among current results" — rather than "A filtered list of black leather sofas with three seats is displayed". - "Eligibility criteria for child benefit are displayed" — on a static info page where the content always renders, the concrete phrasing is itself branch-robust. Output format: “‘json {{ "instructions": [ {{"id": 0, "instruction": "..."}}, {{"id": 1, "instruction": "...", "milestone": "..."}}, {{"id": 2, "instruction": "...", "milestone": "..."}} ]}} “‘ Note: i0 does not have a milestone. Only i_k (k >= 1) has a milestone. Here are some examples: **Example 1:** Original instruction: ‘Find a hairless dog breed with medium barking.‘ I0: ‘Find me a hairless dog breed.‘ Constraints: “‘json {{ "constraints": [ {{"id": 1, "description": "Must be a dog breed"}}, {{"id": 2, "description": "Must be hairless"}}, {{"id": 3, "description": "Barking level must be medium"}} ]}} “‘ “‘json {{ "instructions": [ {{"id": 0, "instruction": "Find me a hairless dog breed."}}, {{"id": 1, "instruction": "Now only show breeds with medium barking.", "milestone": "The search context for hairless dog breeds is established."}} ]}} “‘ **Example 2:** Original instruction: ‘I am a DC Comics fan. Could you find three comic books from different series written by the same author as Injustice: Gods Among Us Year One that feature Batman (excluding Injustice itself)? Please provide the links to the homepage of Injustice and these comic books on DC comic’s official website.‘ I0: ‘On DC.com, find Injustice: Gods Among Us Year One and other comic books by the same author.‘ Constraints: “‘json 
+
+18 {{ "constraints": [ {{"id": 1, "description": "Comics must be found on DC.com"}}, {{"id": 2, "description": "The comics must be written by the same author as Injustice: Gods Among Us Year One"}}, {{"id": 3, "description": "Each of the comics kept after Year One must feature Batman"}}, {{"id": 4, "description": "The final answer must identify exactly three comic books besides Year One"}}, {{"id": 5, "description": "The three comic books must be from different series"}}, {{"id": 6, "description": "Injustice: Gods Among Us Year One itself must be excluded from the three comic books"}}, {{"id": 7, "description": "The final answer must include a DC.com page link for Injustice: Gods Among Us Year One"}}, {{"id": 8, "description": "The final answer must include a DC.com page link for each of the three comic books"}} ]}} “‘ “‘json {{ "instructions": [ {{"id": 0, "instruction": "On DC.com, find Injustice: Gods Among Us Year One and other comic books by the same author."}}, {{"id": 1, "instruction": "Only keep ones that feature Batman.", "milestone": "The DC.com search for Injustice: Gods Among Us Year One and other comic books by the same author is established."}}, {{"id": 2, "instruction": "I want three of them, each from a different series, and not Injustice: Gods Among Us Year One itself.", "milestone": "The search for comics by the Year One author is being carried out under the Batman-feature criterion."}}, {{"id": 3, "instruction": "Give the DC.com page link for Year One and for each of those three comics.", "milestone": "Three comics by that author, from different series and excluding Injustice itself, are being identified under the Batman criterion."}} ]}} “‘ Before you answer, self-check: - Ensure each i_k (k >= 1) milestone is a branch-robust semantic state derived only from prior instructions. - Ensure JSON output follows the schema. {previous_step4_context} {retry_reflection_context} Now design the multi-turn instruction sequence with milestones for the following: Original instruction: {original_instruction} Constraints: {constraints} I0: {i0} 
+
+J.1.4 Override Revision and Milestone Construction 
+
+System 
+
+You are an expert at designing natural multi-turn user interactions for GUI tasks. Arrange extracted constraints into a realistic timeline, with a milestone for each turn after I0. Prefer a row from the candidate list as a reference. If that list is empty, propose a replacement for one existing constraint. You decide which preference to keep and what it changes to. Follow the override_mode section exactly. 
+
+User 
+
+Given the original task, constraints, I0, website, and override candidates, write a multi-turn instruction sequence with milestones. **I0:** already provided — do not modify it. **Later turns:** - Apart from the selected override and its switching condition, use only the provided constraints. Additive turns may introduce remaining constraints, but must not add new requirements. Do not invent extra turns when no constraints remain. - Sound like a user refining the request after seeing progress. - Group information naturally; do not split one idea across turns. - Keep composite AND/OR constraints intact. - If ‘override_candidates‘ is non-empty: pick exactly one row and copy ‘target_constraint_id‘ / ‘replacement_pair_id‘ into ‘selected‘. Do not invent a pair. Write ‘keep‘ and ‘change_to‘ yourself. ‘pair_values‘ are a reference only; do not copy them unless that wording already fits the task. - If ‘override_candidates‘ is empty: pick one constraint as the preference the user could change (not the task subject). Write ‘keep‘ and ‘change_to‘ on the same dimension. ‘change_to‘ must be a different concrete value this website can actually show. Set ‘replacement_pair_id‘ to null. Do not change the subject (movies stay movies). Do not invent a price on a page with no prices. - ‘"enable_override": false‘ if no such preference exists, or if keep and change_to would be the same preference. - Do not rewrite a replacement into "any is fine" / "remove the filter" / "don’t care". {mode_block} **Style:** natural user voice ("Show me. . . ", "Only show. . . ", "Now set. . . "). ## Milestones Each i_k (k >= 1) needs a milestone: a branch-robust semantic state after correctly completing i0..i_{{k-1}}. User-visible progress, not UI clicks. Derive it only from prior turns; never leak i_k. It must remain valid on empty-result branches. Prefer an 
+
+19 earlier reachable state over restating i0’s final goal. Override insertion timing: {override_timing_guidance} {previous_step4_context} Website: {website} Original instruction: {original_instruction} Constraints: {constraints} I0: {i0} Override candidates (each row is one seed constraint plus a reference pair; ‘pair_values‘ are unlabeled; ‘pair_dimension‘ is the pair’s axis, not a switching quantity): {override_candidates} Notes: - i0 has no milestone. - Turns after i0 need ‘type‘. Output JSON only. 
+
+User: {mode_block}, unconditional 
+
+## Override mode: unconditional Use a candidate row if any exist; otherwise use the empty-candidate rules. Write one ‘type="override"‘ turn that switches the current preference (‘keep‘) to ‘change_to‘. No if-clause. Other turns are ‘type="additive"‘. Candidate ‘pair_values‘ are a reference on one dimension, not gold and not a direction label. Write ‘keep‘ and ‘change_to‘ in the task’s own wording. They may differ from the pair texts and from the anchor constraint. When using a candidate, ‘selected‘ has: - ‘target_constraint_id‘ / ‘replacement_pair_id‘ copied from that row - ‘keep‘: the preference that stays in force until the override - ‘change_to‘: the preference after the override (a different concrete value) Good: "Actually, change the color to blue instead. Keep the other criteria the same." Bad: "Color doesn’t matter anymore." / "If it’s expensive, blue is fine." Bad: keep and change_to that are the same preference. Example with candidates (duration 6–12 min →
+
+12–18 min). Copy real candidate ids; do not reuse the example ids. “‘json {"enable_override": true, "selected": { "target_constraint_id": 3, "replacement_pair_id": "from_a_candidate_row", "keep": "The talk must last 6 to 12 minutes.", "change_to": "The talk must last 12 to 18 minutes." }, "instructions": [ {"id": 0, "instruction": "Find me a TED talk on the topic of robots that lasts 6 to 12 minutes."}, {"id": 1, "instruction": "Actually, change the duration to 12 to 18 minutes instead. Keep the topic the same, and pick the most viewed one.", "milestone": "The search context for TED talks on the topic of robots with a duration preference is established.", "type": "override"} ]}“‘ Empty-candidate example (IMDb). Good: "Actually, use 2023 instead of 2024. Keep the matching China/US theatrical dates." Bad: "Find TV shows instead." / "Any year is fine." “‘json {"enable_override": true, "selected": { "target_constraint_id": 2, "replacement_pair_id": null, "keep": "The movies must have premiered in 2024.", "change_to": "The movies must have premiered in 2023.", "pair_dimension": "year" }, "instructions": [ {"id": 0, "instruction": "On IMDb, search for movies premiered in 2024 that have matching theatrical release dates in mainland China and the United States."}, {"id": 1, "instruction": "Actually, use 2023 instead of 2024. Keep the matching China/US theatrical dates.", "milestone": "The IMDb search for 2024 movies with matching China/US theatrical dates is established.", "type": "override"} ]}“‘ 
+
+User: {mode_block}, conditional 
+
+## Override mode: conditional Use a candidate row if any exist; otherwise use the empty-candidate rules. The default stays ‘keep‘. ‘change_to‘ is accepted only when a page-observable condition holds. A conditional override has two axes: - Replacement dimension — the preference that changes between ‘keep‘ and ‘change_to‘ (what the user is willing to revise: color, ticket type, distance, a rating bar, how many items, and so on). - Condition dimension (‘quantity‘) — what is read from the page to decide whether the alternative is allowed. Choose it on its own. It may be the same as the replacement dimension, or different from it. Condition dimension is one of: - price — a listed price or a price gap (include a currency) - rating — stars, rank, or a similar score - time — duration, clock time, or recency on the page 
+
+20 - count — how many results match a preference on the page Choose a quantity this website can actually show. Write the condition only (not the replacement pair) in this form: (QUANTITY) ( > or < ) (NUMBER) Those two axes combine in two natural ways: 1. Advantage / cost — The condition compares the default outcome and the alternative outcome on price, rating, or time (for example, how much more the preferred option costs than the fallback). The replacement dimension is usually a categorical preference; the condition dimension is the tradeoff being weighed. 2. Existence — The condition is that the results required under the default preference are not there: one matching result, or the K results the task asked for. The user then relaxes the preference, or relaxes how many are required. ‘count‘ is the usual quantity here. Prefer a condition a real user would say after seeing results: a tradeoff they would weigh, or a shortfall they would notice. The numbers should come from the task and the page, so the reason for changing one’s mind is easy to follow. Conditions that almost never fire, almost always fire, or only restate that nothing matched, rarely sound like real speech. Do not restate the replacement pair as the condition itself. Fill NUMBER from the task and the page. The revision must keep ‘keep‘ as the default, state the condition with the concrete number, and accept ‘change_to‘ only if the condition holds. ‘type="conditional_override"‘. Also set ‘condition_text‘ on that turn: one predicate sentence using the same number and comparison. Use one task-level condition to choose between ‘keep‘ and ‘change_to‘ for the whole task when multiple entities are involved, explicitly state whether all or any must meet the condition, and apply the chosen preference uniformly rather than switching separately for each entity. Candidate ‘pair_values‘ are a reference, not gold and not a direction label. Write ‘keep‘ and ‘change_to‘ in the task’s own wording. Milestone: the default preference has been applied, including empty or short lists. If you cannot form a real preference change (from a candidate or a proposal), or no QUANTITY is observable on this page, return ‘"enable_override": false‘. Do not write a flat override. ‘selected‘ fields: - ‘target_constraint_id‘ - ‘replacement_pair_id‘ copied from a candidate row, or null if proposing - ‘keep‘ / ‘change_to‘ (required; different preferences) - if proposing: ‘pair_dimension‘ - ‘quantity‘: price | rating | time | count - ‘operator‘: > or < - ‘threshold‘: the NUMBER - ‘unit‘: e.g. USD, or "" Copy real candidate ids in your output; do not reuse the example ids. Examples (keep → change_to, condition): Advantage / cost: - Replacement: non-red-eye ↔ red-eye. Condition: price gap. keep="Selected flight is non-red-eye", change_to="Selected flight is red-eye", quantity=price, operator=">", threshold=500, unit="RMB" Good: "I prefer no red-eye flights. But if the cheapest non-red-eye flight is more than 500 RMB more expensive than the cheapest red-eye flight, red-eye is acceptable." - Replacement: blue ↔ Space Gray. Condition: price gap. keep="Color must be blue", change_to="Color must be Space Gray", quantity=price, operator=">", threshold=50, unit="USD" Good: "I still want blue. But if the cheapest blue is more than $50 above the cheapest Space Gray, Space Gray is fine." Existence: - Replacement: must feature Batman ↔ must feature Superman. Condition: count. keep="Comics must feature Batman", change_to="Comics must feature Superman", quantity=count, operator="<", threshold=2 Good: "I want two comics featuring Batman. If fewer than two are listed, look for two comics featuring Superman instead." - Replacement: need five → accept three. Condition: count. keep="Find five matching items", change_to="Three matching items are enough", quantity=count, operator="<", threshold=5 Good: "I want five. If fewer than five are listed under that filter, three is fine." Unnatural (users do not talk this way): - "If there are fewer than 3 blue options, black is fine" when they only need one item. The task never asked for three; the 3 is invented, so the cutoff does not explain a real shortfall the user cares about. - "If the cheapest blue is above $500, accept Space Gray." Crossing an absolute dollar amount does not say why gray becomes acceptable — blue may still be the better deal than gray, and a real user would compare the two colors (or notice blue is missing), not switch color at a round price tag. Full timeline: “‘json {"enable_override": true, "selected": { "target_constraint_id": 3, "replacement_pair_id": "from_a_candidate_row", "keep": "Selected flight is non-red-eye.", "change_to": "Selected flight is red-eye.", "quantity": "price", "operator": ">", "threshold": 500, 
+
+21 "unit": "RMB" }, "instructions": [ {"id": 0, "instruction": "Search Ctrip for flights from Beijing to Shanghai departing the day after tomorrow."}, {"id": 1, "instruction": "Only keep non-red-eye options.", "milestone": "Search results for Beijing–Shanghai flights departing the day after tomorrow are displayed, including a no-results message if none are available.", "type": "additive"}, {"id": 2, "instruction": "I prefer no red-eye flights. But if the cheapest non-red-eye flight is more than 500 RMB more expensive than the cheapest red-eye flight, red-eye is acceptable.", "milestone": "The page shows the results under the non-red-eye preference, including a no-results message if none are available.", "type": "conditional_override", "condition_text": "The cheapest non-red-eye Beijing–Shanghai flight for the day after tomorrow is more than 500 RMB above the cheapest red-eye on Ctrip."}, {"id": 3, "instruction": "Pick one matching flight and tell me the flight number and price.", "milestone": "The page shows the cheapest available price for each flight type, or indicates that one or both flight types are unavailable.", "type": "additive"} ]}“‘ 
+
+User: {override_timing_guidance}, early 
+
+Use EARLY mode: place the override revision immediately after the related preference is first introduced. 
+
+User: {override_timing_guidance}, late 
+
+Use LATE mode: you may place the override revision at any natural later point in the timeline. Choose the timing freely to keep the interaction natural. 
+
+J.1.5 Milestone Review 
+
+System 
+
+You are a quality reviewer for milestones in dynamically revised Web-agent tasks. Review every milestone in the provided task and determine whether it is a valid trigger for delivering the corresponding user instruction. 
+
+User 
+
+## Task setup This is a Web-agent task in which the user’s goal can be revised during execution. The agent first receives an initial instruction i0. Each later instruction i_k is paired with a milestone M_k that determines when i_k should be sent. During execution, there is a trigger that checks whether the current browser page satisfies the next milestone. When M_k is reached, i_k is delivered to the agent before its next interaction step. Therefore, when M_k is checked, the agent has received only i0 through i_{{k-1}}. Together, these earlier instructions define the cumulative goal currently given to the agent. Instruction i_k and all later instructions are still unknown to the agent. When an earlier instruction replaces a requirement, use the replacement when determining the current goal. The later instructions are included in this review only so that you can detect whether a milestone improperly depends on requirements that have not yet been sent. Do not use them to justify a milestone. ## What is a valid milestone? A milestone is a semantic stage of the task that determines when the next user instruction is delivered. For M_k to be valid, successful execution of the cumulative goal defined by i0 through i_{{k-1}} should naturally have to reach the stage described by M_k. The milestone should follow from the goal already given to the agent, rather than from the upcoming instruction i_k. A milestone should describe task-semantic progress rather than one particular way of interacting with the website. Different successful agents may take different UI paths, visit different intermediate pages, or use different numbers of steps while still reaching the same semantic stage. The milestone should describe that a semantic stage has been reached, rather than require that the stage produced a particular result. Reaching the relevant search stage must count even when no matching results are found. Do not require a successful match or a minimum result count before delivering the next instruction. The milestone must also be recognizable by the trigger. The trigger determines whether M_k has been reached using only the current browser page; it does not see the conversation, the agent’s reasoning, action history, or final answer. ## Review criteria For each instruction after i0, summarize what the cumulative goal before i_k requires in prior_requirements and what must be true for M_k to trigger in milestone_requirements. Then check the following: ### 1. Prior-goal grounding Does every substantive requirement in M_k follow from the cumulative goal already specified by i0 through i_{{k-1}}? Reject M_k if it requires a search, comparison, selection, filtering operation, fallback, or other work that the cumulative goal does not ask for or require to complete. List each such requirement in unsupported_requirements, whether it first appears in i_k, appears in a 
+
+22 later instruction, or never appears in the instructions. Also reject a milestone that adds, narrows, strengthens, or changes an earlier requirement, such as the company, location, rating, quantity, duration, or comparison range. For example, "find a hotel" does not support a milestone requiring a five-star hotel, and "the cheapest Carnival cruise" does not mean the cheapest cruise across all companies. Judge semantic support rather than exact wording. A milestone may describe an intermediate search, comparison, or selection stage without those exact words appearing in the instructions, as long as reaching that stage is required to accomplish the cumulative goal. ### 2. Inevitable semantic stage Does successful execution of the cumulative goal require reaching the semantic stage described by M_k? Reject a milestone that describes only one possible way of completing the task. For example, if the task can be completed from the results page, a milestone should not require opening an individual result, because successful execution does not necessarily require that step. The milestone should capture that the relevant stage of the task has been reached, regardless of the particular outcome produced at that stage. For example, reaching the relevant search-results stage may be valid even if the search returns no matching candidates. ### 3. Path independence Does M_k describe semantic task progress rather than a particular UI path? Reject a milestone that depends on a specific click, page transition, opened result, or sequence of UI operations when another successful execution of the same cumulative goal could avoid that state. ### 4. Page observability Can the trigger determine from the current browser page alone whether M_k has been reached? A page displaying the relevant search results or task information can provide evidence. Statements such as "the user has asked for alternatives" or "the agent is preparing an answer" cannot be verified from the current page alone. Set observable to false when an essential part of the milestone requires evidence that is unavailable from the current page. ### 5. Conditional revisions If i_k is a conditional revision, M_k must not presuppose either outcome of the condition. The same milestone should be able to trigger regardless of which branch of the condition applies. For example, if i_k says to change the search when fewer than two results are found, M_k must not require at least two results. Otherwise the revision would be blocked precisely when fewer than two results are found. Likewise, M_k must not require work introduced only by the conditional revision itself. Such work should already be rejected by the prior-goal grounding check. ## Examples ### Future-dependency failure i0: Find the cheapest cruise departing from Los Angeles that lasts at least 8 days. i1 [conditional_override]: I still want to start with a Los Angeles cruise of at least 8 days. But if the cheapest 8-day Los Angeles sailing is more than $500 above the cheapest Los Angeles sailing of 5 days or less, then a shorter cruise is fine. Compare cheapest against cheapest across all the Los Angeles sailings under each duration — same rule for the whole search, not ship by ship. Milestone checked before sending i1: Search results for Los Angeles cruises lasting at least 8 days are available, and a shorter-sailing fallback is available if the price gap is large enough. Judgment: Fail. i0 requires finding the cheapest Los Angeles cruise lasting at least 8 days. It does not require a shorter-sailing fallback or a price-gap comparison. Those requirements are introduced only by i1, so the milestone depends on work that has not yet been requested. ### Observability failure i0: Search the Cleveland Museum of Art’s collection for Chinese objects dated 2000 BCE or earlier. i1 [additive]: From the museum’s official website, identify exactly five of those objects. i2 [additive]: For each of the five, give me its name, period, and estimated date range. Milestone checked before sending i2: The search context for Chinese objects from the Cleveland Museum of Art dated 2000 BCE or earlier is established, and the user has asked for exactly five objects from the museum’s official website. Judgment: Fail; observable is false. The requirement to identify exactly five objects is supported by i1, so it is part of the cumulative goal before i2. However, the current browser page cannot establish that the user made this request. This is an observability problem, not a future-dependency problem. ## Pass and retry rules A round passes only if all five checks above are satisfied. The overall review passes only if every round passes. If the overall review fails, set worth_retry to true if rewriting the instructions or milestones can resolve the problem while retaining the task. Set retry_from_step to "step2" if i0 must change; otherwise use "step3" to rewrite the later instructions or milestones. 
+
+23 If no such rewrite can resolve the problem, set worth_retry to false and retry_from_step to null, and explain why. Leave both retry fields null when the overall review passes. ## Output format Return one check for every instruction after i0. The observable and passed fields must be JSON booleans (true or false). Use this JSON structure: {{ "milestone_checks": [ {{ "instruction_id": "i1", "prior_requirements": "What the cumulative goal requires before this instruction", "milestone_requirements": "What must be true for this milestone to trigger", "unsupported_requirements": [], "observable": true, "passed": true, "reason": "A brief explanation of the judgment" }} ], "passed": true, "reason": "A brief summary of the review", "worth_retry": null, "retry_from_step": null }} In each reason, identify the milestone requirement and the earlier goal that supports it, or explain what prior support or page evidence is missing. If the milestone fails because it is not an inevitable semantic stage, depends on a particular execution path, or presupposes an outcome of a conditional revision, state that explicitly. Instructions and milestones: {redesign} 
+
+J.1.6 Instruction Review 
+
+System 
+
+You are a quality reviewer for user instruction sequences in dynamically revised Web-agent tasks. Review whether the rewritten instructions preserve the intended task while forming a clear, coherent, and natural user interaction. 
+
+User 
+
+## Task setup This is a Web-agent task in which the user’s goal can be revised during execution. The agent first receives an initial instruction i0, followed by later instructions i1, i2, and so on. The agent receives these instructions in order. Requirements may be introduced gradually, but the resulting sequence should still resemble a natural user interaction rather than an arbitrary decomposition of the original task. The original task defines the requirements that should ultimately be represented by the instruction sequence. A declared override may intentionally replace one of those requirements with a different requirement. Review only the user instructions and their evolution. Milestone timing and milestone validity are checked separately. ## What is a valid instruction sequence? A valid sequence should preserve the intended task while expressing it as a plausible interaction between a user and an agent. The initial instruction should give the agent a coherent and executable starting goal. Later instructions may add requirements, change preferences, relax earlier requirements, or introduce conditional changes. A later requirement does not need to have been implied by the earlier instructions. Users are allowed to add information or change their mind during execution. However, the sequence should not look as though a single natural request was mechanically split into multiple turns only to create more revisions. Each instruction must also be understandable in the context of the instructions already received. Later instructions may refer back to earlier entities or requirements, but those references must have a clear meaning. ## Review criteria ### 1. Clarity and executability Can the agent tell what to do after each instruction using the requests received so far? The initial instruction should specify a coherent task that the agent can meaningfully begin executing. Later instructions should be understandable in the context established by the earlier ones. References such as "those options", "that hotel", or "the cheaper one" must have an identifiable meaning. For comparisons such as "cheaper", "nearer", or "higher-rated", the instructions must make clear what is being compared and what reference price, location, rating, or other quantity is relevant. Flag requirements that cannot be satisfied together unless a later instruction explicitly replaces the earlier one. ### 2. Faithfulness to the original task Compare the complete instruction sequence with the original task. Every original requirement should be introduced somewhere in the sequence unless it is replaced by the declared override. Preserve important qualifiers, scopes, comparison rules, and boundary conditions rather than weakening them through paraphrasing. Any new requirement absent from the original task must come from the declared override or be needed to express its condition. A requirement should not be added merely because it is plausible or useful. For example, rewriting "find a hotel" as "find a five-star hotel" adds a rating requirement unless that change is explicitly declared. 
+
+24 ### 3. Natural interaction structure Does the sequence resemble a plausible way for a user’s goal to evolve during interaction? The initial instruction should not feel artificially incomplete merely because requirements have been withheld for later rounds. At the same time, it does not need to include every eventual preference. Each later instruction should introduce a meaningful addition, change, relaxation, or conditional preference. Reject a revision that is only a trivial fragment of something a user would naturally state together with the preceding instruction. Closely related requirements that would normally be expressed in the same user turn should not be mechanically separated only to increase the number of revisions. Do not reject a revision merely because the user could have stated it earlier. Users may naturally add requirements or reconsider preferences during execution. The issue is whether the resulting interaction itself feels artificial or incoherent. Also consider the sequence as a whole. Later instructions should continue the same underlying task unless they explicitly revise part of it, and the ordering of revisions should make sense as a progression of user intent. ### 4. Override validity If there is an override, identify the earlier requirement it replaces and the replacement requirement. Restating the same requirement is not an override. Check that the requirement being replaced and its replacement match the declared override. The replacement should revise a requirement that can meaningfully change while preserving the underlying task. It should not ambiguously redefine the task or leave it unclear which requirement is currently active. For a conditional override, check that the default requirement appears before the conditional instruction, that the instruction clearly states when to retain it and when to use the replacement, and that the two branches agree with the declared override. Identify the count, price, rating, time, distance, or other quantity being compared, its threshold, and whether the boundary is inclusive when that distinction matters. For example, "fewer than two" differs from "at most two". The condition must be decidable from information the agent can obtain while carrying out the task. It must select one branch for the whole task rather than a different branch independently for each item. ## Examples ### Ambiguous replacement requirement Original task: Find the top-rated hotel in Manhattan, NY, suitable for 4 guests, and identify the fastest public transportation option from the hotel to LGA airport. Instructions: i0: Find a hotel in Manhattan, NY that is suitable for 4 guests. i1 [additive]: Now narrow the results to the top-rated hotel among those options. i2 [override]: Actually, change the hotel rating requirement from top-rated to 5-star reviews. Keep Manhattan and 4 guests. i3 [additive]: For that hotel, find the fastest public transportation option from the hotel to LGA airport. Judgment: Fail. In i2, "5-star reviews" does not specify whether the hotel must have an average review score of 5.0 or at least one five-star review. These select different hotels. A hotel’s star classification is also different from its review score. Even when replacing the rating requirement is allowed, the replacement must specify which measure it uses. ### Omitted original qualifier Original task: Identify five ancient Chinese objects from the Cleveland Museum of Art’s collection that dated entirely to 2000 BCE or earlier, as listed on the museum’s official website. For each object, provide its name, period, estimated date range, overall dimensions, and current location within the museum. If an object is not currently on display, please indicate that as well. Instructions: i0: Search the Cleveland Museum of Art’s collection for Chinese objects dated 2000 BCE or earlier. i1 [additive]: From the museum’s official website, identify exactly five of those objects. i2 [additive]: For each of the five, give me its name, period, and estimated date range. i3 [additive]: Also include each object’s overall dimensions and its current location within the museum. i4 [additive]: If any object is not currently on display, please note that it is not on display. i5 [override]: Actually, change the number to exactly three objects instead of five. Keep the official website, Chinese, 2000 BCE or earlier criteria and all the same details. Judgment: Fail. The original task requires each object’s entire date range to be 2000 BCE or earlier. The rewritten sequence says "dated 2000 BCE or earlier" and never states that the entire range must satisfy the cutoff. For an object dated 2100-1900 BCE, the range crosses that cutoff. The instructions must preserve the original requirement that the entire range qualify; changing the number of objects in i5 does not replace the date requirement. ## Pass and retry rules Set passed to true only if all applicable checks above pass. If there is a problem, identify the relevant instruction and wording in reason, and explain 
+
+25 whether the problem is ambiguity, contradiction, missing or added requirements, an invalid override, or an unnatural interaction structure. If the review fails, set worth_retry to true if rewriting the instructions can resolve the problem while retaining the task. Set retry_from_step to "step2" if i0 must change; otherwise use "step3" to rewrite the later instructions. If no such rewrite can resolve the problem, set worth_retry to false and retry_from_step to null, and explain why. Leave both retry fields null when the review passes. ## Output format Return your judgment using this JSON structure: {{ "passed": true, "reason": "A brief explanation, identifying the relevant instructions if there is a problem", "worth_retry": null, "retry_from_step": null }} The passed field must be a JSON boolean (true or false). Original task: {original_instruction} Declared override (if any): {override_context} Instructions: {instructions} 
+
+J.1.7 Constraint Synchronization 
+
+User: unconditional 
+
+This is the whole task: {instructions} The user’s requirements change during the task. A revision in a later turn may override an earlier requirement, or select according to a condition, and that decides some requirements of the final goal. There are several constraints describing the requirements of the final goal. Each constraint is independent of the others, and together they describe the final goal. {constraints} Because the user’s requirements changed, one constraint has already been updated correctly: - id: {target_id} - before: {keep} - now: {now} Other constraints may still contain related wording that was not updated. Find those descriptions and change them so they agree with this updated constraint. Return JSON: {{"edits": [{{"id": <int>, "description": "<updated sentence>"}}]}} Example: This is the whole task: i0: Find a certified refurbished iPad Air in blue with 256GB storage. i1: Pick the cheapest one. i2: Change the storage to 512GB. Keep the blue color and the cheapest pick. Constraints: 1. Color must be blue. 2. Storage capacity must be 512GB. 3. The selected product must be the cheapest among certified refurbished iPad Air models with 256GB storage in blue. One constraint has already been updated correctly: - id: 2 - before: Storage capacity must be 256GB. - now: Storage capacity must be 512GB. {{"edits": [{{"id": 3, "description": "The selected product must be the cheapest among certified refurbished iPad Air models with 512GB storage in blue."}}]}} Now do this for the task above. 
+
+User: conditional 
+
+This is the whole task: {instructions} The user’s requirements change during the task. A revision in a later turn may override an earlier requirement, or select according to a condition, and that decides some requirements of the final goal. There are several constraints describing the requirements of the final goal. Each constraint is independent of the others, and together they describe the final goal. {constraints} Because the user’s requirements changed, one constraint is decided by a condition. It has two outcomes: - id: {target_id} - default: {keep} - alternative: {change_to} - condition: {condition} Other constraints may still restate the default outcome only. For each of those, write two sentences: one for the default outcome, one for the alternative. Do not merge them into one sentence with if. Return JSON: {{"splits": [{{"id": <int>, "default": "<sentence>", "alternative": "<sentence>"}}]}} Example: This is the whole task: i0: Find a certified refurbished iPad Air in blue with 256GB storage. i1: I still prefer blue. But if fewer than 1 blue option is listed, Space Gray is acceptable. i2: Pick the cheapest one under that color rule. Constraints: 1. Color must be blue. 2. Storage capacity must be 256GB. 3. The selected product must be the cheapest among certified refurbished iPad Air models with 256GB storage in blue. 
+
+26 One constraint is decided by a condition: - id: 1 - default: Color must be blue. - alternative: Color may be Space Gray. - condition: fewer than 1 blue certified refurbished iPad Air with 256GB is listed. {{"splits": [{{"id": 3, "default": "The selected product must be the cheapest among certified refurbished iPad Air models with 256GB storage in blue.", "alternative": "The selected product must be the cheapest among certified refurbished iPad Air models with 256GB storage in Space Gray."}}]}} Now do this for the task above. 
+
+J.1.8 Constraint Binding 
+
+System 
+
+You are an expert at analyzing multi-turn task designs and mapping constraints to instructions. Your job is to determine which instruction introduces or covers each constraint, and to audit the coverage quality. 
+
+User 
+
+You are given: 1. A list of constraints extracted from a task 2. The I0 (initial instruction) 3. The full multi-turn instruction sequence (including I0) Your job is to bind each constraint to the instruction that introduces or covers it, and audit the quality of constraint coverage. {override_context_block} **Rules:** - Each constraint must be mapped to exactly one instruction (the one that most directly introduces or addresses it) - Use instruction IDs: "i0" for the initial instruction, "i1", "i2", etc. for subsequent ones - Rate your confidence for each mapping: "high", "medium", or "low" - Provide a brief reason for each mapping **Audit checks:** - Flag any constraint not clearly covered by any instruction - Flag any constraint that seems poorly matched to its assigned instruction - Flag if the overall coverage is incomplete (constraints missing from the instruction sequence) - Also check that every requirement in the instruction sequence is covered by a scoring constraint. Flag any extra requirement without coverage. - If override context is provided, allow the target constraint to be satisfied via an explicit target->replacement override instruction. Constraints: {constraints} I0: {i0} Full instruction sequence: {instructions} Output format: “‘json {{ "mapping": [ {{"constraint_id": 1, "instruction_id": "i0", "confidence": "high", "reason": "I0 explicitly mentions ..."}}, {{"constraint_id": 2, "instruction_id": "i1", "confidence": "medium", "reason": "i1 addresses this through ..."}} ], "issues": [], "passed": true, "retry_from_step": null }} “‘ Set "passed" to false if there are serious coverage gaps (constraints with no matching instruction, or multiple low-confidence mappings). Minor issues (e.g., one medium-confidence mapping) should still pass. **When "passed" is false, set "retry_from_step":** - "step2": The issue originates from I0 design — I0 is too vague or too narrow, causing downstream instructions to miss constraints or overlap awkwardly. Redo from I0 design. - "step3": The issue is in how constraints were arranged across instructions — poor distribution, missing coverage, or redundant overlap. I0 itself is fine; redo the multi-turn arrangement. Now analyze the constraint binding. 
+
+User: {override_context_block}, conditional 
+
+Override context: {ctx_json} This is a conditional override (override_mode=conditional). Constraints may carry branch=default or branch=alternative. - Bind the target default constraint and every branch=alternative constraint to the conditional_override revision. - Bind other branch=default constraints to the instruction that introduces that requirement (e.g. cheapest stays on the turn that asks for cheapest). 
+
+User: {override_context_block}, unconditional 
+
+Override context: {ctx_json} Binding rule: for any override item above, it is valid to bind the target constraint to the override instruction that explicitly replaces target with replacement. 
+
+J.1.9 Construction Retry and Reflection 
+
+User: {retry_reflection_context} 
+
+## Retry reflection (REQUIRED before producing new design) You have attempted this task {n_attempts} time(s) before. The full history of prior attempts and reviewer critiques is below. Before producing a new design, you MUST first reflect on the history and output a diagnosis. {history_block} 
+
+27 Reflection questions (answer each honestly in the ‘reflection‘ field of your JSON output): 1. **Common pattern**: What is the common thread across the reviewer’s critiques? Are they pointing to the same i_k, the same milestone type (necessity / branch-neutrality / content-leakage / UI-assumption), or different failures each time? 2. **Dimensions already tried**: Across prior attempts, what dimensions of the design have actually changed (e.g., milestone wording only, number of turns, constraint grouping, which turn a constraint lives in, I0 scope)? Be specific — look at the diffs, not intentions. 3. **Stuck-in-a-loop check**: If prior attempts varied only milestone wording but the critique kept pointing at the same semantic issue, you are in a text-swap loop. Say so explicitly if this is the case. 4. **Next move**: Based on 1-3, what dimension should this attempt change, and why? This is YOUR call — do not default to either "small edit" or "big restructure". Let the pattern you identified drive the choice. It is equally valid to conclude "prior attempts varied structure unnecessarily; the fix is precise milestone rewording" OR "prior attempts shuffled words; the fix is a different constraint grouping". Output this reflection as a structured field in your JSON (see schema below). Then produce the new design per the rules above, with the chosen dimension actually changed. Output format for retry: “‘json {{ "reflection": {{ "common_pattern": "...", "dimensions_already_tried": ["..."], "in_text_swap_loop": true or false, "next_move": "...", "rationale": "..." }}, "instructions": [ {{"id": 0, "instruction": "..."}}, {{"id": 1, "instruction": "...", "milestone": "..."}} ]}} “‘ 
+
+User: I0 review feedback 
+
+**Previous attempt feedback:** {previous_step4_reason} Please address the issues identified above in your redesign of I0. 
+
+User: JSON-format retry suffix 
+
+IMPORTANT: Return ONLY a valid JSON object matching the schema. Do not include explanations, headings, or markdown. 
+
+User: Additive review feedback 
+
+**Previous attempt feedback:** {previous_step4_reason} Please address the issues identified above in your redesign of the multi-turn sequence. 
+
+User: I0-only retry suffix 
+
+Your previous output is invalid because it only contains i0. Regenerate and include at least i1 with a valid milestone. Return JSON only. 
+
+User: Override review feedback 
+
+Previous review feedback: {previous_step4_reason} Regenerate while fixing the above issues. 
+
+J.2 Agent Execution and Revision Delivery J.2.1 Policy Agent 
+
+System 
+
+You are an autonomous browser-control agent. PAGE CONTENT shows the accessibility tree. Each interactive element is shown as: [bid] role ’text’ where bid is a numeric ID (e.g. 173), role is the element type, and ’text’ is the visible label. Output contract (strict): - The only executable output is one markdown fence labeled action. - The fence body must contain exactly one function call and nothing else. - Text outside the fence is ignored. Never put an executable call outside the fence. - Never use XML, DSML, JSON, unlabeled fences, or a bare last-line call. - click, fill, and press require the NUMERIC bid from the [bid] tag, NOT the element text. Example: for [173] link ’Skip to main content’, use click("173"), NOT click("Skip to main content"). - Never ask user for extra input. Required layout (copy this shape exactly): “‘action click("173") “‘ Valid actions and their signatures: click("bid") – click element by its numeric bid fill("bid", "value") – type text into an input press("bid", "key_comb") – press key(s) on a focused element scroll(delta_x, delta_y) – scroll in pixels (positive = right/down) goto("url") – navigate to a URL send_msg_to_user("text") – send message to the user report_infeasible("reason") Wrong (these are discarded): a bare ‘click("173")‘ on the last line; DSML/XML tool markup; JSON; extra calls inside the fence; an unlabeled “‘ fence. Rules: 1) Stay on the target website whenever possible. 2) Follow ALL current instructions (initial + injected revisions). 3) For conditional instructions, read page evidence before deciding. 
+
+28 4) When you finish the task, put send_msg_to_user("done: ...") inside the action fence. Clearly state in the message what you accomplished, with concrete evidence — product names, links, prices, or other specific facts that demonstrate completion. If a turn contained a conditional clause (e.g. "if X, then Y, otherwise keep Z") — typically marked with [CONDITIONAL] in the instruction list — include a [CONDITIONAL OBSERVATION] section in your done_message that: - states what you observed for the condition on the page (with concrete values: prices, counts, ratings, distances, etc.), - reports whether the condition holds based on that observation, - identifies which branch (default or alternative) you took as a result. 5) Explore thoroughly before giving up. If the current page does not show what you need, try navigating, searching, scrolling, or visiting related URLs. Exhaust all reasonable paths first. Note: PAGE CONTENT shows only elements currently visible in the browser viewport (1280x720). Content above or below the visible area is not shown. Use scroll(0, 300) to scroll down or scroll(0, -300) to scroll up to reveal more content. 
+
+J.2.2 Per-step Input Template 
+
+User 
+
+CURRENT INSTRUCTIONS (ALL active): {snapshot.text} CURRENT URL: {url} DECISION CHECKPOINT: If all active instructions are satisfied now, put send_msg_to_user(’done: ...’) inside an “‘action fence. LAST ERROR: {last_error} PAGE CONTENT: {axtree_short} 
+
+J.2.3 Milestone Triggering 
+
+System 
+
+You are a milestone trigger judge for a dynamic GUI benchmark. Your job: decide whether the current page indicates that a specific semantic stage has been reached. RULES: - This is a factual judgment about the current page state. - Look for concrete evidence: listings, filtered results, specific content, navigation state, etc. - The semantic stage describes a CHECKPOINT in the user’s task progress, not the exact UI method. For example, ’search results for sofas are displayed’ is satisfied by ANY page showing a list of sofas — whether reached via search, category navigation, or direct URL. Focus on whether the current page state matches the described stage, not on how the agent got there. - The page must clearly show that the described stage has been achieved. - When genuinely uncertain, return should_fire=false. But do not be overly conservative — if the page clearly reaches the stage described by the milestone, fire even if minor details differ from the literal wording. - Existential vs exclusive: when the milestone describes a result state like ’a list of X is displayed’ or ’results showing X’, treat it as satisfied if the page contains X candidates the user could act on, EVEN IF the list also contains non-X items. Do not require the list to be exclusively X unless the milestone explicitly says ’only X’ / ’exclusively X’ / ’purely X’. - Observable count vs explicit constraint marker: when the milestone describes a quantitative state like ’exactly N stops’ or ’N items meeting criteria’, you do NOT need the page to literally display ’limited to N’ or ’filter applied → N’. The state is satisfied if N matching items are observably present in the page content. The user does not need the page to advertise its own constraint application. - Junction vs terminal cleanliness: the milestone marks an intermediate junction on the task path, not the terminal completion of prior instructions. Fire as soon as the junction’s observable evidence appears; do not wait for the prior task to be ’fully consummated’ or for the page to settle into a single canonical end-state. - confidence below 0.8 → should_fire must be false. 
+
+User 
+
+Semantic stage to detect: {milestone.semantic_concept} Current page content: {axtree_short} Has the current page reached the described semantic stage? List the specific evidence you found (or did not find), then decide. Return JSON only: {"should_fire": bool, "confidence": 0.0-1.0, "reason": "..."} 
+
+J.2.4 Instruction Rewriting 
+
+System 
+
+You rewrite dynamic GUI task instructions faithfully. 
+
+User 
+
+Rewrite the current multi-turn GUI task into ONE complete, user-facing task instruction. Rules: - Preserve every active requirement. - Do not add new requirements. - For [CHANGED] updates, replace or relax only 
+
+29 the conflicting earlier requirement; keep unrelated requirements. - For [CONDITIONAL] updates, keep the condition in the rewritten instruction. Do not decide the branch during rewriting. - Do not mention revisions, turns, messages, or this rewrite step. - Output only the rewritten instruction, no bullets, no explanation. Current active instructions: {structured} 
+
+J.3 Evaluation J.3.1 Claim Generation 
+
+System 
+
+You decompose a single atomic task constraint into a list of binary sub-claims. The constraint is satisfied IFF all sub-claims are satisfied (logical AND). Each sub-claim must be independently checkable. INPUTS you will receive: - The complete instruction timeline: I0 and revisions in order - A constraint description (one atomic requirement) - The agent’s full final answer (done_message) Interpret the current constraint in the context of the instruction timeline. Preserve its scope and applicable revisions; generate sub-claims only for the current constraint, without adding requirements. Later overrides replace earlier requirements on the same dimension; do not reintroduce superseded requirements or combine mutually exclusive conditional alternatives. Use the timeline as context, not as a checklist to add unrelated constraints. Each sub-claim has a ‘type‘: - type=’simple’: resolvable by reading done_message text and applying logic. No page evidence needed. Examples of simple predicates: ’done_message identifies exactly 3 distinct items’ ’the 3 series labels in done_message are pairwise distinct’ ’Injustice: Gods Among Us Year One does not appear in the items ’ ’listed in done_message’ ’done_message provides exactly 3 separate URLs, one per item’ - type=’page’: requires actual page content from the agent’s trajectory. Provide subject + optional assertion. The claim is that the subject has the stated property; evidence need not come from the subject’s detail page. Examples of page predicates: subject=’DCeased’, assertion=’heavily features Batman/Bat-family’ 
+
+→ evidence that DCeased has this property. subject=’Batman: The Dark Knight’, assertion=’by Tom Taylor’ 
+
+→ evidence that it is by Tom Taylor. subject=’Injustice’, assertion=’page is the homepage of Injustice on DC.com’ subject=’sephora.com’, assertion=null 
+
+→ trajectory must show a page on sephora.com (no further check). DECOMPOSITION RULES: 1. EXHAUSTIVE: cover every verifiable dimension of the constraint. Missing a dimension means false positives slip through. 2. DISJOINT: don’t repeat the same check. 3. PREFER SIMPLE: when the same check can be done from done_message text alone OR via a page, prefer simple. Use page only when text is genuinely insufficient (per-item factual properties, byline, synopsis content, URL semantics, trajectory presence). 4. PER-ITEM × LIST decomposition: for constraints of the form ’each X must Y’ or ’find N X with property Y’: - Emit one PAGE sub-claim per item the agent listed (subject + assertion describing Y). - Emit any SIMPLE sub-claims about the list as a whole (count, pairwise distinctness, exclusion). 5. ANSWER-SECTION SCOPING: done_message is often a structured document. The agent may write multiple sections — one for each constraint or sub-question of the task. When a constraint says ’each X’, ’N X’, ’exclude Y’, or otherwise refers to a list of items, IDENTIFY THE SPECIFIC SECTION the agent designated as the answer for THIS constraint, and scope your decomposition to that section only. Do NOT include items from other sections (reference items, items mentioned for context, items answering a different constraint) as if they were part of the answer. Section signals to look for in done_message: - Bold headers like ’**Three Batman comic books ...:**’ marking what the agent considers the answer to a particular constraint. - Numbered lists ’1. ... 2. ... 3. ...’ — typically the answer items. - Explicit exclusion phrases like ’(excluding X)’ inside a header — these CONFIRM the agent has already excluded X from this section’s items. - Standalone reference URLs / context paragraphs separated from the numbered list — usually NOT part of the answer count. Example (from a real task — see worked examples below): done_message has: ’**Injustice: Gods Among Us Year One** (the prequel ...): https://www.dc.com/...year-one... **Three Batman comic books by Tom Taylor (different series, excluding Injustice):** 1. Detective Comics #1090 ... 2. Batman – One Bad Day ... 3. Batman: The Dark Knight ...’ For the constraint ’Find exactly three comic books’, the answer items are the THREE numbered comics — NOT four. Injustice appears in a separate section answering a different constraint (’provide the link to Year One on 
+
+30 DC.com’); it is reference, not part of the count. For the constraint ’Each comic must feature Batman’, the ’each’ refers to the THREE in the numbered list — NOT to Injustice. Decompose 3 page sub-claims (one per numbered comic), NOT 4. For the constraint ’Exclude Injustice itself’, the 3 numbered comics are the candidate set; agent’s header explicitly says ’excluding Injustice’; emit one simple sub-claim ’none of the 3 numbered Batman comics is Injustice: Gods Among Us Year One’ — do NOT treat Injustice’s own reference link as ’inclusion’. 6. AGENT SAID NOTHING: if the agent did not address this constraint at all in done_message, decomposition still proceeds — emit the sub-claims the constraint would require regardless. simple sub-claims checking ’done_message says X’ will fail naturally; page sub-claims for process-style requirements may still resolve from trajectory. FIELDS for type=’page’: subject: A VERBATIM SUBSTRING of done_message that identifies the item. The subject must appear EXACTLY AS IT APPEARS in done_message — do NOT reformat, do NOT strip punctuation (#, –, :, etc.), do NOT lowercase, do NOT hyphenate, do NOT pull a path segment out of a URL if a readable name is also available. Self-check before writing subject: can you find the subject as a contiguous substring of done_message? If no, you reformulated — pick a real verbatim substring instead. Preference among multiple valid verbatim substrings: 1. When agent provides BOTH a human-readable name AND a URL for an item, USE THE NAME. Names appear as display text in AXTrees; URL slugs do not. 2. Pick the LONGEST distinctive verbatim substring specific to the item. Avoid generic series names that match many pages. 3. URL substrings are only acceptable when no readable name is available (e.g. agent supplied only a link). Even then, prefer a short distinctive verbatim token over the full URL. Examples: done_message: ’1. **Detective Comics #1090** (ongoing series) -https://www.dc.com/comics/detective-comics-2016/detective-comics-1090’ 
+
+✓ subject=’Detective Comics #1090’ (verbatim, with #, name preferred) 
+
+× subject=’Detective Comics 1090’ (NOT verbatim — # was dropped) 
+
+× subject=’Detective Comics’ (verbatim BUT generic; matches many DC pages) 
+
+× subject=’detective-comics-1090’ (URL slug — verbatim but doesn’t grep-hit display text; name is available, prefer it) done_message: ’Batman: The Dark Knight (2021 miniseries)’ 
+
+✓ subject=’Batman: The Dark Knight’ (verbatim substring) 
+
+× subject=’Batman: The Dark Knight (2021 miniseries)’ (verbatim BUT includes parenthetical that varies across pages) 
+
+× subject=’Batman: The Dark Knight 2021 miniseries’ (NOT verbatim — parenthesis changed) done_message: ’https://www.dc.com/search?q=Injustice%3A+Year+One’ (no readable name attached) 
+
+✓ subject=’Injustice%3A+Year+One’ or ’Injustice’ (verbatim URL substrings; agent gave no name) 
+
+× subject=’Injustice: Year One’ (NOT verbatim — URL-decoded) assertion: the property the subject must have. THREE cases: (a) Agent wrote a specific say-so verbatim: COPY EXACTLY. done_message: ’DCeased (heavily features Batman/Bat-family)’ 
+
+→ assertion=’heavily features Batman/Bat-family’ (b) Constraint requires a per-item attribute that agent claimed only globally (or did not claim per item, but the attribute is verifiable as a property of each item): use a SHORT canonical phrase for that property. Constraint: ’Each comic by Tom Taylor’, agent: ’Author: Tom Taylor (one global statement)’ 
+
+→ For each item: assertion=’by Tom Taylor’ (canonical, not verbatim agent text — but only used because the per-item byline is the property that must be demonstrated). (c) Subject just needs to exist / be visited (count, type, trajectory-presence constraints): assertion=null. Constraint: ’Find 3 comic books’ → for each subject, assertion=null (the page just needs to show it’s a real comic). Constraint: ’on sephora.com’ →
+
+subject=’sephora.com’, assertion=null. DO NOT FABRICATE: do not synthesize per-item assertions from the constraint wording when the constraint is about the LIST AS A WHOLE (not per-item). Constraint: ’Find exactly three comic books’ WRONG: per-item assertion=’one of three comic books’ — fabricated; the COUNT is a list-level property, handled by a simple sub-claim. RIGHT: emit one simple sub-claim ’done_message lists exactly 3 items’ + one page sub-claim per item with assertion=null. Worked examples: Constraint: ’Find exactly three comic books’ done_message lists Batman: The Dark Knight, Batman: The Detective, DCeased Sub-claims: {type: simple, description: ’done_message identifies exactly 3 distinct comic books’} {type: page, subject: ’Batman: The Dark Knight’, assertion: null, description: ’Batman: The Dark Knight is shown to be a real comic ’ ’book on the trajectory’} {type: page, subject: ’Batman: The Detective’, assertion: null, description: ’Batman: The Detective is shown to be a real comic ’ ’book on the trajectory’} 
+
+31 {type: page, subject: ’DCeased’, assertion: null, description: ’DCeased is shown to be a real comic book on the trajectory’} Constraint: ’Each comic must feature Batman’ done_message: ’... 1. Batman: The Dark Knight (2021) 2. Batman: The Detective (2022) 3. DCeased (heavily features Batman/Bat-family)’ Sub-claims: {type: page, subject: ’Batman: The Dark Knight’, assertion: null, description: ’Batman: The Dark Knight features Batman (title self-evident)’} {type: page, subject: ’Batman: The Detective’, assertion: null, description: ’Batman: The Detective features Batman (title self-evident)’} {type: page, subject: ’DCeased’, assertion: ’heavily features Batman/Bat-family’, description: ’DCeased page corroborates the agent statement’} Constraint: ’Each comic from a different series’ done_message: ’1. Batman: The Dark Knight (2021 miniseries), 2. Batman: The Detective (2022 miniseries), 3. DCeased (2019-2021 series)’ Sub-claims: {type: simple, description: ’the 3 series labels in done_message ’ ’(2021 miniseries / 2022 miniseries / 2019-2021 series) are ’ ’pairwise distinct’} {type: page, subject: ’Batman: The Dark Knight’, assertion: ’2021 miniseries’, description: ’Dark Knight page corroborates 2021 miniseries series label’} {type: page, subject: ’Batman: The Detective’, assertion: ’2022 miniseries’, description: ’Detective page corroborates 2022 miniseries label’} {type: page, subject: ’DCeased’, assertion: ’2019-2021 series’, description: ’DCeased page corroborates 2019-2021 series label’} Constraint: ’Exclude Injustice: Gods Among Us Year One itself’ Sub-claims: {type: simple, description: ’Injustice: Gods Among Us Year One does not appear among the items listed in done_message’} Constraint: ’Provide a link to the homepage of Year One on DC.com’ done_message: ’Links: https://www.dc.com/search?q=Injustice%3A+Year+One’ Sub-claims: {type: page, subject: ’search?q=Injustice’, assertion: ’page is the homepage of Injustice: Gods Among Us Year One on DC.com’, description: ’the URL agent provided resolves to the comic homepage on DC.com’} Constraint: ’Provide a link to the homepage of each comic on DC.com’ done_message: ’Links: https://www.dc.com/search?q=Injustice...’ (only one link given) Sub-claims: {type: simple, description: ’done_message provides 3 distinct homepage URLs, one per comic book’} (no page sub-claims — agent did not provide per-comic links; the simple sub-claim already fails) Output JSON only: {"sub_claims": [ {"claim_id": 1, "type": "simple", "description": "..."}, {"claim_id": 2, "type": "page", "description": "...", "subject": "...", "assertion": "..." | null} ]} 
+
+User 
+
+Complete instruction timeline: {instruction_timeline} Constraint: {constraint_description} Task was executed on: {execution_date} done_message: {done_message} Decompose the constraint into binary sub-claims. 
+
+J.3.2 Simple Claim Verification 
+
+System 
+
+You verify whether a given binary predicate is correct, given the agent’s full final answer (done_message) and the original task constraint as context. The predicate is checkable by reading done_message and applying logic or simple factual reasoning. You do NOT have access to web pages — your judgment must come from the text you are given. GENERAL RULES: 1. Examine the predicate carefully. Decide satisfied=true only when done_message demonstrably supports it; satisfied=false when it is contradicted or absent. 2. The original task constraint is provided as context — it tells you why the predicate matters, but the predicate itself is what you must judge. 3. Reasoning must cite specific text from done_message. Quote snippets using single quotes when relevant. 4. Be strict about format predicates: ’lists exactly 3’ means 3, not 2 or 4. ’Provides 3 distinct URLs’ means 3 separate URLs, not one URL repeated. 5. Apply fuzzy matching for minor variations (case, spacing, hyphenation, common abbreviations) — but do not stretch matches across genuinely different items. 6. If done_message does not contain the information needed to judge the predicate, return satisfied=false (absence of evidence for an assertion is failure, not insufficiency). 7. ANSWER-SECTION SCOPING. done_message is often a structured document with multiple sections — one per constraint or sub-question. When the predicate involves COUNT (’lists exactly N’), EXCLUSION (’X does not appear in the items’), DISTINCTNESS, or any other property OVER A LIST OF ITEMS, you MUST first identify which section of done_message the 
+
+32 agent designated as the answer for THIS constraint. Apply the predicate ONLY to items in that section. Section signals to look for: - Bold headers like ’**Three Batman comic books ...:**’ marking what the agent considers the answer to a particular constraint. - Numbered lists ’1. ... 2. ... 3. ...’ — typically the answer items. - Explicit exclusion phrases like ’(excluding X)’ inside a header — these CONFIRM the agent has already excluded X from this section’s items. - Standalone reference URLs / context paragraphs separated from the numbered list — usually NOT part of the answer count. Worked example. Suppose done_message has: ’**Injustice: Gods Among Us Year One** (the prequel ...): https://www.dc.com/...year-one... **Three Batman comic books by Tom Taylor (different series, excluding Injustice):** 1. Detective Comics #1090 ... 2. Batman – One Bad Day ... 3. Batman: The Dark Knight ...’ Predicate ’done_message identifies exactly 3 distinct comic books’: the answer section is the numbered list (3 items) →
+
+satisfied=true. DO NOT count Injustice as a 4th item — it appears in a SEPARATE section that answers a different constraint. Predicate ’Injustice: Gods Among Us Year One does not appear among the items listed’: the relevant ’items’ are the numbered list (the agent’s answer to the find-three constraint); Injustice is NOT in that numbered list →
+
+satisfied=true. The agent’s separate reference to Injustice (with its own URL, answering the link constraint) does NOT mean it appears ’among the items’ for this exclusion predicate. Predicate ’done_message provides exactly 3 distinct homepage URLs, one per comic book’: count URLs in the THREE numbered comics’ section, not URLs from the Injustice reference section. Output JSON only: {"satisfied": bool, "reason": "...", "confidence": 0.0-1.0} 
+
+User 
+
+Original constraint (context): {constraint_description} Task was executed on: {execution_date} Predicate to verify: {predicate} Agent’s done_message: {done_message} Is the predicate satisfied? Cite specific text from done_message. 
+
+J.3.3 Conditional Branch Resolution 
+
+System 
+
+You judge whether an agent’s done_message addresses a specific page-observable condition. The condition came from a conditional override instruction (e.g. ’if X, then Y’) — the agent was expected to check it on the page and report observation in the done_message. Return one of three states: ’true’ — done_message clearly states the condition HOLDS, with concrete values from the page. ’false’ — done_message clearly states the condition DOES NOT HOLD, with concrete values from the page. ’not_addressed’ — done_message does not address the condition. Default to this when uncertain — do NOT guess. RULES: 1. Look for explicit observation statements. Phrases like ’[CONDITIONAL OBSERVATION]’, ’I observed’, ’the price difference is X’, ’I compared X and Y’ are strong signals the agent addressed it. 2. The agent’s wording does not need to match the condition verbatim. ’price difference is 160 RMB, below threshold’ addresses ’price difference exceeds 500 RMB’ → state=’false’. ’900 RMB diff exceeds 500’ → state=’true’. 3. Concrete values are required. ’I saw the prices’ without numbers or comparison is not_addressed. Vague claims about thresholds without actual values are not_addressed. 4. The agent’s selection is NOT used here — only what the agent SAID the condition state was. Inconsistencies between what the agent reports and what the agent did get caught by downstream sub_claim judgment, not here. 5. Reasoning must cite specific text from done_message. Output JSON only: {"condition_state": "true"|"false"|"not_addressed", "reason": "...", "confidence": 0.0-1.0} 
+
+User 
+
+Condition to evaluate: {condition_text} Task was executed on: {execution_date} Agent’s done_message: {done_message} Did the agent address the condition? If yes, did the agent report it as true or false? 
+
+J.3.4 Web Evidence Verification 
+
+System 
+
+You verify a page sub-claim against a GUI page snapshot (AXTree), in the context of a task constraint. Your judgment must come from the AXTree and the supplied page URL — do NOT use world knowledge or background facts to fill gaps. The URL may help identify the page; it does not by itself prove that an activity or property is present. A sub-claim has two parts: subject — the item the page should be about (book, product, person, URL fragment, domain, etc.) agent_assertion — what the page must show about the subject. May be null when the sub-claim only requires the subject to be 
+
+33 shown, with no further attribute check. Decide three things: 1. is_subject_page: Can this frame host a claim about the subject? True when the page is the subject’s detail / content / profile / home page, or is otherwise centered on the subject (e.g. for domain subjects like ’sephora.com’, any page on that host counts). Also true when this is a listing / search / filter / results view and the subject appears as a result item (card, row, or hit). False when the subject only appears as a navigation menu item, an unrelated link, or a passing mention. 2. assertion_supported: If agent_assertion is provided, does THIS SAME frame show that the subject has that property? True when the page contains direct textual evidence (synopsis text, attribute labels, character lists, byline, price tags, series labels), OR when the subject is a result item here and the view’s visible filters / query / category / chips entail the property. False when this frame does not contain such evidence — even if the assertion happens to be true in the world. Null when agent_assertion itself is null. 3. evidence_summary: One or two short sentences describing what this page shows about the subject relevant to the constraint. Quote or paraphrase short snippets directly from the AXTree or page URL. If the page is not about the subject, summarize what the page actually is. This summary is used in diagnostic reasons — it should be specific enough that a reader can reconstruct why you decided as you did. STRICTNESS: - Apply fuzzy matching for minor variations (case, spacing, hyphenation, year format, common abbreviations) — but final decisions must rely on explicit AXTree evidence and page URL context. - If the page is entirely irrelevant or inaccessible (error page, blank, blocked), conclude is_subject_page=false directly. - For null agent_assertion: is_subject_page=true is sufficient — you do not need to verify any further attribute. Examples: - subject=’Batman: The Dark Knight’, agent_assertion=’2021 miniseries by Tom Taylor’ AXTree shows a comic detail page with the title, ’2021 miniseries’ label, and ’by Tom Taylor’ byline →
+
+is_subject_page=true, assertion_supported=true, evidence_summary=’detail page identifies the comic as Batman: The Dark Knight (2021 miniseries) by Tom Taylor’. - subject=’DCeased’, agent_assertion=’heavily features Batman/Bat-family’ AXTree shows the DCeased detail page with a synopsis about a zombie outbreak, no mention of Batman characters →
+
+is_subject_page=true, assertion_supported=false, evidence_summary=’detail page identifies DCeased (2019-2021 ongoing series); synopsis describes a zombie outbreak with no Batman/Bat-family characters visible’. - subject=’American Hairless Terrier’, agent_assertion=’medium barking’ AXTree is a breed listing with Barking Level ’Medium’ checked and a result card ’American Hairless Terrier’ →
+
+is_subject_page=true, assertion_supported=true, evidence_summary=’breed is a result item on a listing filtered to medium barking’. - subject=’sephora.com’, agent_assertion=null AXTree shows a page with URL containing sephora.com →
+
+is_subject_page=true, assertion_supported=null, evidence_summary=’page is on sephora.com (URL visible in nav)’. - subject=’search?q=Injustice’, agent_assertion=’homepage of Injustice on DC.com’ AXTree shows a search results listing on dc.com →
+
+is_subject_page=true, assertion_supported=false, evidence_summary=’page is a dc.com search results listing for Injustice, not a comic homepage’. Respond with JSON only: {"is_subject_page": bool, "assertion_supported": bool | null, "evidence_summary": "...", "confidence": 0.0-1.0, "reason": "..."} 
+
+User 
+
+Constraint: {constraint_description} Sub-claim to verify: subject: {subject} {assertion_line} Task was executed on: {execution_date} Page URL (full): {page_url} Page state (AXTree): {_truncate_axtree(axtree)} Verify the sub-claim against the AXTree and page URL. 
+
+User: {assertion_line}, with assertion 
+
+agent_assertion: {agent_assertion} 
+
+User: {assertion_line}, without assertion 
+
+agent_assertion: null (only the subject’s presence on the page needs to be verified) 
+
+J.3.5 Post-Revision Behavioral Assessment (WRA) 
+
+System 
+
+You judge whether a GUI agent’s actions in a short window (1-3 steps) responded to a specific user instruction that was just injected. The instruction is one of a sequence of corrections the user gave the agent during execution. Decide TWO things, independently: 1. wra ∈ {0, 1} 
+
+34 wra=1 — at least one action in the window concretely advances the new instruction’s intent (issuing a relevant search, navigating to a relevant page, filtering / refining results to match the new constraint, opening a candidate that satisfies the new requirement, etc.). wra=0 — none of the actions clearly serve the new instruction. Continuing prior unrelated work, looping on the same failed action, idling, or making changes orthogonal to the instruction all count as wra=0. Be lenient on partial / exploratory progress (clicking a filter that partly addresses the new requirement is wra=1) but strict on irrelevance (any-website search that ignores the instruction’s specifics is wra=0). 2. adaptation ∈ {overwrite, additive, unrelated} overwrite — the agent abandons the page / result it was on before injection and re-navigates from scratch (back to a search engine, a different site, or a fresh query). Characterized by goto() to a new domain, opening a new search, or discarding the current candidate. additive — the agent extends or refines the work in place: applies a filter, scrolls, opens a sub-link of the current result, edits the existing query, etc. The previous progress is preserved. unrelated — actions don’t engage with the instruction at all (e.g. re-issuing a done call, looping on the same prior click, navigating to something orthogonal). Use this label freely when wra=0 and the actions don’t fit overwrite/additive. RULES: - Judge only on the actions / URLs given. Do not assume the agent will do something later. - The instruction text is verbatim from the user. Read it carefully — ’exactly three’ means the agent should be acting on the count requirement, not anything else in the prompt. - A done call inside the window is not a response by itself unless the prior actions already satisfied the instruction. - Reasoning must reference specific step actions / URLs. Output JSON only: {"wra": 0|1, "adaptation": "overwrite"|"additive"|"unrelated", "reason": "...", "confidence": 0.0-1.0} 
+
+User 
+
+Injected instruction ({instruction_id}): {instruction_text} Task was executed on: {execution_date} Agent URL just before injection: {pre_injection_url} Action window after injection (chronological): {_format_window(window_events)} Judge wra and adaptation. 
+
+35

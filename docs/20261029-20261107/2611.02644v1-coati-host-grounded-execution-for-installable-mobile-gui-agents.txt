@@ -1,0 +1,390 @@
+Title: Coati: Host-Grounded Execution for Installable Mobile GUI Agents
+
+URL Source: https://arxiv.org/pdf/2611.02644v1
+
+Published Time: Tue, 03 Nov 2026 05:03:40 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# Coati: Host-Grounded Execution for Installable Mobile GUI Agents 
+
+# Yudou Ying ∗
+
+Hangzhou Institute for Advanced Study, University of Chinese Academy of Sciences Hangzhou, China 
+
+# Pu Shi ∗
+
+Independent Researcher China 
+
+# Hanlei Shi 
+
+Hangzhou Institute for Advanced Study, University of Chinese Academy of Sciences Hangzhou, China 
+
+# Yuhua Zheng †
+
+Hangzhou Institute for Advanced Study, University of Chinese Academy of Sciences Hangzhou, China 
+
+## Abstract 
+
+Mobile GUI agents can carry out tasks across apps, yet most run on a separate computer that drives a phone over the Android De-bug Bridge (ADB), out of reach of ordinary users and of the apps through which most people reach Web services. We present Coati ,a source-available agent that users install as an Android app. Its runtime on the phone, the host, records what a model alone can-not see: the effect of each action at its target, result screens across apps, and the progress of repeated steps. VerifyLoop checks action outcomes and completion claims against host evidence and reports a completion it cannot audit as unverified. AppMemory builds per-app procedural memory from observations that the interface supports and reuses it on later visits. A routed fast executor lets a lightweight selection model take simple, confident steps and lets the host repeat loops of simple steps that the large model plans once. On all 116 AndroidWorld tasks, with Gemini 3.8 Flash as every agent’s backbone, Coati succeeds on 86.5% of the tasks over three trials, ahead of the strongest open-source agent Artemis (77.6% with the same accessibility-only access, 76.5% even when allowed ADB) and far ahead of FinalRun and Midscene (about 59%), and Verify-Loop cuts false completion claims by about a third at comparable success. In everyday use, the fast executor cuts the median time of phone tasks by 39% at comparable success and runs three of four loop tasks 2.8–5.4 × faster with 6–9 × fewer model tokens, while AppMemory shortens a repeated deep route in an unfamiliar app from 18.5 steps to 6–7. On an Android 16 phone, routed execution completes all 27 benchmark runs with 76% fewer Reasoning calls on the critical path. Host evidence, not model self-assessment, makes an installable agent reliable and fast. 
+
+## CCS Concepts 
+
+• Computing methodologies → Artificial intelligence ; Plan-ning and scheduling ; Knowledge representation and reason-ing ; • Human-centered computing → Ubiquitous and mobile computing systems and tools .
+
+> ∗Both authors contributed equally to this research.
+> †Corresponding author.
+
+## Keywords 
+
+Mobile GUI Agents, Multimodal Large Language Models, Model Routing, Screen Parsing, On-device OCR, Execution Verification, Agent Memory 
+
+## 1 Introduction 
+
+Multimodal large language models can now operate graphical user interfaces (GUIs) directly: they read a screenshot or an interface tree and act through taps, swipes and text entry [13, 22, 41]. On mobile devices this matters more than anywhere else, because most applications expose no programmable interface and their layouts change across versions, languages and device states [25, 26]. People also access many Web services through mobile applications. A mobile GUI agent intended for everyday use should therefore run directly on the phone and operate these applications. However, most mobile GUI agents run on a separate computer that drives the phone over the Android Debug Bridge (ADB) [2, 25]. The computer sends actions to the phone and receives observations in return. For ordinary users, installing and operating such a sys-tem can be difficult. More importantly, the agent can understand the phone only through the information returned by the bridge. Therefore, it may miss fine-grained changes after an action, making it difficult to determine whether the action succeeded and whether the task actually reached its target state [15, 32, 39]. These limi-tations suggest a more direct and promising deployment model: an agent installed directly on the phone. Because its runtime and the interface it operates reside on the same device, the agent can observe the interface state and action outcomes in real time. It can also maintain records of cross-application results and the progress of repeated actions. Running an agent directly on the phone also imposes practical requirements. Each step should avoid unnecessary waiting and model calls. Since users may not continuously monitor the screen, a task reported as complete must actually reach the requested state. Repeated tasks should not require the agent to rediscover the same route each time. Existing mobile GUI agents do not fully satisfy these requirements. They typically ask a large model to make de-cisions step by step, rely on the model to judge whether a task is complete, and treat repeated actions as separate model decisions. These choices can increase latency and token costs, while making execution failures more difficult to detect [16, 29, 31]. A mobile arXiv:2611.02644v1 [cs.MA] 2 Nov 2026 Conference’17, July 2017, Washington, DC, USA Shi et al. 
+
+agent must therefore use local evidence not only to execute actions, but also to verify their outcomes, assess task completion, and retain useful experience. This calls for a different execution principle: the model may propose an action, but the runtime on the phone should determine what actually happened from evidence recorded by the host [15, 32, 39]. We present Coati , a source-available Android agent that users in-stall as an app. Coati is designed to address the reliability, execution-efficiency, and repeated-use challenges of installable mobile agents. Its core principle is host-grounded execution : the model proposes an action, while evidence recorded by the host—the information col-lected by Coati’s runtime on the phone—determines the outcome. We implement this principle with three mechanisms. (1)Veri-fyLoop checks each action against the interface changes it causes and audits completion claims using the result screens of the appli-cations involved and the progress of delegated loops. When the available evidence is insufficient, it reports the task as unverified rather than complete. (2)AppMemory stores interface observa-tions as per-application guidance only when they are supported by the interface and the task passes the completion audit. It then retrieves this guidance during later visits. (3)Routed fast execu-tor reduces the cost of model calls. A lightweight typed selector handles simple, confident actions from host-built candidates, while the Reasoning model handles uncertain steps, application switches, and text entry under a user-selectable speed–accuracy mode. For repeated simple actions, the Reasoning model plans the loop once, and the host executes it item by item while recording the handled items. Together, these mechanisms use the same host evidence to improve execution efficiency and constrain what the agent can claim and remember. We compare Coati with the strongest open-source agents on all 116 AndroidWorld tasks. All agents use Gemini 3.8 Flash as the backbone model and run on the same device with the same task instances and execution protocol. Coati achieves an average task success rate of 86.5% across three trials, ahead of the strongest open-source agent Artemis (77.6% with the same accessibility-only access, and 76.5% even when allowed ADB), and far ahead of FinalRun and Midscene (about 59%). At comparable success rates, VerifyLoop reduces false completion claims by about one third (Section 4.2– 4.3). Beyond AndroidWorld, whose tasks are short first visits, we evaluate execution efficiency and repeated use in everyday settings. Compared with a per-step Reasoning configuration, the routed fast executor reduces the median execution time of phone tasks by 39% at comparable success. It also makes three of four loop tasks 2.8–5.4 × faster while reducing model token usage by 6–9 ×. For repeated deep navigation in an unfamiliar application, AppMemory reduces the average execution length from 18.5 steps to 6–7 steps (Section 4.4–4.5). Overall, Coati unifies action verification, execution acceleration, and experience reuse within a single host-evidence loop. Our eval-uation examines these mechanisms from four perspectives: bench-mark capability, completion reliability, everyday execution speed, and repeated use. The results show that improving the reliability and efficiency of an installable mobile agent depends not only on the model itself, but also on whether the host can continuously record and use evidence from actual execution. Our contributions are: 
+
+• A host-grounded execution framework for mobile GUI agents. The framework uses host evidence, rather than model self-assessment, to decide if an action succeeded, if a task was completed, and what is worth remembering. 
+
+• Three core mechanisms. We design and implement VerifyLoop, AppMemory, and a routed fast executor with loop delegation, and integrate them into an installable Android application. The source code is available for noncommercial use. 
+
+• An evaluation that distinguishes benchmark capability from everyday use. We conduct three trials on all 116 Android-World tasks with the same backbone model, comparing against the strongest open-source agent Artemis as well as FinalRun and Midscene, and use everyday tasks, simple action loops, and repeated deep-navigation tasks to evaluate the practical contri-bution of each mechanism. 
+
+## 2 Related Work 2.1 Mobile GUI Agents and Their Deployment 
+
+Mobile GUI automation began with scripts and demonstrations, such as Appium’s selectors [2]. Multimodal models turned it into general-purpose agents: SeeClick [4], Aria-UI [36] and UI-TARS [24] improve grounding, while AndroidGen [14], Mobile-Agent [29, 30] and Mobile-Agent-v3 [37] combine screenshots, interface informa-tion and history for multi-step tasks; pure-vision parsers such as OmniParser [20] and accessibility-based agents [6] cover comple-mentary screens. AndroidWorld [25] provides the standard dynamic benchmark. Training-based work scales environments, data and reinforcement learning: MobileRL [34] trains with online agentic reinforcement learning, and OpenMobile-2 [35] trains on more than 110 apps with generated trajectories and app-native tools. Such work raises a single model’s capability but still calls that model at every step and does not accumulate application knowledge in use; Coati’s routing and AppMemory act at run time and are comple-mentary to it. Nearly all of these agents drive the phone from a separate computer and ask a large model for every step. Coati runs on the phone, and the evidence it records there is what its decisions rest on. 
+
+## 2.2 Verification, Reflection and Experience 
+
+Mobile-Agent-v2 [29] and MobileUse [16] use reflection to detect and recover from erroneous actions; VeriSafe Agent [15] and V-Droid [6] verify candidate actions before execution, and Backtrack-Agent [32] and VeriGUI [39] study error recovery. These verifiers ask a model to judge the model’s own progress. VerifyLoop decides with host evidence wherever it exists (pixel and text changes at the target, result screens across apps, loop progress) and uses a model only to read that evidence. For experience, AutoDroid [31], AppAgent [18, 38], GUI-explorer [33], LLM-Explorer [40] and App-Cards [17] build application knowledge from exploration, documen-tation or trajectories; AppMemory determines which observations from real tasks are reusable and retains only those supported by the interface. 
+
+## 2.3 Fast and Slow Decision Making 
+
+Dual-process designs pair a fast policy with a slower deliberate one [19], and model cascades and routers send easy queries to Coati: Host-Grounded Execution for Installable Mobile GUI Agents Conference’17, July 2017, Washington, DC, USA 
+
+cheaper models [3, 23]. These approaches typically use query diffi-culty, model confidence, or expected cost to decide when additional reasoning is necessary. In GUI agents, however, the difficulty of a step also depends on the current interface state: a simple tap, a text-entry action, an application switch, and an irreversible com-mit may require different levels of deliberation even within the same task. Existing routing methods generally select a model for a request, while leaving target resolution, action execution, and post-action verification to the same reasoning pipeline. Coati routes at the level of GUI steps: the fast route selects among candidates the host can execute exactly instead of generating actions, routing follows host-observable state (verification outcomes, exploration, pending commits), and repetitive work is delegated as a loop that the host executes and tracks, rather than as a sequence of model decisions. 
+
+## 3 Host-Grounded Execution 3.1 Execution Setting and Formalization 
+
+We consider a GUI agent operating on a mobile device. Given a natural-language task goal 𝑔 , the agent observes the current ap-plication state and completes the task using general-purpose GUI actions, such as tapping, swiping, text input, system-key operations, and application launching. At execution step 𝑡 , the observation is 
+
+𝑜 𝑡 = (𝐼 𝑡 , 𝑈 𝑡 , 𝑝 𝑡 , 𝑓 𝑡 ), (1) where 𝐼 𝑡 is the screenshot, 𝑈 𝑡 the accessibility UI tree (possibly empty or partial), 𝑝 𝑡 the foreground application, and 𝑓 𝑡 the input-focus state. A perception function turns 𝑜 𝑡 into a parsed screen 
+
+𝑆 𝑡 = 𝑃 (𝑜 𝑡 ): a set of elements with text, type, bounds, supported operations and state. For application 𝑖 , the agent may retrieve task- and interface-relevant experience 𝑚 𝑡 = 𝑅 (𝑀 𝑖 , 𝑔, 𝑈 𝑡 ) from its Living Manual 𝑀 𝑖 .Coati decides each step on one of two routes. A router 𝜌 selects the route from the execution state 𝑥 𝑡 (verification outcomes, exploration state, candidate confidence, pending commits): 
+
+𝜌 (𝑥 𝑡 ) ∈ { Fast , Reason }. (2) On the Fast route, the host builds a candidate set A𝑡 = Γ(𝑆 𝑡 ) and a typed selector 𝜎 chooses one candidate together with a verdict ˆ𝑣 𝑡 −1 on the previous action: 
+
+(𝑎 𝑡 , ˆ𝑣 𝑡 −1) = 𝜎 (𝑔, 𝑆 𝑡 , A𝑡 , ℎ 𝑡 , 𝑚 𝑡 , 𝜅 𝑡 ), (3) where 𝜅 𝑡 is background guidance (sub-goals, hints, text values) produced asynchronously by the Reasoning model. On the Rea-son route, the Reasoning model produces a structured action, its expected outcome 𝑒 𝑡 , a completion claim 𝑑 𝑡 , and an optional page observation 𝑧 𝑡 :
+
+(𝑎 𝑡 , 𝑒 𝑡 , 𝑑 𝑡 , 𝑧 𝑡 ) = 𝜋 (𝑔, 𝑜 𝑡 , ℎ 𝑡 , 𝑚 𝑡 ). (4) On both routes Coati makes two further decisions. It evaluates whether the transition caused by 𝑎 𝑡 matches what was expected, 
+
+𝑣 𝑡 = 𝑉 (𝑜 𝑡 , 𝑎 𝑡 , 𝑒 𝑡 , 𝑜 𝑡 +1), (5) and whether a page observation 𝑧 𝑡 is supported and reusable, 
+
+𝑟 𝑡 = 𝐴 (𝑧 𝑡 , 𝑜 𝑡 , 𝑖𝑑 𝑡 , 𝑀 𝑖 ), (6) where 𝑖𝑑 𝑡 is the resolved identity of the foreground application. 
+
+𝑉 evaluates an action-induced state transition, whereas 𝐴 evalu-ates the evidential support and reusability of facts observed on the current page; 𝑣 𝑡 therefore does not determine 𝑟 𝑡 . Admitted observa-tions accumulate in a candidate set C𝑖 and update the manual only after the task is accepted as completed, 𝑀 ′ 
+
+> 𝑖
+
+= 𝑈 (𝑀 𝑖 , C𝑖 ).Throughout, host evidence 𝜖 𝑡 denotes what the agent records itself rather than receives from a model: the accessibility tree at the time of the action, pixel and text changes at and around the target, the last result screen of every application the task used, and the record of a delegated loop (Section 3.4). 𝑉 , the completion audit and 𝐴 are all evaluated against 𝜖 𝑡 .
+
+## 3.2 Coati Overview 
+
+Figure 1 presents the architecture. At each step, Coati captures the screen and accessibility tree, and hybrid perception produces a parsed screen. The router selects either the fast selector or the Reasoning route. VerifyLoop checks each action and feeds its verdict to the next decision, while AppMemory retrieves advisory entries and learns only from accepted tasks. Both routes share capture, safety handling, completion auditing and task state. Coati is an Android application whose accessibility service reads the interface and performs actions. An optional overlay shows progress and lets the user pause or stop the task. Permission and installation dialogs remain under user control. 
+
+## 3.3 Hybrid Perception 
+
+Coati first uses the accessibility tree when it contains enough la-belled, visible and actionable nodes. Each node becomes an element with text, type, bounds, supported operations and state, while con-tainers inherit useful labels from their descendants. For custom canvases, games and WebViews without semantics, a Fast model parses the screenshot into a compact positional array of regions and elements with normalized coordinates, text, function, operations and state; this keeps a parse around one to two thousand output tokens. On-device GPU OCR is restricted to unlabelled, non-image nodes to recover painted widgets embedded in otherwise native screens. OCR may add or snap text and the system rejects a parse that describes another image, but it never overwrites model text. Detailed parse-level measurements appear in Appendix A. 
+
+## 3.4 Routed Execution 
+
+Candidates and background planning. The host builds a finite candidate set from the parsed screen: operations on actionable elements, scrolling, back, app return or launch, waiting, completion and escalation. Each candidate carries the element text, type, state and exploration annotations, and the host executes it at the element bounds, so the fast route never generates coordinates. The selector receives the goal, background sub-goals and hints, retrieved manual entries, recent history, candidates and evidence about the previous action. One request chooses the next candidate, judges the previous effect and, when needed, supplies a typing value, so a healthy step costs one round trip. The Reasoning model plans at task start and on each new page, returning sub-goals, hints, required text and optional AppMemory observations. The fast route waits for this guidance only when it lacks a required text value. Conference’17, July 2017, Washington, DC, USA Shi et al. 
+
+Figure 1: Overview of Coati. Hybrid perception produces a parsed screen from the accessibility tree, vision, or both. The router selects fast or Reasoning execution. VerifyLoop checks action outcomes using host evidence, while AppMemory provides advisory entries and updates the manual after accepted tasks. 
+
+Escalation. The router uses the Reasoning route when the selec-tor requests it, fast actions repeatedly fail or exploration remains uncertain, a commit is reached before the task state is complete, the completion audit rejects a claim, perception or selection is un-available, or the step leaves the current app or enters text. It passes the reason and recent fast history to the Reasoning model, then resumes the fast route unless repeated escalations make reasoning the default for the remainder of the task. 
+
+Speed–accuracy modes. Whether a fast choice is trusted de-pends on its confidence and on whether the selector is exploring or goal-directed. Coati exposes the thresholds as a user setting with three modes: Fast executes every goal-directed choice and explorations above 0.4 on the fast route and also types text there; Balanced, the default, raises the exploration threshold to 0.6 and sends text entry to the Reasoning route; Accurate runs only goal-directed choices with confidence of at least 0.8 on the fast route. 
+
+Loop delegation. For repeated actions over list items, the Rea-soning model plans the per-item operation, optional count, stop condition and scope once. The host then resolves the control on the first item, applies it to subsequent matching items without a model call per item, and records an item only when verification shows a target change. It scrolls when no unhandled match is visible and stops at the count, condition, list end or a bounded no-progress limit. The loop record—action, handled items, stop reason and list coverage—becomes host evidence, so a task over every matching item is not accepted when the loop did not reach the list end. 
+
+Pre-commit gate. Because the selector treats background guid-ance as a hint, it may commit a form whose values are not all set, for example submitting an order with two copies when the task asks for three. Undoing a commit costs several steps and an audit rejection. Before tapping a button, item or card whose label denotes a commit (submit, save, send, export, confirm, pay, and their equivalents), Coati asks the Fast model once whether the screenshot shows every value the task requires; if not, the step is escalated with the missing value named. Tabs and switches are excluded, and a failed check never blocks the action. Commits are rare, so the gate costs about one Fast call per task. 
+
+## 3.5 VerifyLoop: Verification-Driven Mobile Execution 
+
+Traditional Observe–Think–Act agents proceed to the next reason-ing step immediately after issuing an action. A successful return from the Android interface only indicates that the operation was ac-cepted; undetected failures, unexpected pop-ups, and page drift may propagate, and repeated attempts under an unchanged interface may lead to unproductive loops. VerifyLoop extends execution to Coati: Host-Grounded Execution for Installable Mobile GUI Agents Conference’17, July 2017, Washington, DC, USA 
+
+Table 1: Verification outcomes and corresponding control decisions in VerifyLoop. 
+
+Outcome Interpretation Control Decision 
+
+SUCCESS The expected transi-tion is observed. Continue from the new state. 
+
+FAILED The action is ineffec-tive or the expected state is absent. Return failure feed-back and replan. 
+
+DRIFTED Execution enters atask-incompatible state. Recover from the ob-served state or termi-nate. 
+
+UNEXPECTED The interface changes differently from the prediction. Continue reasoning from the observed state. 
+
+UNKNOWN Available evidence is insufficient. Re-observe without as-suming success. 
+
+Observe–Think–Act–Verify and converts verification outcomes into control signals. On the Reasoning route, after target resolution and local safety checks the runtime executes 𝑎 𝑡 through Android’s Accessibility-Service, 𝑜 𝑡 +1 = 𝑇 (𝑜 𝑡 , 𝑎 𝑡 ), and a lightweight Fast model compares the pre-action observation, the post-action observation and the expected outcome: 
+
+𝑣 𝑡 = 𝑉 (𝑜 𝑡 , 𝑎 𝑡 , 𝑒 𝑡 , 𝑜 𝑡 +1) ∈ { SUCCESS , FAILED ,
+
+DRIFTED , UNEXPECTED , UNKNOWN }. (7) As summarized in Table 1, VerifyLoop maps each outcome to a distinct control response. The result is incorporated into the execution history ℎ𝑡 +1 = 𝐻 (ℎ𝑡 , 𝑎 𝑡 , 𝑒 𝑡 , 𝑜 𝑡 +1, 𝑣 𝑡 ), which conditions the next step. 
+
+Host-evidence verification on the fast route. On the fast route, verification uses no extra model call. The host compares the two frames on a luminance grid decoded at half resolution, locates changed cells relative to the acted element, compares element texts, and reads the target’s state (for example unselected to selected, a switch turned on, typed text now visible). It phrases an expectation from the action type and asks the selector to judge the previous action in the next step’s request. A certain host verdict overrides the selector: a transition is NO_CHANGE only if no grid cell changed at all, while any change on or beside the target, however small, counts as evidence (a switch knob moving, a counter next to a “+” button). 
+
+Failure-aware stopping. An action that keeps failing on the same target must stop, but a loose criterion ends tasks that are still progressing. Let 𝜙 (𝑎 𝑡 ) be an action’s type and target (its element, or its coordinate cell at 4% of the screen) and 𝜎 (𝑜 𝑡 ) the screen signature. VerifyLoop counts the consecutive failed attempts of the current action, 
+
+𝑁 𝑡 = max 𝑛 : 𝜙 (𝑎 𝑡 −𝑘 ) = 𝜙 (𝑎 𝑡 ) ∧ 𝜎 (𝑜 𝑡 −𝑘 ) = 𝜎 (𝑜 𝑡 )∧ 𝑣 𝑡 −𝑘 ∈ { FAILED , DRIFTED }, 0 ≤ 𝑘 < 𝑛 , (8) 
+
+Table 2: AppMemory admission and update decisions.                       
+
+> Decision Condition Action
+> MATCHED Existing fact Keep 𝑀 𝑖 unchanged.
+> NEW New/changed fact and 𝐸 𝑡 =1Sanitize and add to C𝑖 .
+> UNKNOWN Insufficient evidence Discard the observation.
+> NO_CHANGE No valid difference Preserve 𝑀 𝑖 .
+> EDIT Bounded additions Apply a constrained local edit.
+> SUMMARIZE Redundancy or capac-ity limit Reorganize under validation.
+
+Waits and screenshots neither count toward nor reset the run, while any successful action resets it. 
+
+Completion assessment. When a route claims completion, Ver-ifyLoop runs a bounded audit 𝑐 𝑡 = 𝐶 (𝑔, 𝑜 𝑡 , 𝜖 𝑡 ) with a Fast model. It compares the current screen, the last result screen from every other application used, and any delegated-loop record against the values specified by the task. A rejected claim returns to execution and sends the reason to the Reasoning route; an unavailable audit ends the task with an explicit unverified status rather than plain success. For information-seeking tasks, the audit also reads the answer from the final screen. 
+
+## 3.6 AppMemory: Evidence-Bounded App Experience 
+
+AppMemory maintains a Per-App Living Manual of reusable page landmarks, functional relations and recovery instructions tied to the application identity and interface encountered on the user’s device. This avoids treating generic documentation or complete trajectories as authoritative when versions, enabled features, dynamic content or sensitive values differ. 
+
+Manual Initialization and Retrieval. For each application 𝑖 ,AppMemory maintains a Living Manual 𝑀 𝑖 bound to the application identity 𝑖𝑑 𝑖 = (𝑝𝑘𝑔 𝑖 , 𝑠𝑖𝑔 𝑖 ), with the observed version and locale stored as compatibility metadata: 
+
+𝑀 (0) 
+
+> 𝑖
+
+=
+
+(
+
+𝑆 𝑖 , if a package-bound seed exists ,
+
+Empty (𝑖𝑑 𝑖 ), otherwise , (9) where a seed may define protected sections 𝑃 𝑖 that subsequent on-line updates cannot overwrite. Before each step, 𝑚 𝑡 = 𝑅 (𝑀 𝑖 , 𝑔, 𝑈 𝑡 )
+
+retrieves an application overview and a bounded set of page entries relevant to the task and the current screen; the overall retrieval and update process is illustrated in Fig. 4 in Appendix D. Retrieved experience is advisory: the current screen, VerifyLoop’s result and the safety policy always take precedence. On the fast route the same entries are given to the selector as an app guide. 
+
+Evidence-Bounded Admission. In learning mode, page obser-vations 𝑧 𝑡 are evaluated by 
+
+𝑟 𝑡 = 𝐴 (𝑧 𝑡 , 𝑜 𝑡 , 𝑖𝑑 𝑡 , 𝑀 𝑖 ), 𝐸 𝑡 = 𝐸 ui ∧ 𝐸 id ∧ 𝐸 stable ∧ 𝐸 privacy , (10) requiring visible interface support, correct application ownership, cross-task stability, and privacy compliance (Table 2). Only an obser-vation classified as NEW_OR_CHANGED and satisfying all conditions is admitted: C𝑖 ← C 𝑖 ∪ { Sanitize (𝑧 𝑡 )} if 𝑟 𝑡 = NEW_OR_CHANGED ∧ 𝐸 𝑡 .Conference’17, July 2017, Washington, DC, USA Shi et al. 
+
+Controlled Manual Evolution. Candidates remain task-local. After the task is accepted as completed, AppMemory asynchronously builds a candidate manual and commits it only if validation suc-ceeds: 
+
+b𝑀 𝑖 = 𝑈 (𝑀 𝑖 , C𝑖 ), 𝑀 ′ 
+
+> 𝑖
+
+=
+
+( b𝑀 𝑖 , Valid ( b𝑀 𝑖 , 𝑀 𝑖 , 𝑃 𝑖 ) = 1,𝑀 𝑖 , otherwise . (11) Validation checks structure, consistency, capacity, revision conflicts and protected sections; cancelled or invalid updates preserve the previous manual. Admission remains separate from VerifyLoop: an expected transition does not make every page fact reusable, and a failed action does not make those facts wrong. 
+
+## 4 Evaluation 
+
+We ask four questions, one per claim: RQ1 (capability): with the same backbone model, how does Coati compare with open-source agents on AndroidWorld? RQ2 (reliability): does host-grounded verification keep Coati from claiming success it has not achieved? 
+
+RQ3 (speed in everyday use): does the routed fast executor make everyday tasks and loops of simple steps faster and cheaper without losing success? RQ4 (repeated use): does AppMemory shorten tasks that users repeat? 
+
+## 4.1 Setup 
+
+AndroidWorld. AndroidWorld [25] has 116 parameterized tasks across 20 applications (61 easy, 36 medium, 19 hard), each with an official step budget and an evaluator that inspects the resulting app state rather than the agent’s claim. Every agent runs in the same Android 13 emulator (Pixel 6 profile) with Gemini 3.8 Flash through Google’s API as its backbone, on the same task instances (seed 30), budgets and official evaluators. A harness starts each task, waits for the agent, submits the answer of information tasks and calls the evaluator; the emulator is cold-restarted every ten episodes. Coati runs in its per-step configuration (C2: the Reasoning route on every step, VerifyLoop on) for three trials; the ablation C1 turns VerifyLoop off. The open-source agents Artemis [10], FinalRun [8] and Midscene.js [21] run with their released code through the same harness, with their model calls redirected to the same backbone; Artemis is run both in its accessibility-only (GUI) mode, matching Coati’s access, and, for one trial, with the ADB access its release expects, while Midscene’s default thinking level is rejected by the API, so we use the lowest accepted level. Episodes in which the environment failed before the agent acted are excluded and rerun under the same rule for every agent (Appendix B). We report the success rate (SR, partial scores as given by the evaluators), pass 3
+
+(tasks solved in all three trials), the false-completion rate (declared completions that the evaluator judged failed), and time and model tokens per episode. These agents report far higher success in their own evaluations (around 90% on this benchmark), and two deliberate choices ac-count for the gap here, neither of them the backbone model. First, every agent is held to AndroidWorld’s official per-task step budget (about ten steps for a simple task), whereas the opponents’ released configurations plan up to roughly 120 steps; under the official bud-get most of their failures here are step-limit cut-offs rather than wrong decisions. Second, several of their reported successes drive 
+
+Table 3: AndroidWorld, all 116 tasks, Gemini 3.8 Flash as every agent’s backbone, same emulator, task instances, bud-gets and evaluators. SR: success rate (%), mean over trials. False done: share of declared completions that the evaluator judged failed (%). Time: mean seconds per episode; tokens: mean thousands per episode, as reported by each agent’s model API. Midscene, FinalRun and Artemis (ADB) drive the phone over ADB; Coati and Artemis (GUI) use the accessi-bility API only. A dash is a value the agent does not report through the harness.                                     
+
+> Agent Trials SR pass 3False done Time Tokens
+> Midscene.js 159.1 –7.5 179 222 FinalRun 159.9 –14.5 224 177 Artemis (ADB) 176.5 ––185 –Artemis (GUI) 377.6 69.8 –209 –
+> Coati 386.5 81.9 5.4 172 154
+
+apps through ADB and root SQL writes to private databases; we compare every agent through the on-screen interface only and do not credit ADB-won tasks, since an installed consumer agent has no such access. The gap is not a stronger model on their side: the leaderboard’s near-perfect entries include a Gemini 3.7 submission, a Flash-tier backbone no stronger than the Gemini 3.8 Flash every agent uses here. We therefore read Table 3 as a controlled, stan-dardized comparison under one step budget and one interface, not as a reproduction of each agent’s headline figure. 
+
+Everyday use. RQ3 and RQ4 use an emulator of the same profile with Google’s stock applications and two open fixture apps whose state can be checked programmatically (Appendix C). Classic is Coati with every step on the Reasoning route; Routed adds the fast executor (selector Jev [28], version jev-1.13.0, Balanced mode). The two configurations alternate within every round, so that server load affects both equally. Time is the agent’s own duration from task start to completion; tokens include background calls. 
+
+## 4.2 Capability on AndroidWorld (RQ1) 
+
+Table 3 compares the agents under identical conditions. Coati reaches 86.5% on average (89.7, 87.1 and 82.8 across the three tri-als, sample standard deviation 3.5) and solves 95 of the 116 tasks (81.9%) in all three trials. The strongest opponent, Artemis, reaches 77.6% over three trials with the same accessibility-only access, and 76.5% in one trial even when allowed ADB; FinalRun and Midscene solve 69.5 (59.9%) and 68.5 (59.1%) in their trial. Coati thus leads the fairest comparison, Artemis without ADB, by 8.9 percentage points, leads Artemis-with-ADB by ten while using no ADB itself, and leads FinalRun and Midscene by about 27, with fewer tokens per episode than any and a mean time among theirs. The lead is not from claiming success more readily (5.4% false completions, against 14.5% and 7.5% for FinalRun and Midscene). Much of it comes from apps whose tasks enter or edit many values (Markor, Recipe, Ex-pense, Tasks; 42 tasks): 33.7 solved per trial for Coati against 29.3 for Artemis, 19.0 for FinalRun and 16.0 for Midscene. Appendix C explains the tasks an opponent solved and Coati mostly did not. 
+
+Published results. Table 8 in the appendix lists published and leaderboard results for context. They use other backbones and Coati: Host-Grounded Execution for Installable Mobile GUI Agents Conference’17, July 2017, Washington, DC, USA 
+
+Table 4: VerifyLoop on AndroidWorld (116 tasks, same build). C1: one trial; C2: mean of three. SR by difficulty and overall (%). False done: share of declared completions that the evalu-ator judged failed (%).                
+
+> Configuration Easy Medium Hard SR False done
+> C1: no VerifyLoop 96.7 86.1 73.7 89.7 8.0 C2: Coati 96.2 79.6 68.4 86.5 5.4
+
+harnesses, single trials, and are self-reported, so we do not rank against them: a newer general model can do better than an older one without any change to the agent. Coati lies within the range of recent published agents, most of which train their own model. 
+
+From failures to fixes. An earlier full trial reached 72.4%. Most of its 32 failures were not reasoning errors but early stops with budget left (14), step exhaustion after launches seen as blank screens (10) and a slider that stopped short of its maximum (2). A same-target stopping rule, waiting for a launched app to render and setting a slider to its extreme recovered 9 of them without losing any of 10 solved tasks. 
+
+## 4.3 Reliability: Grounded Completion (RQ2) 
+
+Table 4 isolates VerifyLoop. Without it, 9 of Coati’s 112 declared completions were false (8.0%) and nothing caught them. With it, the audit rejected 61 completion claims over the three trials (about twenty per trial); 40 of those tasks were then solved and 21 ended as honest reported failures, and only 16 of 299 accepted completions were false (5.4%). The false-completion rate thus fell from 8.0% to 5.4%, by about a third, at comparable success: C1 reaches 89.7% in its single trial and C2 reaches the same 89.7% in its matching first trial (86.5% averaged over three, the spread being trial-to-trial variance rather than a cost of the audit). Host evidence matters most where a model cannot see the result. In a routed run of “hide every listing marked Sold” before loop records existed, the fast executor hid one of six sold listings and claimed completion; the remaining five were below the fold, and an audit of the final screen accepted the claim. With loop delega-tion, the audit receives the loop record, including whether the loop reached the end of the list, and the task succeeded in all runs (Ta-ble 5). Conversely, in classic mode one run of a loop task changed the app state correctly but was rejected three times because no sin-gle final screen shows all six items: without host evidence, an honest auditor must either accept unseen results or reject correct ones. Finally, the audit itself can fail: in the earlier full trial, two of 116 completion audits timed out and the tasks were reported as done. Coati now reports such completions as unverified (Section 3.5). 
+
+## 4.4 Speed in Everyday Use (RQ3) 
+
+Figures 2 and 3 compare execution time and model-token usage on seven everyday tasks. The routed configuration is faster on six of them and cuts the median task time from 64 s to 39 s ( −39%) and mean token usage by 25%, with comparable success. A fast step costs a tree parse and one selector round trip (about 2 s) instead of a Reasoning call and a verification call; text entry and app switches still go to the Reasoning route, which is why the contact task gains 
+
+Figure 2: Median execution time for seven tasks under Classic and Routed execution. Lower values indicate faster execu-tion; annotations report successful runs and relative change. 
+
+Figure 3: Mean token usage (thousands per run) for seven tasks under Classic and Routed execution. Lower values in-dicate lower cost; annotations report successful runs and relative change. 
+
+least. The brightness slider remains the weak spot of both configu-rations. A camera task was excluded because its result check read the wrong directory for both. Loops of simple steps show the fast executor at its best (Table 5). On R1–R3 the routed configuration with loop delegation is 2.8–5.4 ×
+
+faster and uses 6–9 × fewer tokens, at equal or higher success: the Reasoning model plans the loop once, the selector finds the control, and the host repeats it on every item without a model call. Without loop delegation the same selector failed these tasks, scrolling past the first rows or stopping after one item. R4, where the condition to stop is a price several rows below the refresh control, gains little: the stop condition is not visible from the control, and the loop hands the task back to the Reasoning model, which checks it. An earlier version kept scrolling in this case until the step limit; ending a loop after eight actions without an item handled fixed it. Conference’17, July 2017, Washington, DC, USA Shi et al. 
+
+Table 5: Loops of simple steps in Car Market’s repeat mode, five runs per configuration (R4 routed: three runs after the stop rule of Section 3.4). Time: mean seconds; steps: mean (fast-route steps in parentheses); tokens: mean thousands.                                
+
+> Classic Routed + loops Task OK Time Steps Tok. OK Time Steps Tok.
+> R1 first 10 to favorites 5/5 140 13 145 5/5 50 12 (11) 21
+> R2 six given IDs to compare 5/5 309 25 304 5/5 57 14 (13) 33
+> R3 hide every Sold listing 4/5 210 22 245 5/5 63 14 (13) 39
+> R4 refresh until price drops 5/5 100 9101 3/3 92 8 (7) 90
+
+Table 6: AppMemory on a deep route in an unfamiliar app (Manual Lab, open the “Archive” page four menus deep) and on a familiar app (Messages, Advanced settings). Steps and seconds per run; each learning session starts from an empty manual.                                
+
+> App Memory Run 1 Run 2 Run 3 Run 4
+> Manual Lab off 14 / 171 19 / 198 18 / 183 19 / 198 session 1 19 / 286 6 / 61 6 / 61 6 / 61
+> session 2 14 / 138 7 / 80 7 / 71 7 / 85
+> session 3 15 / 163 7 / 77 7 / 77 7 / 117
+> Messages off 5 / 46 5 / 49 5 / 52 5 / 46 session 1 5 / 43 5 / 46 6 / 88 5 / 49
+
+On a phone. On an Android 16 phone with nine tasks over native, canvas, mixed, permission-dialog and Flutter screens (Appendix D), routed execution completes all 27 runs against 26 for per-step Rea-soning, cuts the mean task time from 137.5 s to 105.2 s (median from 110.5 s to 78.6 s), is faster on eight of the nine tasks, and reduces critical-path Reasoning calls from 285 to 67 (81% of steps decided on the fast route). Before a fast step taps a commit control such as 
+
+Submit order , a one-call pre-commit gate checks the screen against the task; on the phone it stopped an order with two copies instead of three (Appendix D.3). Routed execution takes more steps (13.2 versus 10.4 on average) yet finishes sooner, because a fast step costs a tree parse and one selector round trip instead of a Reasoning call and a verification call. On the task whose target page lies several menus deep, both configurations explore without app knowledge (31 and 34 steps); routed exploration is cheaper per step and com-pletes every run, and RQ4 shows that a learned manual removes this cost on repeated tasks. The exception is a canvas task whose entry point lies below the first screen: the selector first searched the app for the artwork title before scrolling, and each canvas step needs a vision parse. The fast executor is not a general accelerator. AndroidWorld tasks are short (about thirteen steps on average), and most steps there require reading the task and the screen together, which is the Reasoning route’s job; we therefore evaluate Coati’s capability in its per-step configuration (RQ1) and the fast executor where it is meant to help. 
+
+## 4.5 Repeated Use: AppMemory (RQ4) 
+
+Table 6 shows three independent learning sessions on a deep route in an app the model has never seen. Without memory, every run explores: 18.5 steps and 190 s at the median. In each session the first run explores and the manual learns the route from it; every later run goes there directly, in 6–7 steps and a median of 77 s, 2.5 ×
+
+faster, with all nine later runs successful. The effect is specific to unfamiliar apps: on a familiar stock app the model already knows the route, and memory neither helps nor hurts. The manual also survived an app update that moved the entry points (version 2 of the fixture replaces two bottom tabs with a hub page): after learning on version 1, runs on version 2 took 6 steps against 13–15 without memory. The effect carries over to routed execution on the phone of RQ3: from an empty manual, the first deep-route run explored for 22 steps (222 s), and the next two took 5 steps (23 s and 21 s) against 34.3 steps and 295 s without memory, with no Reasoning call on the critical path; all four runs, including a task on the same route, succeeded. On the fast route most steps involve no model call that could describe the page; three changes made learning reliable there: observation-only calls while the background advisor is busy, a per-task observation budget that keeps the latest observations, where the route that worked is, rather than the first, and a stricter page identity for learning (visible-text Jaccard ≥ 0.9, not 0 .6), so that sibling pages sharing their bars are described separately. 
+
+## 5 Lessons from Deployment 
+
+Deploying the agent as an Android app exposed failure modes that affect both success and speed. Accessibility-based agents are likely to encounter the same issues. The agent’s own overlay hides the app. 
+
+Android marks every node under a touchable window as invisible to the user; a tree read while Coati’s overlay was touchable kept 2 of 63 nodes, so the fast route saw an almost empty screen. Reading the tree while the overlay passes touches restored 62 of 63. Injected taps are not always taps. Accessibility gestures carry no touch source, and some list views ignore them; Coati falls back to the node’s click action when a list item’s tap leaves the screen unchanged. Presses of 50 ms or longer were dropped by one app right after launch, so taps last 20 ms, and swipes are kept out of the system gesture areas, where they trigger navigation. State must survive power loss. Task state written without a file sync was empty after a cold restart; writes now sync before an atomic rename. Measurement interferes. Using uiautomator to check results suspends the agent’s accessibility service; checks read state through the agent instead. 
+
+Coordinate spaces and thinking budgets. Mixing pixel bounds with normalized coordinates in one prompt made the model copy pixel values, and output limits that include thinking tokens truncated answers; both were fixed in the prompt and request settings. 
+
+## 6 Discussion and Limitations 
+
+Scope and generalization. AndroidWorld evaluates first-time task completion, but not routine execution time, repeated use, or the reliability of completion claims. These aspects are evaluated sepa-rately in RQ3 and RQ4. Routing is less effective during first-time exploration, especially on deep routes, whereas AppMemory re-duces this cost on later visits. Our main experiments use emulators, Coati: Host-Grounded Execution for Installable Mobile GUI Agents Conference’17, July 2017, Washington, DC, USA 
+
+one backbone model, two released fixture apps, and a limited num-ber of runs; the results also depend on server-side model latency. The phone results in Appendix D provide an additional check on current consumer hardware, but broader evaluations across devices, models and task sets remain future work. 
+
+Hardware and privacy. GPU-assisted OCR requires a usable Vulkan GPU. Without one, Coati falls back to the accessibility tree and vision parsing, and the OCR models also increase the appli-cation size. Screenshots and page descriptions are sent to model providers. Although AppMemory stores only sanitized, interface-supported facts, neither mechanism prevents sensitive data from leaving the device; deployments should therefore use trusted model endpoints. 
+
+Deployment and platform policy. Coati operates other applica-tions through Android’s Accessibility Service, whose autonomous use is restricted by current Google Play policy [9, 11]. We therefore distribute Coati as source code for direct installation rather than through Google Play. The proposed verification, memory and rout-ing mechanisms are independent of the action-injection layer and could transfer to sanctioned system interfaces. In the current de-sign, permission and installation dialogs remain under user control, actions are visible on screen, and users can pause or stop a task at any time. 
+
+## References 
+
+[1] Saaket Agashe, Kyle Wong, Vincent Tu, et al. 2025. Agent S2: A Compositional Generalist-Specialist Framework for Computer Use Agents. In Second Conference on Language Modeling . https://openreview.net/forum?id=zg5is4GJ3R [2] Appium Contributors. 2026. Appium: Cross-Platform Automation Framework for Mobile and Desktop Apps. https://appium.io/. Open-source UI automation framework. [3] Lingjiao Chen, Matei Zaharia, and James Zou. 2024. FrugalGPT: How to Use Large Language Models While Reducing Cost and Improving Performance. Transactions on Machine Learning Research (2024). [4] Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Li YanTao, Jianbing Zhang, and Zhiyong Wu. 2024. SeeClick: Harnessing GUI Grounding for Advanced Visual GUI Agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics . Association for Computational Linguistics, Bangkok, Thailand, 9313–9332. doi:10.18653/v1/2024.acl-long.505 [5] Cheng Cui, Ting Sun, Manhui Lin, et al. 2025. PaddleOCR 3.0 Technical Report. 
+
+arXiv preprint arXiv:2507.05595 (2025). [6] Gaole Dai, Shiqi Jiang, Ting Cao, et al. 2026. V-Droid: Advancing Mobile GUI Agent Through Generative Verifiers. In Proceedings of the 32nd Annual Interna-tional Conference on Mobile Computing and Networking . ACM. [7] Yuning Du, Chenxia Li, Ruoyu Guo, et al. 2020. PP-OCR: A Practical Ultra Lightweight OCR System. arXiv preprint arXiv:2009.09941 (2020). [8] Finalrun. 2026. Finalrun Agent. GitHub repository. https://github.com/final-run/finalrun-agent Accessed October 1, 2026. [9] Google. 2025. Policy announcement: October 30, 2025. Play Console Help. https: //support.google.com/googleplay/android-developer/answer/16550159 Accessed 2026-10-18. [10] Google. 2026. Artemis. GitHub repository. https://github.com/google/artemis Accessed October 1, 2026. [11] Google. 2026. Use of the AccessibilityService API. Play Console Help. https: //support.google.com/googleplay/android-developer/answer/10964491 Accessed 2026-10-18. [12] Google Research. 2026. AndroidWorld Leaderboard. https://docs.google. com/spreadsheets/d/1cchzP9dlTZ3WXQTfYNhh3avxoLipqHN75v1Tb86uhHo. Linked from https://github.com/google-research/android_world. Accessed October 1, 2026. [13] Wenyi Hong, Weihan Wang, Qingsong Lv, et al. 2024. CogAgent: A Visual Language Model for GUI Agents. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition . 14281–14290. [14] Hanyu Lai, Junjie Gao, Xiao Liu, et al. 2025. AndroidGen: Building an Android Language Agent under Data Scarcity. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics . Association for Computational Linguistics, Vienna, Austria, 2727–2749. doi:10.18653/v1/2025.acl-long.138 [15] Jungjae Lee, Dongjae Lee, Chihun Choi, et al. 2025. VeriSafe Agent: Safeguarding Mobile GUI Agent via Logic-based Action Verification. In Proceedings of the 31st Annual International Conference on Mobile Computing and Networking . ACM, Hong Kong, China, 817–831. doi:10.1145/3680207.3765248 [16] Ning Li, Xiangmou Qu, Jiamu Zhou, et al. 2025. MobileUse: A Hierarchical Reflection-Driven GUI Agent for Autonomous Mobile Operation. In Advances in Neural Information Processing Systems , Vol. 38. Curran Associates, Inc., 40361– 40388. doi:10.52202/085713-1347 [17] Sijia Li, Xiaoyu Tan, Shahir Ali, et al. 2026. Curiosity Driven Knowledge Retrieval for Mobile Agents. In Proceedings of the ACM Web Conference 2026 . ACM. doi:10. 1145/3774904.3792257 [18] Yanda Li, Chi Zhang, Wenjia Jiang, et al. 2024. AppAgent v2: Advanced Agent for Flexible Mobile Interactions. arXiv preprint arXiv:2408.11824 (2024). [19] Bill Yuchen Lin, Yicheng Fu, Karina Yang, et al. 2023. SwiftSage: A Generative Agent with Fast and Slow Thinking for Complex Interactive Tasks. In Advances in Neural Information Processing Systems .[20] Yadong Lu, Jianwei Yang, Yelong Shen, and Ahmed Awadallah. 2024. OmniParser for Pure Vision Based GUI Agent. arXiv preprint arXiv:2408.00203 (2024). [21] Midscene.js Team. 2026. Midscene.js AndroidWorld Benchmark Report. https: //midscenejs.com/android-world-benchmark-report. Accessed October 1, 2026. [22] Dang Nguyen, Jian Chen, Yu Wang, et al. 2025. GUI Agents: A Survey. In 
+
+Findings of the Association for Computational Linguistics: ACL 2025 . Association for Computational Linguistics, Vienna, Austria, 22522–22538. doi:10.18653/v1/ 2025.findings-acl.1158 [23] Isaac Ong, Amjad Almahairi, Vincent Wu, et al. 2025. RouteLLM: Learning to Route LLMs from Preference Data. In The Thirteenth International Conference on Learning Representations .[24] Yujia Qin, Yining Ye, Junjie Fang, et al. 2025. UI-TARS: Pioneering Automated GUI Interaction with Native Agents. arXiv preprint arXiv:2501.12326 (2025). [25] Christopher Rawles, Sarah Clinckemaillie, Yifan Chang, et al. 2025. AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents. In International Conference on Learning Representations .Conference’17, July 2017, Washington, DC, USA Shi et al. 
+
+Table 7: Parse-level evaluation on 14 device screens (28 vision parses). Worse counts elements whose text or tap position a repair made worse. 
+
+Metric Vision parse + OCR repair Δ
+
+Elements found 51.7% 63.7% +12.0 Exact text 49.2% 57.6% +8.4 Tap hit 26.4% 32.0% +5.6 Elements made worse – 0
+
+[26] Christopher Rawles, Alice Li, Daniel Rodriguez, et al. 2023. AndroidInTheWild: A Large-Scale Dataset For Android Device Control. In Advances in Neural Infor-mation Processing Systems (Datasets and Benchmarks Track) , Vol. 36. 59708–59728. doi:10.52202/075280-2609 [27] Tencent. 2017. ncnn: A High-Performance Neural Network Inference Framework Optimized for the Mobile Platform. https://github.com/Tencent/ncnn. [28] TypeSafe AI. 2026. Jev: A System One Model for Typed Decisions. https://docs. typesafe.ai/. Model version jev-1.13.0. [29] Junyang Wang, Haiyang Xu, Haitao Jia, et al. 2024. Mobile-Agent-v2: Mobile Device Operation Assistant with Effective Navigation via Multi-Agent Collaboration. In Advances in Neural Information Processing Sys-tems , Vol. 37. https://proceedings.neurips.cc/paper_files/paper/2024/hash/ 0520537ba799d375b8ff5523295c337a-Abstract-Conference.html [30] Junyang Wang, Haiyang Xu, Jiabo Ye, et al. 2024. Mobile-Agent: Autonomous Multi-Modal Mobile Device Agent with Visual Perception. In ICLR 2024 Workshop on Large Language Model Agents .[31] Hao Wen, Yuanchun Li, Guohong Liu, et al. 2024. AutoDroid: LLM-powered Task Automation in Android. In Proceedings of the 30th Annual International Conference on Mobile Computing and Networking . ACM, 543–557. doi:10.1145/ 3636534.3649379 [32] Qinzhuo Wu, Pengzhi Gao, Wei Liu, and Jian Luan. 2025. BacktrackAgent: Enhancing GUI Agent with Error Detection and Backtracking Mechanism. In 
+
+Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing . Association for Computational Linguistics, Suzhou, China, 4250–4272. doi:10.18653/v1/2025.emnlp-main.212 [33] Bin Xie, Rui Shao, Gongwei Chen, et al. 2025. GUI-explorer: Autonomous Ex-ploration and Mining of Transition-aware Knowledge for GUI Agent. In Pro-ceedings of the 63rd Annual Meeting of the Association for Computational Lin-guistics . Association for Computational Linguistics, Vienna, Austria, 5650–5667. doi:10.18653/v1/2025.acl-long.282 [34] Yifan Xu, Xiao Liu, Xinghan Liu, et al. 2026. MobileRL: Online Agentic Reinforce-ment Learning for Mobile GUI Agents. In The Fourteenth International Conference on Learning Representations . https://openreview.net/forum?id=C3F0G9nXhl [35] Chenyang Yan, Yingying Zhang, Kanzhi Cheng, Qiushi Sun, et al. 2026. OpenMobile-2: Building Versatile Mobile Agents with Scalable Environments and App-Native Tools. arXiv:2610.14157 [cs.SE] https://arxiv.org/abs/2610.14157 [36] Yuhao Yang, Yue Wang, Dongxu Li, et al. 2025. Aria-UI: Visual Grounding for GUI Instructions. In Findings of the Association for Computational Linguistics: ACL 2025 . Association for Computational Linguistics, Vienna, Austria, 22418–22433. doi:10.18653/v1/2025.findings-acl.1152 [37] Jiabo Ye, Xi Zhang, Haiyang Xu, et al. 2025. Mobile-Agent-v3: Fundamental Agents for GUI Automation. arXiv:2508.15144 [cs.AI] https://arxiv.org/abs/2508. 15144 [38] Chi Zhang, Zhao Yang, Jiaxuan Liu, et al. 2025. AppAgent: Multimodal Agents as Smartphone Users. In Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems (CHI ’25) . Association for Computing Machinery. doi:10. 1145/3706598.3713600 [39] Yuzhe Zhang, Xianwei Xue, Xingyong Wu, et al. 2026. Don’t Act Blindly: Robust GUI Automation via Action-Effect Verification and Self-Correction. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) . Association for Computational Linguistics, 28924–28941. doi:10. 18653/v1/2026.acl-long.1335 [40] Shanhui Zhao, Hao Wen, Wenjie Du, et al. 2025. LLM-Explorer: Towards Efficient and Affordable LLM-based Exploration for Mobile Apps. In Proceedings of the 31st Annual International Conference on Mobile Computing and Networking . ACM. arXiv:2505.10593. [41] Boyuan Zheng, Boyu Gou, Jihyung Kil, et al. 2024. GPT-4V(ision) is a Generalist Web Agent, if Grounded. In Proceedings of the 41st International Conference on Machine Learning (Proceedings of Machine Learning Research, Vol. 235) . 61349– 61385. https://proceedings.mlr.press/v235/zheng24e.html 
+
+## A Perception Details 
+
+On-device GPU OCR.. Coati runs PP-OCRv5 mobile [5, 7] through NCNN with Vulkan [27] on the device GPU. Devices without a us-able Vulkan GPU run without OCR: a CPU implementation took 1.5–6 s per screen on an entry-level device, too slow to help a step. On a recent phone GPU, a complete OCR pass takes 40–85 ms per screen in the runs of Appendix D; on an entry-level Mali-G52, detection takes about 0.2 s and recognition about 90 ms per line, and batching horizontally adjacent lines into one recognition pass reduces total time by 25–35% at unchanged accuracy (an 84-line screen from 7.8 s to 5.9 s, a 21-line screen from 2.0 s to 1.5 s). Recog-nition skips labelled nodes, the status bar and the soft keyboard, and on native screens reads only unlabelled, non-image nodes. Models load asynchronously at service start, and on tree-less screens OCR runs in parallel with the vision parse and may delay a step by at most one second. 
+
+Conservative OCR repair. A first repair strategy that replaced model text with OCR text improved parses overall but degraded elements the model had right: OCR misreads small text, icon glyphs and thumbnails. Coati’s final repair never overwrites model text. It keeps only confident lines (confidence ≥ 0.8 with at least two alphanumeric characters, or confident single-digit counters), ap-pends confident lines the parse missed, fills elements that have no text, snaps text-like elements only to lines with the same content, and moves an element only when the match is unique. Section A.1 shows that this strategy improves every metric without degrading any element. 
+
+Parse agreement. If fewer than 30% of a vision parse’s texts are confirmed by OCR on the same screenshot, the parse describes a different image and is requested again. We observed such parses through a third-party model relay that mixed up responses be-tween requests; the check discards them before they cause actions, although it cannot prevent the screenshot from having been sent. 
+
+Parse-level perception benchmark. Fourteen device screen-shots (four native, three custom canvas, three Flutter, two from a video app, two from a streaming client), 28 vision parses, with ground-truth element texts and positions from the accessibility tree or layout constants. We report the share of ground-truth elements found, the share with exactly correct text, the share whose parsed tap point falls inside the true element, and the number of elements that a repair made worse. 
+
+## A.1 Parse-Level Evaluation 
+
+Table 7 shows that conservative OCR repair improves every parse-level metric without degrading a single element; the earlier re-placing strategy improved the totals as well but corrupted correct elements (“1.3M subscribers” became “3M sul”, “Background” be-came “F Backgr”), which motivated never overwriting model text. On an offline selection set of 96 annotated phrases, a bundled mo-bile OCR model matched 77% (below the vision model’s own 91%), while PP-OCR matched all 96, which led to the NCNN deployment. On native screens with a usable tree, OCR reads only unlabelled nodes and typically completes in 0.4–0.6 s, and the hybrid trigger flags only screens that mix native and painted content. Tap-hit remains the weakest metric: vision parses place elements imprecisely on custom-drawn screens, which is why Coati prefers Coati: Host-Grounded Execution for Installable Mobile GUI Agents Conference’17, July 2017, Washington, DC, USA 
+
+tree bounds wherever the tree is usable and executes fast-route actions at the element’s own bounds. 
+
+## B Evaluation Protocol 
+
+Harness. All agents run through one harness that instantiates AndroidWorld tasks from the official registry (seed 30), applies the official step budgets, records every attempt in a per-emulator ledger, cold restarts the emulator every ten attempts, and scores with the official evaluators. The harness refuses to resume an experiment whose identity (task instance, parameters, sources and model con-figuration) differs from the stored one, so every reported episode ran under one configuration. 
+
+Environment failures and resumption. An episode is excluded and rerun, for every agent alike, only when the environment failed before the agent could act: AndroidWorld’s own task setup raised an error (for example a missing tool or an uninitialized database), the agent’s driver did not start, or no model response arrived at all. One task, MarkorCreateFolder, names its folder after the current time to the second, so its instance can never match a stored one when a run resumes; its stored episode is rerun on every resumption, again for every agent. Archived episodes are kept with the results. We release the harness, its settings and every per-run result. 
+
+Published results. Table 8 lists published and leaderboard results for context. 
+
+## C Tasks 
+
+Everyday tasks. Turn on dark theme; turn off location; set an alarm for 7:30 AM in the Clock app; start a 5-minute timer in the Clock app; create a contact named Alex Chen with phone number 555 123 4567; open the Downloads folder in the Files app; set the screen brightness to the maximum. Results are checked through system settings, the contacts provider, or the final screen. 
+
+Loops of simple steps. Car Market is an offline marketplace fixture with 40 listings. In its repeat mode every row shows the listing ID, a Sold badge on six listings, and Favorite, Compare and Hide controls; a Refresh control drops one listing’s price on the fifth refresh. R1: add the first 10 listings to favorites. R2: add six given listing IDs to the compare list. R3: hide every listing marked Sold. R4: refresh until the price of a named listing drops below $40,000 and report it. The fixture persists its state, which the checker reads after each run. 
+
+Repeated use. Manual Lab is an offline fixture with four bottom tabs and a low-frequency route (Me → Settings → Advanced set-tings → Archive); its version 2 keeps the package identity and replaces two tabs with a tool hub. The familiar-app task opens the Advanced settings of Google Messages. Both fixtures, all task definitions and checkers are released with the code. 
+
+AndroidWorld tasks lost to an opponent. Seven tasks were solved by FinalRun or Midscene in their single trial while Coati averaged below one half over three trials. CameraTakePhoto (1 of 3): in two trials the camera’s shutter did not respond to Coati’s taps, and the audit accepted the completion because a viewfinder looks the same before and after a photo. SimpleCalendarNextMeetingWithPerson (1 of 3): Coati found the right event but ended on its date picker, which shows the date and hides the time, and twice reported a wrong hour. 
+
+SportsTrackerActivitiesOnDate (1 of 3): twice Coati named one of the two activity types recorded on the date. SystemBrightnessMaxVerify 
+
+(0 of 3): a tap at the end of the brightness slider fills it visibly but leaves the setting short of the maximum, which no screen shows. 
+
+TasksHighPriorityTasksDueOnDate (1 of 3): Coati opened tasks one by one to read their priority and due date, each closing through a discard dialog, and twice ran out of its ten steps. VlcCreatePlaylist 
+
+(1 of 3) and VlcCreateTwoPlaylists (1 of 3): selecting several files in order in VLC’s file picker exhausted the step budget in two trials each. Three of the seven tasks thus ran out of steps; the other four ended in completions whose error the final screens do not show, the limit of a screen-based audit discussed in Section 4.3. 
+
+## D Routed Execution on a Phone 
+
+On-device benchmark. To measure routed execution on cur-rent consumer hardware, we built a benchmark of nine tasks on a OnePlus phone running Android 16 (1272 ×2772 portrait). The tasks cover interface types that stress different components (Ta-ble 9): native pages reached through several menus (L1), search with text entry across pages (L2), a setting that depends on an-other page (L3), a custom-drawn canvas with no accessibility tree (W1) and with text entry (W2), a native form with painted step-per and toggle widgets (O1), a system permission dialog shown by another process (P1), and two Flutter apps: a finance app with login and tab navigation (G1) and settings (G2). Each task has an automatic check of the resulting app state. Both configurations use Gemini 3.8 Flash as Reasoning and Fast model through the official API; the fast route’s selector is Jev (version jev-1.13.0), a “System One” model that answers structured questions with typed, confidence-scored decisions [28]. Per-step Reasoning is Coati with every step on the Reasoning route (VerifyLoop enabled); Routed en-ables the fast route in Fast mode, hybrid perception and GPU OCR. Each task runs three times per configuration, both configurations in every round, with app knowledge off. Task time is the duration the agent logs from task start to accepted completion. Model latency in the test environment fluctuated, so absolute times are longer than in the emulator experiments and vary between rounds; both configurations are affected alike. 
+
+## D.1 Routed versus Per-step Execution on a Phone 
+
+Table 9 compares the two configurations; Section 4.4 summarizes the totals. Per-step Reasoning’s one failure is an L1 run that ex-hausted the time limit while it searched for the deep page. Routed execution is faster by 55–65% on native search, the dependent set-ting and the permission dialog and by 34% on the Flutter login task; its 67 critical-path Reasoning calls are all escalations, while the Reasoning model planned in the background. 
+
+## D.2 AppMemory Under Routed Execution 
+
+The learning sequence of Section 4.5 on the phone runs L1 three times, then L3, with routed execution and app knowledge in learn-ing mode; L3 took 5 steps (23 s). Conference’17, July 2017, Washington, DC, USA Shi et al. 
+
+Table 8: Success on AndroidWorld. SR is the task success rate (%). (a) Published methods, with numbers from their papers. (b) Submissions to the public AndroidWorld leaderboard [12] (accessed October 2026), which are self-reported, single-trial and not independently verified; we summarize them rather than rank against them. (c) Coati under the protocol of Section 4.1, mean over three trials. A11y tree denotes the Android accessibility UI tree. 
+
+Method Model Screen Representation SR 
+
+(a) Published methods (paper-reported) 
+
+UI-TARS [24] UI-TARS-72B Screenshot 46.6 Agent S2 [1] Agent S2 Screenshot 54.3 V-Droid [6] V-Droid (Llama-8B) A11y tree 59.5 Mobile-Agent-v3 [37] GUI-Owl-32B Screenshot 73.3 MobileRL [34] MobileRL-9B (GLM-4.1V-9B) Screenshot + A11y tree 80.2 
+
+(b) Leaderboard submissions (self-reported, single trial, not independently verified) 
+
+Top seven submissions Mostly proprietary models (e.g., GPT-5.4 to GPT-6, Gemini 3.7, Seed1.8) Screenshot, or Screenshot + A11y tree 97.4–100 Human reference [25] – – 80.0 
+
+(c) This work (three trials) 
+
+Coati (Ours) Gemini 3.8 Flash Screenshot + A11y tree 86.5 
+
+Table 9: On-device benchmark (Android 16 phone, Gemini 3.8 Flash for Reasoning and Fast). Each cell reports verified successes over three runs, mean task time of the verified runs, mean steps, and mean Reasoning calls on the critical path per run (the routed configuration’s background planning calls are not counted). 
+
+Per-step Reasoning Routed (Coati) Task Interface Succ. Time (s) Steps Reas. Succ. Time (s) Steps Reas. 
+
+L1 native, several menus deep 2/3 410.9 31.0 31.0 3/3 295.2 34.3 13.7 L2 native, search and text entry 3/3 78.7 6.0 6.0 3/3 32.4 6.3 0.0 L3 native, dependent setting 3/3 60.9 5.0 5.0 3/3 21.2 5.0 0.0 W1 custom canvas, no tree 3/3 99.1 7.0 7.0 3/3 82.7 9.0 0.7 W2 canvas and text entry 3/3 100.5 7.7 7.7 3/3 120.8 16.3 1.0 O1 native form with painted widgets 3/3 238.1 15.7 15.7 3/3 191.9 19.0 2.7 P1 system permission dialog 3/3 159.5 9.7 10.7 3/3 71.5 11.7 2.0 G1 Flutter, login and tabs 3/3 128.7 8.0 8.0 3/3 85.5 10.3 1.3 G2 Flutter, settings 3/3 51.8 4.0 4.0 3/3 45.5 7.0 1.0 
+
+All (27 runs) 26/27 137.5 10.4 285 total 27/27 105.2 13.2 67 total 
+
+## D.3 Case Study: A Commit Stopped by the Pre-commit Gate 
+
+Task O1 asks to choose an item in a native order form, set a painted stepper to three copies, turn on a painted toggle, fill two native text fields, and submit; hybrid perception merges a vision parse for the painted widgets into the tree. In one routed phone run, the selector left the stepper at two copies, completed the rest of the form and chose Submit order . Before the tap, the pre-commit gate asked the Fast model whether the screen satisfied the task and received “Copies is set to 2 instead of 3”. The escalated Reasoning step tapped “+” once more, its verification confirmed three copies, and the order was submitted with the requested values. Without the gate, only the completion audit could have caught the wrong order, after the fact. Coati: Host-Grounded Execution for Installable Mobile GUI Agents Conference’17, July 2017, Washington, DC, USA 
+
+Figure 4: AppMemory on the learning benchmark (Manual Lab, task L1). (A) The manual is bound to the application identity and retrieved as bounded, advisory entries; on the fast route it is the selector’s app guide. (B) Page observations pass the evidence gate, and the task-local buffer keeps the latest candidates, where the route that worked (Me → Settings → Advanced settings → Archive) appears after exploration. (C) After the audit accepts the task, a curator applies a bounded edit that is committed only if validation succeeds; warm runs then take five steps.
