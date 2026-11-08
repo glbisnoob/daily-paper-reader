@@ -3,6 +3,10 @@ name: daily-paper-reader
 on:
   workflow_dispatch:
     inputs:
+      publish_only:
+        description: "只发布现有网页，不重新检索论文"
+        type: boolean
+        default: false
       run_enrich:
         description: "Run 0.enrich_config_queries.py（默认关闭，按需开启）"
         required: false
@@ -121,6 +125,7 @@ jobs:
           uv pip install --system -r /tmp/req.txt
 
       - name: Check cloud embedding and reranker
+        if: inputs.publish_only != true
         run: python scripts/check_cloud_models.py --require-lightweight
 
       - name: Restore long-range review progress
@@ -135,6 +140,7 @@ jobs:
             long-range-v1-${{ github.ref_name }}-
 
       - name: Run Retrieval and Embedding
+        if: inputs.publish_only != true
         # 留出保存评审缓存的时间；失败后重跑可复用仍在缓存中的已完成评分。
         timeout-minutes: ${{ inputs.fetch_days == '30' && 320 || 100 }}
         env:
@@ -198,14 +204,14 @@ jobs:
           if-no-files-found: error
 
       - name: Cleanup non-recommend archives
-        if: steps.window.outputs.long_range != 'true'
+        if: inputs.publish_only != true && steps.window.outputs.long_range != 'true'
         run: |
           if [ -d archive ]; then
             find archive -mindepth 2 -maxdepth 2 -type d \( -name raw -o -name filtered -o -name rank \) -exec rm -rf {} +
           fi
 
       - name: Commit results
-        if: github.repository != 'ziwenhahaha/daily-paper-reader'
+        if: inputs.publish_only != true && github.repository != 'ziwenhahaha/daily-paper-reader'
         env:
           REQUESTED_DAYS: ${{ steps.window.outputs.days }}
         run: |
@@ -273,6 +279,9 @@ jobs:
         run: |
           mkdir _site
           git archive HEAD index.html app docs .nojekyll | tar -x -C _site
+          if git cat-file -e HEAD:secret.private 2>/dev/null; then
+            git show HEAD:secret.private > _site/secret.private
+          fi
       - uses: actions/upload-pages-artifact@v4
         if: github.repository == 'glbisnoob/daily-paper-reader' && github.ref == 'refs/heads/main' && steps.window.outputs.long_range != 'true'
         with:
