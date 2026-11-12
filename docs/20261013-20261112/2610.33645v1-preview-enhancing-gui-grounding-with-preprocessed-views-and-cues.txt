@@ -1,0 +1,571 @@
+Title: PreView: Enhancing GUI Grounding with Preprocessed Views and Cues
+
+URL Source: https://arxiv.org/pdf/2610.33645v1
+
+Published Time: Tue, 27 Oct 2026 00:40:50 GMT
+
+Number of Pages: 14
+
+Markdown Content:
+# PRE VIEW : Enhancing GUI Grounding with Preprocessed Views and Cues 
+
+Wenjun Hou and Kaishuai Xu 
+
+Independent Researcher 
+
+{houwenjun060, xu.kaishuai}@gmail.com 
+
+Abstract 
+
+GUI grounding requires locating small controls in cluttered screenshots and identifying which control a natural-language instruction refers to. Cropping and enlargement can expose local detail, but the resulting image may still leave ambiguity about the intended target. We pro-pose P RE VIEW , an auxiliary preprocessor that improves the inputs to an existing grounding model without further training that model. P RE -VIEW prepares two complementary types of input features: task-relevant views for local-ization and candidate-specific cues for target understanding. A trained lightweight auxiliary model predicts and refines a center, crops the screenshot into a local view, and enlarges that view for zoomed-in grounding. It also prepares a visual cue (i.e., a red-circle marker with a location hint) and a textual cue describing the candidate’s identity or function. The frozen grounding model uses the prepared inputs to predict the final click. Across five benchmarks, PRE VIEW improves the average grounding ac-curacy of Qwen3-VL-2B, OS-Atlas-4B, and Qwen3-VL-4B without further training these grounding models. Extensive analyses exam-ine the contributions of views and cues, center refinement, and visual input budgets. 
+
+1 Introduction 
+
+GUI grounding translates a natural-language in-struction into the screen location of an actionable interface element. It connects an agent’s intended action to its execution: even a correct plan fails if the agent clicks the wrong control. Dedicated grounding models have advanced this capability through GUI-specific data and training, including SeeClick, UGround, OS-Atlas, and GroundNext (Cheng et al., 2024; Gou et al., 2025; Wu et al., 2024; Feizi et al., 2025). Professional interfaces remain challenging because they combine high-resolution screenshots, dense layouts, and small 
+
+Figure 1: P RE VIEW prepares views and cues at the input level, without modifying the grounding model or accessing its internal states. 
+
+interactive elements (Li et al., 2025; Nayak et al., 2025). These settings raise a question beyond the capabilities of the grounder itself: how should the screenshot and instruction be presented to make the grounding decision easier? 
+
+We consider two intertwined requirements: lo-calization and understanding . Localization re-quires resolving an actionable control’s precise po-sition amid competing visual content. When an entire screenshot is processed under a limited vi-sual budget, small controls may receive insufficient detail. Understanding requires determining which element satisfies the instruction, including its func-tional role, its relationship to other elements, and the object to which it belongs. Consider the in-struction to click “Get involved” in Figure 1. The screenshot contains two stacked notification bars, each with an action button and a close control. A arXiv:2610.33645v1 [cs.CV] 24 Oct 2026 clearer image can help resolve these controls, but selecting the intended one also requires associating the button with the requested notification. Con-versely, identifying the correct control does not guarantee an accurate click on its small target area. Existing work addresses these difficulties along several complementary routes. Training on broader and higher-quality GUI data strengthens the grounder’s learned representations (Wu et al., 2024; Feizi et al., 2025). At inference time, zoom-in methods crop and rescale selected regions to expose local detail, while repeated predictions pro-vide opportunities to revise a localization decision. ScreenSeekeR uses a planner to guide cascaded visual search (Li et al., 2025). ZoomClick itera-tively narrows the view around predictions (Jiang et al., 2025). UI-Zoomer uses prediction uncer-tainty to decide whether and how to zoom (Tang et al., 2026). These methods demonstrate that grounding depends on the observation and infer-ence procedure as well as model parameters. Ad-ditional searches or predictions consume inference resources. Tighter cropping can also discard con-text needed to distinguish the target from nearby alternatives. Semantic augmentation provides another source of support. Screen parsing can expose interactable elements and their functional descriptions, as in OmniParser (Lu et al., 2024). Instruction refine-ment can make an intended target more explicit. AdaZoom-GUI combines such refinement with conditional zooming (Pei et al., 2026). These ap-proaches show that visual focusing and semantic clarification can be complementary. They also mo-tivate a more specific question: can a learned aux-iliary model prepare both task-relevant views and informative cues for an existing grounder? Such preprocessing must select useful evidence while limiting two sources of error: removing necessary visual context and supplying misleading semantic descriptions. We propose P RE VIEW , an auxiliary model that previews the interface before the downstream grounding decision, without further training the grounding model. It prepares two complementary types of input features: task-relevant views 1 and candidate-specific cues . Given a screenshot and in-struction, it predicts and refines a center, then crops the screenshot around that center to produce a lo-    
+
+> 1Throughout this paper, crop denotes the image-selection operation, whereas view denotes the image input.
+
+cal view. Cropping removes potentially distracting surroundings. We then zoom in by enlarging the selected view to expose local detail. The visual cue 
+
+pairs a red-circle marker with a fixed location hint. When the auxiliary model accepts the candidate, the textual cue describes its identity, function, or local relationships. The frozen grounding model receives the prepared view, the original instruction, and available cues. Its predicted click is mapped back to the original screenshot. We jointly train the auxiliary model for center prediction and candidate verification with description generation. Our contributions are: • We propose P RE VIEW , an auxiliary prepro-cessing framework that improves GUI ground-ing without training or modifying the down-stream grounding model. • We introduce two complementary input fea-tures: center-guided views that support local-ization, and candidate-specific visual and tex-tual cues that support target understanding. • Across five benchmarks and three grounding models, we improve reported average accu-racy by 1.5–13 .9 points, with gains on SSPro, OSW-G, MMB-GUI, and UI-V. Extensive analyses examine feature contributions, refine-ment, visual budgets, and failures. 
+
+2 Related Work 
+
+GUI grounding. GUI-specific supervision im-proves grounding in SeeClick, UGround, OS-Atlas, GroundCUA, and Phi-Ground (Cheng et al., 2024; Gou et al., 2025; Wu et al., 2024; Feizi et al., 2025; Zhang et al., 2025). Architectural approaches include high-resolution encoding in CogAgent, visual-token selection in ShowUI, and coordinate-free action prediction in GUI-Actor (Hong et al., 2024; Lin et al., 2024; Wu et al., 2025). Aguvis and UI-TARS integrate grounding into broader visual agents (Xu et al., 2024; Qin et al., 2025). PRE -VIEW trains an auxiliary preprocessor while re-taining the downstream model’s parameters and click-prediction interface. 
+
+Zooming and test-time scaling. ReGround, ScreenSeekeR, RegionFocus, and ZoomClick im-prove observations through recropping or cascaded visual search (Li et al., 2025; Luo et al., 2025; Jiang et al., 2025). UI-Zoomer and AutoFocus use Figure 2: Overview of P RE VIEW . For localization, the auxiliary model refines the initial center c1 into c2 to prepare a task-relevant view through cropping and enlargement. For understanding, it provides a visual marker with a location hint and generates a candidate description. The frozen grounding model uses the prepared view, instruction, and available cues in a single call. The predicted click is then mapped back to the original screenshot. 
+
+prediction uncertainty to guide zooming or region exploration (Tang et al., 2026; Yao et al., 2026). GTA1 uses a judge to select action proposals (Yang et al., 2025). P RE VIEW assigns refinement and cue generation to an auxiliary model before one down-stream grounding call. This auxiliary inference adds computation. 
+
+Visual prompting and semantic augmentation. 
+
+Spotlight, ScreenAI, and Ferret-UI connect UI re-gions with language and functional understand-ing (Li and Li, 2023; Baechler et al., 2024; You et al., 2024). Set-of-Mark supplies visual refer-ences (Yang et al., 2023). OmniParser detects and describes interactable elements (Lu et al., 2024). AdaZoom-GUI combines instruction refinement with zooming (Pei et al., 2026). PRE VIEW pre-pares a task-relevant view and paired visual/textual cues. Candidate verification and center consistency control which cues reach the frozen model. 
+
+Agent evaluation. Mind2Web studies cross-website generalization and auxiliary HTML fil-tering (Deng et al., 2023). VisualWebArena, OS-World, and AndroidWorld evaluate interactive task completion (Koh et al., 2024; Xie et al., 2024; Rawles et al., 2025). Our five-benchmark suite iso-lates single-step grounding, separating input prepa-ration from planning and multi-step recovery. 
+
+3 Method 
+
+Given a screenshot I and an instruction q, P RE -VIEW uses a trained auxiliary model Aθ to prepare inputs for a frozen grounding model G. As shown in Figure 2, it prepares a task-relevant view for localization and candidate-specific cues for target understanding. The grounding model predicts the final click without parameter updates. 
+
+3.1 Training Center prediction. Given an unmarked screen-shot and instruction, Aθ predicts the target-box center in image-relative coordinates. This predic-tion determines where to crop rather than the final click. 
+
+Candidate verification and description. Aθ re-ceives a local view, an instruction, and a marked candidate. It learns from positive and negative ex-amples to describe a matching candidate’s identity or function and explicitly reject a mismatch. 
+
+Joint optimization. The two tasks share the pa-rameters of Aθ. For each training example with multimodal input x and target response y, we mini-mize the following loss: 
+
+L(θ) = −
+
+> |y|
+
+X
+
+> t=1
+
+log pθ(yt | x, y <t ).
+
+We compute the loss only over the target response tokens and update Aθ while keeping G frozen. 
+
+3.2 Inference Center-guided cropping. As shown in Figure 2, the auxiliary model predicts an initial center c1from the full screenshot ( Initial ), then refines it using a local view and the original instruction to obtain c2 (Refine 1 ). We express both centers in nor-malized full-screenshot coordinates in [0 , 1] 2 using the mapping described below. Inference stops at 
+
+c2, which determines the final unmarked view Icrop 
+
+for cue generation and grounding. A third predic-tion c3 (Refine 2 ) is used only for analysis. For a screenshot of size W × H, we construct a rectangle of size approximately W √ρ × H√ρ around the predicted center, where ρ is the crop area ratio. We shift the rectangle inside image boundaries when necessary and enlarge the resulting view. Refine-ment uses a 50% -area crop enlarged by √2 per dimension (P50 → Full). Description generation and grounding use a 12 .5% -area crop enlarged 2×
+
+(P12.5 → P50). These budgets are relative to the original screenshot. 
+
+Visual and textual cues. The visual cue pairs a translucent red circle at c2 with a fixed location hint h explaining the marker. Although written in text, h belongs to this cue because it instructs the model how to use the visual marker. For the textual cue , Aθ generates a description d from the marked view and q. The description identifies the candi-date’s identity, function, or relationships. When cues are enabled and the candidate is accepted, the grounding input is 
+
+ˆs = G(eIcrop , q ⊕ h ⊕ d),
+
+where eIcrop is the marked view and ⊕ denotes in-struction augmentation using the template in Ap-pendix A. Here ˆs is the grounding model’s raw click prediction, distinct from the auxiliary model’s center predictions. The visual cue anchors the loca-tion, while the textual cue describes what is there. A REJECT response indicates that Aθ judges the candidate inconsistent with q. In this case, we with-hold the textual cue d.
+
+Center-consistency routing. We measure the displacement between the initial and refined centers in normalized image coordinates: 
+
+δ =
+
+q
+
+(c1,x − c2,x )2 + ( c1,y − c2,y )2.
+
+When δ ≤ τ and the initial center is valid, the grounding model receives the marked view and available cues. Otherwise, it receives the same unmarked view Icrop with the original instruction. Even if the auxiliary model rejects the candidate, we retain the visual cue when consistency passes. 
+
+Coordinate mapping. We normalize the ground-ing model’s raw click prediction ˆs = (ˆ sx, ˆsy) by its horizontal and vertical coordinate ranges Rx and 
+
+Ry, giving ˆu = (ˆ sx/R x, ˆsy/R y) ∈ [0 , 1] 2 within the input view. Let (xmin , y min ) and (xmax , y max )
+
+denote the input view’s top-left and bottom-right corners in the full screenshot after boundary ad-justment. We map the prediction back to a click 
+
+ˆp = (ˆ px, ˆpy) in the full screenshot as follows: 
+
+ˆpx = xmin + ( xmax − xmin )ˆ ux,
+
+ˆpy = ymin + ( ymax − ymin )ˆ uy.
+
+4 Experiments 
+
+4.1 Datasets Training data. We construct training examples from 50,000 desktop-application screenshots in GroundCUA, using its element bounding boxes and official instruction-tuning annotations (Feizi et al., 2025). Center supervision is the geometric target-box center, normalized to [0 , 1000] 2. Posi-tive descriptions come from the official instruction-tuning release, matched by screenshot and target element. For each positive example, we randomly sample a candidate point within the target bounding box. Negative examples use annotated non-target elements with the response REJECT . The resulting mixture contains 50,000 center-prediction exam-ples, 49,311 positive description examples, and 49,284 rejection examples. 
+
+Evaluation benchmarks. We adopt the five-benchmark suite used by Feizi et al. (2025): ScreenSpot-Pro (SSPro; Li et al., 2025), OSWorld-G (OSW-G; Xie et al., 2025), MMBench-GUI L2 (MMB-GUI; Wang et al., 2025), ScreenSpot-v2 (SSv2; Wu et al., 2024), and UI-Vision Element Grounding (UI-V; Nayak et al., 2025). OSW-G O
+
+and OSW-G R denote separate original/refined in-struction conditions. Table 7 in Appendix B sum-marizes benchmark sizes. Appendix D reports category-level results for the two Qwen3-VL mod-els. 
+
+4.2 Evaluation Metrics 
+
+Grounding accuracy measures whether the final click lies inside the annotated target box. OSW-G also scores correct refusal when the requested target is absent. For MMB-GUI, we follow the of-ficial evaluation code and report the mean of Basic and Advanced accuracies. For the auxiliary model, Model SSPro OSW-G O OSW-G R MMB-GUI SSv2 UI-V Avg.                                                                                                                                                                                                                                         
+
+> ≤3B
+> UI-R1-E-3B 33 .5–48 .868 .488 .616 .5–SE-GUI-3B 35 .9–46 .166 .386 .815 .050 .0
+> InfiGUI-R1-3B 35 .7–42 .970 .689 .517 .851 .3
+> GUI-G 2-3B 36 .4–53 .566 .387 .618 .752 .5
+> GUI-G1-3B 37 .1–49 .571 .089 .520 .353 .5
+> InfiGUI-G1-3B 45 .2–49 .673 .491 .122 .056 .3
+> Qwen2.5-VL-3B 16 .127 .3–60 .880 .96.338 .3
+> JEDI-3B 36 .150 .961 .066 .588 .618 .752 .2
+> GUI-Actor-3B 42 .2–48 .969 .891 .019 .754 .3
+> GroundNext-3B 49 .8–64 .277 .188 .862 .168 .4
+> Qwen3-VL-2B 43 .1∗46 .162 .172 .991 .416 .557 .2
+> Qwen3-VL-2B ( w. PRE VIEW )59 .3∗55 .066 .877 .086 .033 .764 .6∆Improvement +16 .2+8 .9+4 .8+4 .1−5.4+17 .1+7 .4
+> >3B
+> SE-GUI-7B 47 .3–33 .934 .568 .916 .740 .3
+> UI-TARS-1.5-7B 49 .652 .864 .264 .390 .320 .857 .8
+> GUI-G 2-7B 47 .5–61 .979 .593 .325 .661 .7
+> InfiGUI-G1-7B 51 .9–59 .980 .893 .526 .162 .4
+> GTA1-7B 50 .155 .167 .779 .492 .425 .763 .1
+> PhiGround-4B-7C 22 .8–51 .460 .380 .820 .547 .2
+> Qwen2.5-VL-7B 26 .831 .4–33 .988 .80.936 .4
+> OS-Atlas-7B 18 .927 .7–41 .485 .19.036 .4
+> UGround-V1-7B 16 .536 .4–65 .787 .612 .943 .8
+> Aguvis-7B 39 .538 .7–45 .786 .013 .744 .7
+> GUI-Actor-7B 44 .6–47 .070 .992 .121 .955 .3
+> JEDI-7B 39 .554 .163 .870 .491 .724 .856 .1
+> GroundNext-7B 52 .9–67 .781 .190 .460 .370 .5
+> OS-Atlas-4B 2.8∗10 .58.526 .662 .77.321 .6
+> OS-Atlas-4B ( w. PRE VIEW )28 .2∗31 .925 .943 .561 .218 .935 .5∆Improvement +25 .4+21 .5+17 .4+16 .9−1.5+11 .6+13 .9
+> Qwen3-VL-4B 59 .3∗58 .270 .684 .794 .025 .366 .8
+> Qwen3-VL-4B ( w. PRE VIEW )63 .7∗59 .970 .479 .787 .140 .668 .3∆Improvement +4 .4+1 .7−0.2−5.0−6.9+15 .3+1 .5
+
+Table 1: Grounding accuracy (%) by model size. O and R denote original and refined OSW-G instructions, respectively. Bold marks P RE VIEW scores that are column-best within each size group. ∆ denotes percentage-point gains. ∗ marks our SSPro evaluations. – indicates unavailable or unverified scores. Reference averages follow GroundCUA. Our five-benchmark averages use OSW-G R.
+
+direct hit scores its predicted center, while cen-ter containment tests whether the resulting 12 .5% -area view contains the target-box center. The re-finement analysis evaluates Initial ( c1), Refine 1 (c2), and Refine 2 ( c3) without description feed-back or early stopping. The main pipeline stops at 
+
+c2 (Section 3.2). Additional evaluation details are provided in Appendix B. 
+
+4.3 Baselines 
+
+Table 1 groups published results from Feizi et al. (2025) into ≤ 3B and > 3B models. UI-R1-E’s SSPro score follows its original paper (Lu et al., 2025). We evaluate P RE VIEW with Qwen3-VL-2B-Instruct and Qwen3-VL-4B-Instruct (Bai et al., 2025), and OS-Atlas-Base-4B (Wu et al., 2024). Each comparison group reports Full, P RE -VIEW , and their difference in percentage points. Within these groups, Qwen3-VL Full OSW-G O
+
+and ScreenSpot scores use official model cards. Remaining Full scores are ours. 
+
+4.4 Implementation Details 
+
+We jointly train both auxiliary tasks from Qwen3.5-0.8B for two epochs in BF16 precision. Language-model attention and feed-forward layers use LoRA (Hu et al., 2021). The multimodal merger is train-able and the vision encoder is frozen. Table 2 lists the training configuration. We use vLLM for infer-ence. 
+
+Inputs and routing. Center prediction receives the unmarked screenshot and instruction, and out-puts coordinates in [0 , 1000] 2. Candidate veri-fication receives the instruction, a marked local view, and view-relative candidate coordinates on Hyperparameter Value                  
+
+> Epochs / precision 2/ BF16 Optimizer AdamW Learning rate 5×10 −5
+> Weight decay 10 −3
+> LR schedule / warmup Linear / 3%
+> Micro / effective batch size 4/128
+> Gradient accumulation 32
+> LoRA rank / α128 /256
+
+Table 2: Auxiliary-model training configuration. 
+
+the same scale. The view retains 12 .5% of the source area and is enlarged 2×. The output is a description or REJECT . Training descriptions are capped at 80 tokens, and auxiliary inference allows 128 output tokens. At inference, all three grounding models use τ = 0 .02 to select between a marked view with available cues and the same unmarked view. Prompt templates appear in Appendix A. 
+
+Visual budget ablation. We evaluate Qwen3-VL-2B-Instruct on OSW-G R, SSPro, and UI-V us-ing unmarked views without descriptions. We vary cropping area and upsampling while keeping each sample’s refined center, instruction, and grounding settings fixed. Pixel budgets denote output area rel-ative to the full screenshot. Equal-budget settings match processed visual-token counts per sample. Configurations and evaluation coverage appear in Appendix B. 
+
+5 Results 
+
+5.1 Grounding Performance 
+
+Better inputs improve grounding across model fam-ilies and can partly close the gap to a larger ground-ing model. Table 1 reports average gains of 7.4,
+
+13 .9, and 1.5 percentage points for Qwen3-VL-2B, OS-Atlas-4B, and Qwen3-VL-4B, respectively. The first two models improve on four benchmark families: SSPro, OSW-G, MMB-GUI, and UI-V. With P RE VIEW , Qwen3-VL-2B matches the 4B Full score on SSPro ( 59 .3% ) and exceeds it on UI-V ( 33 .7% versus 25 .3% ). PRE VIEW enables Qwen3-VL-2B and Qwen3-VL-4B to compete with larger 3B and 7B models, respectively. This requires neither further training nor additional calls to the grounding models. Both outperform all listed baselines of the corresponding larger size on SSPro and OSW-G Refined. Their average accuracy is also competitive across bench-marks (Table 1). These results suggest that improv-ing localization and understanding through input                                      
+
+> Method Grounding model Base Enhanced ∆
+> ReGround OS-Atlas-7B 18 .940 .2+21 .3
+> ScreenSeekeR OS-Atlas-7B 18 .948 .1+29 .2
+> RegionFocus Qwen2.5-VL-7B 26 .832 .1+5 .3
+> ZoomClick UI-Venus-7B 50 .365 .7+15 .4
+> UI-Zoomer UI-Venus-7B 50 .061 .8+11 .8
+> AutoFocus UI-Venus-7B 50 .367 .8+17 .5
+> PRE VIEW Qwen3-VL-2B 43 .159 .3+16 .2
+> PRE VIEW OS-Atlas-4B 2.828 .2+25 .4
+> PRE VIEW Qwen3-VL-4B 59 .363 .7+4 .4
+
+Table 3: Comparison with training-free methods on SSPro. The Base and Enhanced columns show accuracy (%). ∆ is the gain in percentage points. 
+
+preparation can partly bridge the gap in grounding-model size. These aggregate gains vary across tasks and tar-get types. Qwen3-VL-4B gains 15 .3 points on UI-V but loses 5.0 on MMB-GUI. On SSPro, its icon accuracy rises from 32 .5% to 42 .5% , versus 
+
+75 .8% to 76 .8% for text (Appendix D). The larger gain on icons suggests greater remaining benefit for these targets. Within UI-V, both Qwen3-VL models improve on Basic, Functional, and Spatial instructions (Table 8). Spatial accuracy remains lowest, at 17 .0% for 2B and 26 .0% for 4B. Inter-preting spatial relationships remains a weakness for both models after preprocessing. 
+
+Comparison with training-free methods. Ta-ble 3 compares P RE VIEW with training-free input and inference refinements on SSPro. P RE VIEW 
+
+achieves gains of 16 .2, 25 .4, and 4.4 points with 
+
+one grounding-model call for 2B, OS-Atlas-4B, and 4B, respectively. The lightweight auxiliary model handles localization refinement and cue gen-eration, so the grounding model need not repeat its search. Integration requires neither logits nor hidden states. It preserves the grounder’s input interface and decoding procedure, adding only pre-processing and coordinate mapping. 
+
+5.2 Auxiliary Model Performance 
+
+A center prediction can be useful for selecting a view even when it is not accurate enough for click-ing. On SSPro, Refine 1 retains the target center in 80 .14% of views but directly hits the target in only 53 .83% of cases (Figure 3). One refinement raises mean direct hit from 60 .83% to 64 .02% at 
+
+c2. The analysis-only c3 yields 63 .93% , providing no further gain. We therefore stop at c2 rather than adding another auxiliary call. SSPro OSW-G R 
+
+> MMB-GUI SSv2 UI-V
+> 40 60 80 90
+> Rate (%)
+> (a) Direct hit
+> +8.0 +6.9 +1.2 -2.0 +2.0
+> Initial Re fi ne 1 Re fi ne 2
+> SSPro OSW-G R
+> MMB-GUI SSv2 UI-V
+> 75 80 85 90
+> (b) Center containment
+> +1.6 +1.2 -0.7 -1.5
+
+Figure 3: Auxiliary-model direct hit (a) and center con-tainment (b). Initial, Refine 1, and Refine 2 correspond to c1, c2, and c3, respectively. 
+
+Direct hit (%) Benchmark Accept Reject NReject 
+
+SSPro 62 .0 18 .6 295 
+
+OSW-G R 77 .2 25 .4 71 
+
+MMB-GUI 82 .0 41 .3 625 
+
+SSv2 90 .0 63 .4 344 
+
+UI-V 49 .6 12 .8 1520 
+
+Weighted Avg. 66 .5 26 .1 2855 
+
+Table 4: Auxiliary-model direct hit by verification re-sponse, on target-present examples. Weighted Avg. weights each benchmark by its accepted or rejected sample count for the corresponding column. 
+
+Candidate rejection. A rejected candidate can still be correctly located. Rejected candidates have lower sample-weighted direct hit than accepted ones ( 26 .1% versus 66 .5% ). On SSv2, rejected can-didates reach 63 .4% direct hit (Table 4). On 1,163 
+
+rejected candidates passing consistency, keeping visual cues produces 28 and 12 more correct clicks for 2B and 4B than View-only. These gains show that spatial guidance can remain useful even when the auxiliary model rejects the candidate. 
+
+5.3 View and Cue Ablation Task-relevant views. View preparation supplies much of the improvement before any cue is added (Table 5). For 2B on SSPro, View raises accu-racy from 43 .1% to 56 .9% , already close to 59 .3% 
+
+with complete cues. Cues contribute more on UI-V, adding 7.7 points beyond View compared with 2.5
+
+on SSPro. View and cue gains depend on whether a task primarily requires region selection or target interpretation. 
+
+Visual and textual cues. Indicating a location alone does not always resolve the target’s iden-tity. On SSPro, 2B falls from 56 .9% with View to 55 .6% with the marker and hint, then reaches 12.5 25 50 55 60 65 70     
+
+> Accuracy (%)
+> 66.3 67.0
+> (a) OSW-G R
+> 12.5 25 50 48 52 56 60
+> 56.9 54.8
+> (b) SSPro
+> 12.5 25 50 18 22 26 30
+> 26.0 22.2
+> (c) UI-V
+> 12.5% crop 25% crop
+> Output pixel budget (% of full screenshot)
+
+Figure 4: Effects of cropping area and enlargement on Qwen3-VL-2B at different visual budgets. 
+
+59 .3% when the description is added. Here, the improvement comes from adding the description to the marker and hint. Combined cues improve aver-age accuracy beyond View for all three models. For 4B on SSPro, accuracy falls from 65 .0% with View to 64 .0% with visual cues and 63 .7% with both cue types. The loss begins with the marker and hint, and adding a description does not recover it. One possible explanation is that inaccurate guidance can redirect a prediction that the model would make correctly from the view alone. On UI-V, the same 4B model benefits from combined cues, improving from 35 .9% to 40 .6% . Cue usefulness therefore de-pends on the task as well as the grounding model. 
+
+5.4 Visual Budget Ablation 
+
+Selecting useful content and enlarging it make com-plementary contributions (Figure 4). At the same 
+
+25% pixel budget, enlarging a 12 .5% -area crop beats using a native 25% -area crop on all three benchmarks with identical processed visual-token counts. The gain therefore depends on how the budget is allocated, not simply on supplying more tokens. For a fixed 12 .5% -area crop, doubling both dimensions adds 6.5–10 .8 points, showing the ad-ditional value of enlargement. At the same 50% vi-sual budget, smaller crops perform better on SSPro and UI-V, while the wider crop improves OSW-G R
+
+by 0.71 points. 
+
+5.5 Cue Reliability and Failure Analysis 
+
+Cues help most when their location is correct, but can override a correct grounding decision when misplaced. Figure 5 compares View-only predic-tions with those using paired visual and textual cues on 8,288 target-present 2B examples passing the consistency filter. Recovery measures how of-ten cues correct initially wrong View predictions, whereas regression measures how often they turn Model Input Visual Cue Textual Cue SSPro OSW-G O OSW-G R MMB-GUI SSv2 UI-V Avg. 
+
+Qwen3-VL-2B Full – – 43 .1 46 .1 62 .1 72 .9 91 .4 16 .5 57 .2
+
+View – – 56 .9 52 .7 66 .3 75 .7 84 .8 26 .0 61 .9
+
+View ✓ – 55 .6 54 .8 65 .8 76 .4 85 .2 32 .7 63 .1
+
+View ✓ ✓ 59 .3 55 .0 66 .8 77 .0 86 .0 33 .7 64 .6
+
+OS-Atlas-4B Full – – 2.8 10 .5 8.5 26 .6 62 .7 7.3 21 .6
+
+View – – 21 .7 27 .1 24 .1 37 .8 63 .0 13 .0 31 .9
+
+View ✓ – 25 .2 29 .4 22 .2 41 .5 63 .0 16 .4 33 .7
+
+View ✓ ✓ 28 .2 31 .9 25 .9 43 .5 61 .2 18 .9 35 .5
+
+Qwen3-VL-4B Full – – 59 .3 58 .2 70 .6 84 .7 94 .0 25 .3 66 .8
+
+View – – 65 .0 59 .4 71 .5 79 .9 86 .2 35 .9 67 .7
+
+View ✓ – 64 .0 60 .1 70 .2 80 .0 86 .7 39 .5 68 .1
+
+View ✓ ✓ 63 .7 59 .9 70 .4 79 .7 87 .1 40 .6 68 .3
+
+Table 5: View and cue ablation (accuracy, %). Full uses the original screenshot. Avg. uses OSW-G R.Correct cue location (inside target region) Incorrect cue location (outside target region)     
+
+> 0% 20% 40% 60% 80% 100%
+> Rate within each initial View cohort
+> 71.0%
+> 789/1,112
+> 3.2%
+> 63/1,945
+> 1.9%
+> 91/4,845
+> 57.8%
+> 223/386
+> Recovery: wrong →correct Regression: correct →wrong
+
+Figure 5: Cue recovery and regression under correct and incorrect cue locations for Qwen3-VL-2B. 
+
+initially correct predictions into errors. For this analysis, we group examples by whether the cue lies inside the annotated target. When the cue lies inside the annotated target, it corrects 71 .0% of View errors and disrupts only 
+
+1.9% of correct predictions. Outside the target, these rates become 3.2% and 57 .8% . Although the filter suppresses cues with inconsistent center predictions, passing it does not guarantee a correct cue location. 
+
+Where regressions arise. On MMB-GUI, 4B falls from 84 .7% with Full to 79 .9% with View and 79 .7% with cues. Most of this loss precedes cue injection. On SSv2, 2B similarly falls from 
+
+91 .4% to 84 .8% with View and recovers only to 
+
+86 .0% with cues. Consistency-based fallback re-moves cues but keeps the same view. Cue filtering therefore cannot repair errors caused by excluding the target or necessary context. The 2B model improves across Windows, ma-cOS, and Linux but regresses on both iOS sub-sets (Table 11). This pattern is consistent with our desktop-only auxiliary training. Platform alone cannot explain why Windows/Advanced improves for 2B but declines for 4B. Higher Full accuracy 
+
+Benchmark Full View 
+
+SSPro 52 .9 59 .0 ↑
+
+OSW-G O 56 .2 57 .6 ↑
+
+OSW-G R 67 .7 68 .3 ↑
+
+MMB-GUI 81 .1 76 .9 ↓
+
+SSv2 90 .4 81 .8 ↓
+
+UI-V 60 .3 54 .5 ↓
+
+Table 6: GroundNext-7B with View (accuracy, %). Ar-rows compare with Full. 
+
+leaves fewer errors to fix and more correct predic-tions to disrupt. On OSW-G R, 4B improves from 
+
+392 to 395 correct target-present predictions. Cor-rect refusals on target-absent tasks fall from 6 to 2,offsetting this gain and slightly lowering the overall score (Table 10). 
+
+Qualitative case studies. The examples in Fig-ure 6 (Appendix C) distinguish seeing a control from identifying its role. View alone recovers the Cut button in (a), but still confuses Edit with its dropdown in (b). Cues resolve the latter by spec-ifying the dropdown’s function. The comparison illustrates why clearer local evidence can suffice for one instruction while another needs help inter-preting adjacent controls. In (c), the center lies inside the date-and-time control, but an accepted description refers to a neighboring notification icon. Adding cues moves a correct click to that icon. In (d), cropping ex-cludes the target cell U42 entirely. These cases reveal two ways that input preparation can harm grounding. Cropping can remove necessary visual evidence, while misleading cues can override an otherwise correct prediction. 5.6 Transfer with Overlapping Training Data 
+
+Input preparation can help even when the ground-ing model was trained on the data used to train the auxiliary model. P RE VIEW constructs 148,595 training examples from a subset of GroundCUA, only 21% as many as the 700,000 examples used for GroundNext’s supervised fine-tuning (Feizi et al., 2025). With View, GroundNext’s accuracy rises from 52 .9% to 59 .0% on SSPro and from 
+
+67 .7% to 68 .3% on OSW-G R (Table 6). These gains suggest that GroundNext can still benefit from task-relevant views after being trained on GroundCUA, the same source used to train P RE -VIEW .
+
+6 Conclusion 
+
+We introduced P RE VIEW , an auxiliary preproces-sor that improves GUI grounding without updat-ing the downstream model. Center-guided views support localization, while visual and textual cues support target understanding. Across five bench-marks and three grounding models, it improves re-ported average accuracy by 1.5–13 .9 points. These gains require only one call to the frozen ground-ing model. Ablations demonstrate complementary benefits from views and cues, while error analysis identifies target exclusion and misleading descrip-tions as failure modes. Future work should adapt view selection and cue use based on estimated tar-get coverage and cue reliability. 
+
+Limitations 
+
+Cropping may discard targets or necessary context, while incorrect cues may mislead the grounding model. Training on desktop applications limits generalization to mobile interfaces, and offline eval-uation does not establish reliability in multi-step in-teraction. Auxiliary inference adds computational cost and latency. We report a single run per configu-ration, so results may be influenced by initialization noise. 
+
+Ethical Considerations 
+
+The datasets used in this study are publicly avail-able and were obtained through their official release channels. Incorrect grounding predictions can lead to unintended GUI operations, potentially modify-ing or deleting information or triggering unwanted actions. Outputs should therefore be carefully re-viewed before use, with human confirmation for consequential operations. 
+
+References 
+
+Gilles Baechler, Srinivas Sunkara, Maria Wang, Fedir Zubach, Hassan Mansoor, Vincent Etter, Victor C˘ arbune, Jason Lin, Jindong Chen, and Abhanshu Sharma. 2024. ScreenAI: A Vision-Language Model for UI and Infographics Understanding. Preprint ,arXiv:2402.04615. Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, Wenbin Ge, Zhi-fang Guo, Qidong Huang, Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhaohai Li, Mingsheng Li, and 45 others. 2025. Qwen3-VL Technical Re-port. Preprint , arXiv:2511.21631. Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Yantao Li, Jianbing Zhang, and Zhiyong Wu. 2024. SeeClick: Harnessing GUI grounding for advanced visual GUI agents. In Proceedings of the 62nd An-nual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 9313– 9332, Bangkok, Thailand. Association for Computa-tional Linguistics. Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Samuel Stevens, Boshi Wang, Huan Sun, and Yu Su. 2023. Mind2Web: Towards a Generalist Agent for the Web. Preprint , arXiv:2306.06070. Aarash Feizi, Shravan Nayak, Xiangru Jian, Kevin Qinghong Lin, Kaixin Li, Rabiul Awal, Xing Han Lù, Johan Obando-Ceron, Juan A. Rodriguez, Nicolas Chapados, David Vazquez, Adriana Romero-Soriano, Reihaneh Rabbany, Perouz Taslakian, Christopher Pal, Spandana Gella, and Sai Rajeswar. 2025. Grounding Computer Use Agents on Human Demonstrations. arXiv preprint .Boyu Gou, Ruohan Wang, Boyuan Zheng, Yanan Xie, Cheng Chang, Yiheng Shu, Huan Sun, and Yu Su. 2025. Navigating the digital world as humans do: Universal visual grounding for GUI agents. In In-ternational Conference on Learning Representations ,volume 2025, pages 30851–30883. Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yuxuan Zhang, Juanzi Li, Bin Xu, Yuxiao Dong, Ming Ding, and Jie Tang. 2024. CogAgent: A Vi-sual Language Model for GUI Agents. Preprint ,arXiv:2312.08914. Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2021. LoRA: Low-Rank Adap-tation of Large Language Models. Preprint ,arXiv:2106.09685. Zhiyuan Jiang, Shenghao Xie, Wenyi Li, Wenqiang Zu, Peihang Li, Jiahao Qiu, Siqi Pei, Lei Ma, Tiejun Huang, Mengdi Wang, and Shilong Liu. 2025. Zoom in, Click out: Unlocking and Evaluating the Potential of Zooming for GUI Grounding. arXiv preprint .Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Chong Lim, Po-Yu Huang, Graham Neubig, Shuyan Zhou, Ruslan Salakhutdinov, and Daniel Fried. 2024. VisualWebArena: Evaluating Multimodal Agents on Realistic Visual Web Tasks. 
+
+Preprint , arXiv:2401.13649. Gang Li and Yang Li. 2023. Spotlight: Mobile UI Understanding using Vision-Language Models with a Focus. Preprint , arXiv:2209.14927. Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. 2025. ScreenSpot-Pro: GUI grounding for professional high-resolution computer use. arXiv preprint .Kevin Qinghong Lin, Linjie Li, Difei Gao, Zhengyuan Yang, Shiwei Wu, Zechen Bai, Stan Weixian Lei, Lijuan Wang, and Mike Zheng Shou. 2024. ShowUI: One Vision-Language-Action Model for GUI Visual Agent. Preprint , arXiv:2411.17465. Yadong Lu, Jianwei Yang, Yelong Shen, and Ahmed Awadallah. 2024. OmniParser for Pure Vision Based GUI Agent. arXiv preprint .Zhengxi Lu, Yuxiang Chai, Yaxuan Guo, Xi Yin, Liang Liu, Hao Wang, Han Xiao, Shuai Ren, Guanjing Xiong, and Hongsheng Li. 2025. UI-R1: Enhanc-ing Efficient Action Prediction of GUI Agents by Reinforcement Learning. arXiv preprint .Tiange Luo, Lajanugen Logeswaran, Justin Johnson, and Honglak Lee. 2025. Visual test-time scaling for GUI agent grounding. Preprint , arXiv:2505.00684. Shravan Nayak, Xiangru Jian, Kevin Qinghong Lin, Juan A. Rodriguez, Montek Kalsi, Rabiul Awal, Nico-las Chapados, M. Tamer Özsu, Aishwarya Agrawal, David Vazquez, Christopher Pal, Perouz Taslakian, Spandana Gella, and Sai Rajeswar. 2025. UI-Vision: A Desktop-centric GUI Benchmark for Visual Per-ception and Interaction. arXiv preprint .Siqi Pei, Liang Tang, Tiaonan Duan, Long Chen, Shux-ian Li, Kaer Huang, Yanzhe Jing, Yiqiang Yan, Bo Zhang, Chenghao Jiang, Borui Zhang, and Jiwen Lu. 2026. AdaZoom-GUI: Adaptive Zoom-based GUI Grounding with Instruction Refinement. arXiv preprint .Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, Wanjun Zhong, Kuanye Li, Jiale Yang, Yu Miao, Woyu Lin, Longxiang Liu, Xu Jiang, Qianli Ma, Jingyu Li, and 16 others. 2025. UI-TARS: Pioneering Automated GUI Interaction with Native Agents. arXiv preprint .Christopher Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel Toyama, Robert Berry, Divya Tya-magundlu, Timothy Lillicrap, and Oriana Riva. 2025. AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents. Preprint ,arXiv:2405.14573. Fei Tang, Bofan Chen, Zhengxi Lu, Tongbo Chen, Songqin Nong, Tao Jiang, Wenhao Xu, Weiming Lu, Jun Xiao, Yueting Zhuang, and Yongliang Shen. 2026. UI-Zoomer: Uncertainty-Driven Adaptive Zoom-In for GUI Grounding. arXiv preprint .Xuehui Wang, Zhenyu Wu, JingJing Xie, Zichen Ding, Bowen Yang, Zehao Li, Zhaoyang Liu, Qingyun Li, Xuan Dong, Zhe Chen, Weiyun Wang, Xiangyu Zhao, Jixuan Chen, Haodong Duan, Tianbao Xie, Chenyu Yang, Shiqian Su, Yue Yu, Yuan Huang, and 9 others. 2025. MMBench-GUI: Hierarchical Multi-Platform Evaluation Framework for GUI Agents. 
+
+arXiv preprint .Qianhui Wu, Kanzhi Cheng, Rui Yang, Chaoyun Zhang, Jianwei Yang, Huiqiang Jiang, Jian Mu, Baolin Peng, Bo Qiao, Reuben Tan, Si Qin, Lars Liden, Qing-wei Lin, Huan Zhang, Tong Zhang, Jianbing Zhang, Dongmei Zhang, and Jianfeng Gao. 2025. GUI-Actor: Coordinate-Free Visual Grounding for GUI Agents. arXiv preprint .Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, and Yu Qiao. 2024. OS-ATLAS: A Foundation Action Model for Generalist GUI Agents. arXiv preprint .Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang, Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang, Yuhui Xu, Zekun Wang, Yiheng Xu, Junli Wang, Doyen Sahoo, Tao Yu, and Caiming Xiong. 2025. Scaling Computer-Use Grounding via User In-terface Decomposition and Synthesis. arXiv preprint .Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhou-jun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao Yu. 2024. OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments. Preprint ,arXiv:2404.07972. Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tian-bao Xie, Amrita Saha, Doyen Sahoo, Tao Yu, and Caiming Xiong. 2024. Aguvis: Unified Pure Vi-sion Agents for Autonomous GUI Interaction. arXiv preprint .Jianwei Yang, Hao Zhang, Feng Li, Xueyan Zou, Chun-yuan Li, and Jianfeng Gao. 2023. Set-of-Mark prompting unleashes extraordinary visual grounding in GPT-4V. Preprint , arXiv:2310.11441. Yan Yang, Dongxu Li, Yutong Dai, Yuhao Yang, Ziyang Luo, Zirui Zhao, Zhiyuan Hu, Junzhe Huang, Am-rita Saha, Zeyuan Chen, Ran Xu, Liyuan Pan, Sil-vio Savarese, Caiming Xiong, and Junnan Li. 2025. GTA1: GUI Test-time Scaling Agent. arXiv preprint .Ruilin Yao, Shegnwu Xiong, Tianyu Zou, Shili Xiong, and Yi Rong. 2026. AutoFocus: Uncertainty-Aware Active Visual Search for GUI Grounding. arXiv preprint .Keen You, Haotian Zhang, Eldon Schoop, Floris Weers, Amanda Swearngin, Jeffrey Nichols, Yinfei Yang, and Zhe Gan. 2024. Ferret-UI: Grounded Mobile UI Understanding with Multimodal LLMs. Preprint ,arXiv:2404.05719. Miaosen Zhang, Ziqiang Xu, Jialiang Zhu, Qi Dai, Kai Qiu, Yifan Yang, Chong Luo, Tianyi Chen, Justin Wagle, Tim Franklin, and Baining Guo. 2025. Phi-Ground Tech Report: Advancing Perception in GUI Grounding. arXiv preprint .
+
+Appendix A Prompt Templates 
+
+We list the task-specific prompts used by P RE -VIEW . Braced fields, highlighted in dark red, de-note example-specific placeholders. Image place-holders represent image attachments rather than literal prompt text. Both auxiliary tasks share the system message shown below and include one im-age in the user message. The grounder retains its model-specific chat template and coordinate-output instructions. 
+
+Center prediction. The image is the unmarked screenshot during training and the current un-marked view during inference. The same prompt is used for both center-prediction stages. 
+
+> [System]
+> You are a helpful assistant.
+> [User]
+> {unmarked_image} Locate the UI element requested by the instruction. Instruction: {instruction} Return only <center>x, y</center>. Coordinates are normalized to 0–1000 within this image.
+
+Candidate verification and description. The in-put image is the enlarged view with a translucent red circle at the candidate center. Candidate coor-dinates are normalized within this view. 
+
+> [System]
+> You are a helpful assistant.
+> [User]
+> {marked_view} Instruction: {instruction} Candidate center: ({x}, {y}) Coordinates are normalized to 0–1000 within this image. The translucent red circle marks the candidate center. If this candidate is the requested target, return <desc>description</desc>. Otherwise, return <desc>REJECT</desc>.
+
+Grounding with paired cues. For an accepted candidate that passes consistency filtering, the grounding model sees the same marked view. The following augmented instruction is embedded in its native grounding prompt: 
+
+> [System]
+> ...
+> [User]
+> {marked_view} ... {instruction} The red circle is a location hint. If you are unsure where to click, click the center of the red circle. The marked element is described as: {description} ...
+
+Ellipses denote unchanged model-specific sys-tem messages, tool definitions, and user-prompt wrappers. The system message is omitted when absent from the native template. The first two ap-pended sentences form the fixed location hint and belong to the Visual Cue. The final sentence intro-duces the generated Textual Cue. When verifica-tion rejects the candidate but consistency filtering passes, only the marker and location hint are re-tained. When consistency filtering fails, View-only fallback uses the unmarked view and original in-struction without either cue. 
+
+B Evaluation Details 
+
+Benchmark statistics. Table 7 summarizes the evaluation benchmark sizes. OSW-G Original and Refined each contain 564 tasks and share screen-shots. MMB-GUI contains 1,787 Basic and 1,807 
+
+Advanced examples. 
+
+Visual budget settings. We compare 12 .5% -area crops enlarged at linear scales 1, √2, and 2.We also evaluate 25% -area crops at scales 1 and Benchmark Samples      
+
+> SSPro 1,581
+> OSW-G R564
+> MMB-GUI 3,594
+> SSv2 1,272
+> UI-V 5,479
+
+Table 7: Sample counts for the evaluation benchmarks. 
+
+√2. Each configuration uses the full grounding-evaluation sets for OSW-G R, SSPro, and UI-V listed in Table 7. 
+
+C Qualitative Case Studies 
+
+Figure 6 compares the same frozen Qwen3-VL-2B-Instruct model using the full screenshot (Full), the preprocessed view (w. View), and that view with paired cues (w. View & Cue). Both preprocessed-view conditions use the same predicted center, 
+
+12 .5% cropping area, and 2× linear enlargement. All four cases have accepted descriptions, so re-jection handling does not affect these comparisons. The examples are selected to illustrate distinct out-comes, not to estimate their frequency. They show the inputs before consistency filtering. Detail pan-els use the same region in (a–c). Panel (d) con-trasts the excluded target with the selected region. Cue text is excerpted verbatim. Boxes, click sym-bols, and marker outlines are added for clarity. The translucent red disk is a model input. Section 5.5 analyzes how these cases distinguish visibility, target interpretation, and information loss. 
+
+D Detailed Benchmark Results 
+
+Tables 8–11 report Qwen3-VL-2B and Qwen3-VL-4B results with Full inputs and with P RE VIEW .Full denotes our reproduced baseline using the original screenshot. All scores are accuracies (%), and N is the number of examples in each cate-gory. We follow the benchmark groupings used by Feizi et al. (2025), with additional UI-V element-type results. The P RE VIEW configuration is iden-tical to the main experiments, including the 2% 
+
+center-consistency filter and unmarked-view fall-back. These are breakdowns of the same evaluated samples, rather than additional independent evalua-tions. 
+
+Aggregation. SSPro uses application domains crossed with Text/Icon labels. MMB-GUI uses platforms crossed with Basic/Advanced difficulty. UI-V instruction categories are Basic, Functional, and Spatial. Its Text/Icon rows provide a separate partition of the same examples. Overall accuracy is computed over examples, except for MMB-GUI, where it is the mean of Basic and Advanced accu-racies. 
+
+OSW-G categories. We report refined instruc-tions only. GUI task labels overlap, so their counts cannot be added to obtain the overall sam-ple count. The released GroundCUA category-matching code assigns nine examples to its Refusal bucket , whereas the benchmark contains 54 refusal tasks according to its target-presence annotations. Table 10 distinguishes these two definitions and ad-ditionally reports the 510 target-present examples. The overall score includes all 564 examples.                                     
+
+> Qwen3-VL-2B Qwen3-VL-4B Category NFull PRE VIEW Full PRE VIEW
+> Basic 1772 23 .843 .833 .549 .6
+> Functional 1772 21 .541 .831 .547 .5
+> Spatial 1935 5.317 .012 .026 .0
+> Text 980 42 .661 .254 .169 .7
+> Icon 4499 10 .927 .719 .034 .2
+> Overall 5479 16 .533 .725 .340 .6
+
+Table 8: UI-V results by instruction and element type.                                                                                  
+
+> Qwen3-VL-2B Qwen3-VL-4B Category NFull PRE VIEW Full PRE VIEW
+> CAD/Text 197 32 .061 .459 .968 .0
+> CAD/Icon 64 18 .828 .120 .332 .8
+> Dev/Text 154 64 .374 .081 .878 .6
+> Dev/Icon 145 13 .137 .234 .540 .0
+> Creative/Text 198 57 .667 .771 .271 .7
+> Creative/Icon 143 18 .230 .825 .233 .6
+> Scientific/Text 144 61 .875 .081 .284 .7
+> Scientific/Icon 110 22 .740 .933 .643 .6
+> Office/Text 177 72 .985 .387 .688 .1
+> Office/Icon 53 37 .758 .545 .360 .4
+> OS/Text 107 59 .869 .278 .570 .1
+> OS/Icon 89 24 .749 .440 .456 .2
+> All/Text 977 57 .171 .975 .876 .8
+> All/Icon 604 20 .539 .132 .542 .5
+> Overall 1581 43 .159 .359 .363 .7
+
+Table 9: SSPro results by application domain and ele-ment type. Qwen3-VL-2B Qwen3-VL-4B Category N Full PRE VIEW Full PRE VIEW 
+
+Text Matching 261 74 .7 73 .2 81 .2 78 .5
+
+Element recognition 330 66 .1 72 .7 73 .3 75 .5
+
+Layout understanding 253 71 .9 74 .3 76 .7 79 .4
+
+Fine-grained manipulation 152 48 .7 52 .0 62 .5 59 .9
+
+Refusal bucket 9 0.0 0.0 22 .2 0.0
+
+All refusal tasks 54 0.0 0.0 11 .1 3.7
+
+Target-present 510 68 .6 73 .9 76 .9 77 .5
+
+Overall 564 62 .1 66 .8 70 .6 70 .4
+
+Table 10: OSW-G R results by task type. 
+
+Qwen3-VL-2B Qwen3-VL-4B Category N Full PRE VIEW Full PRE VIEW 
+
+Windows/Basic 271 80 .4 87 .8 86 .3 90 .4
+
+Windows/Adv 272 45 .6 52 .6 68 .0 59 .9
+
+macOS/Basic 345 78 .0 87 .8 90 .4 89 .9
+
+macOS/Adv 346 50 .3 61 .6 73 .1 68 .5
+
+Linux/Basic 191 66 .0 75 .4 79 .6 77 .0
+
+Linux/Adv 196 45 .4 58 .2 59 .7 60 .2
+
+iOS/Basic 314 94 .3 90 .1 96 .8 93 .3
+
+iOS/Adv 330 76 .4 73 .9 86 .1 75 .8
+
+Android/Basic 356 90 .7 91 .9 95 .8 91 .9
+
+Android/Adv 355 77 .7 72 .1 88 .7 75 .2
+
+Web/Basic 310 88 .4 92 .3 97 .4 94 .2
+
+Web/Adv 308 63 .6 69 .2 79 .5 69 .5
+
+All/Basic 1787 84 .3 88 .5 92 .1 90 .3
+
+All/Adv 1807 61 .5 65 .5 77 .4 69 .1
+
+Overall 3594 72 .9 77 .0 84 .7 79 .7
+
+Table 11: MMB-GUI results by platform and difficulty. □ Target (GT) - - Crop boundary × Wrong click • Correct click ◦ Input marker 
+
+Instruction: Cut     
+
+> SSPro
+> 2560 ×1440 pixels
+
+Full: × w. View: ✓
+
+Cue: The Cut icon is located in the toolbar, represented by a pair of scissors. 
+
+(a) Corrected with View Instruction: view more option of edit button     
+
+> SSv2
+> 2560 ×1440 pixels
+
+w. View: × w. View & Cue: ✓
+
+Cue: It is a small downward arrow that allows users to expand additional options related to editing. 
+
+(b) Corrected with View & Cue Instruction: check the date and time menu     
+
+> SSv2
+> 960 ×540 pixels
+
+w. View: ✓ w. View & Cue: ×
+
+Cue: It is represented by an icon with a speech bubble and the number ‘2’ inside it. 
+
+(c) Misleading cue Instruction: Click on the U42 (21st column from the left, 42nd row from the top) in the sheet    
+
+> OSW-G R
+> 1920 ×1080 pixels
+
+Full: ✓
+
+> Target region (outside the view)
+
+w. View: ×
+
+> Selected local region U42
+
+(d) Target excluded by cropping 
+
+Figure 6: Successful corrections and failure cases of view and cue preprocessing for Qwen3-VL-2B.

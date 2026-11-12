@@ -1,0 +1,794 @@
+Title: iPrefBench: A User-Centric Benchmark for Personalized Mobile Use Agents
+
+URL Source: https://arxiv.org/pdf/2610.34735v1
+
+Published Time: Tue, 27 Oct 2026 01:53:12 GMT
+
+Number of Pages: 33
+
+Markdown Content:
+# iPrefBench: A User-Centric Benchmark for Personalized Mobile Use Agents 
+
+Yuting Ning 1,†, Ruijia Cheng 2, Sushobhan Ghosh 2, Peitong Duan 2, HungShi Lin 2, Abhishek Sundararajan 2,
+
+Shreyash Pandey 2, Huan Sun 1, Jeffrey Nichols 2, Eldon Schoop 21The Ohio State University, 2Apple  
+
+> †Work done during an internship at Apple.
+
+An agent that truly knows and acts on behalf of its user has been a long-standing promise of AI assistants. Computer-use agents bring this promise within reach by capably executing fully specified tasks across apps. However, real-world user requests are often underspecified. To act correctly for the particular user, an agent must infer some missing information from the user’s activity history and ask for other information that only the user can provide, without making unsupported assumptions or burdening the user with unnecessary questions. We present iPrefBench, a benchmark for evaluating the 
+
+infer and ask capabilities of personal mobile-use agents in an executable iOS environment with an interactive simulated user. Grounded in a coherent persona with 3,051 past activity events, iPrefBench comprises 130 underspecified user tasks across 26 apps. Each omitted user-dependent requirement is, by construction, either history-inferable or ask-only. iPrefBench evaluates personalized mobile agents on both whether agents complete tasks correctly for the user (i.e., per-sonalized task completion) and whether they seek user input when necessary (i.e., user-agent interaction). Evaluation of 
+
+7 frontier agents reveals a substantial gap between execution and personalization. Agents achieve high action comple-tion scores (up to 91 .6%) but low full task success (up to 47 .7%) because personalization lags behind. They especially struggle with ask-only information, failing to request enough necessary information. Our findings highlight a challenge for personalized agents in knowing what to infer and when to ask. We hope that iPrefBench can serve as a valuable testbed for building agents that know their user and work with them. 
+
+Correspondence: Yuting Ning: ning.151@osu.edu; Jeffrey Nichols: jwnichols@apple.com; Eldon Schoop: eldon@apple.com 
+
+Date: October 27, 2026 
+
+# 1 Introduction 
+
+It has been a long-standing goal in Artificial Intelligence and Human-Computer Interaction to develop agents that can understand and act on behalf of users (Maes and Kozierok, 1993; Lieberman, 1997; Horvitz, 1999). Recent computer-use agents (CUAs) have made rapid progress in completing digital tasks across apps and over long horizons (Xie et al., 2024; Yuan et al., 2026; Rawles et al., 2025; Ye et al., 2025). These agents often excel at fully specified tasks (e.g., “make a reservation at Harborline Seafood tomorrow at 7:30 PM for a party of four.”). However, realistic user queries rarely provide complete details, and are often underspecified (Völkel et al., 2021). For example, a user may say “book me my usual restaurant for tomorrow” instead of specifying the restaurant name, reservation time, and party size. Contending with such underspecified tasks requires personalization capabilities, in which an agent resolves missing information in two ways: infer from knowledge of the user (e.g., the user’s usual restaurant from past reservations and orders), and ask for details that the available history does not establish (e.g., the desired time and party size). An agent that silently makes unsupported assumptions can diverge from a user’s actual intent, while an agent that asks for details already inferable from the user’s history defeats the purpose of autonomy. A truly useful personal agent must reason not only about what information is missing, but also where it should come from. Yet this challenge is not fully captured by existing evaluations. Typical CUA benchmarks fully specify every 1arXiv:2610.34735v1 [cs.CL] 26 Oct 2026 User Activity History H     
+
+> Jan 5 Booked a dinner at Harborline Seafood
+> Jan 10 Texted mom: “Happy birthday, Mom!”
+> Jan 12
+> Booked Round Trip SFO →SEA, seat 22A, Main Cabin
+> Jan 14
+> Completed a CityRideX trip from Home to Golden Gate ($30)
+
+... 
+
+> A Coherent User Persona
+
+3,051 activity events across 26 apps 
+
+Underspecified User Task 
+
+“Book my usual restaurant for tomorrow.”      
+
+> INFER from H ASK user
+> •Which restaurant? •What time?
+> •How many people?
+> Two Sources of Missing Information
+> iOS Environment with Simulated User
+> I found your usual restaurant (Harborline Seafood). What time would you like? And how many people? 7:00 PM, for 2 people.
+> Got it. Booking now…
+
+Evaluation 
+
+Personalized Task Completion User-Agent Interaction    
+
+> Action Completion:
+> Does the agent complete the required operation?
+> Personalization:
+> Do all user-dependent choices match the user’s actual intent? Does the agent involve the user in a natural, focused way, without burdening the user?
+> Make a restaurant reservation
+> Harborline Seafood
+> 7:00PM
+> Party of 2 Ask when not inferable
+> Avoid unnecessary questions
+> Towards Personal Agents that Know What to Infer and When to Ask
+
+Figure 1 iPrefBench evaluates personalized mobile-use agents on underspecified user tasks that require both inferring 
+
+user-specific information from grounded activity history and asking the user for information unavailable from history. 
+
+task and cold-start agents without any knowledge of the user (Xie et al., 2024; Rawles et al., 2025; Zhou et al., 2024), leaving nothing to infer or ask. Benchmarks with underspecified tasks usually supply only one resolution source: personalization benchmarks expose a user history but offer no one to ask (Lyu et al., 2026; Yang et al., 2025), while interactive benchmarks provide a simulated user but no user history that would make some questions unnecessary (Yao et al., 2024; Vijayvargiya et al., 2026). Some provide both (Chen et al., 2026b,c), but do not distinguish which missing details should be inferred and which require clarification. Therefore, they cannot measure whether the agent knows what to infer and when to ask. To bridge the gap, we present iPrefBench, a benchmark designed around the infer-and-ask capabilities of personalized mobile-use agents in an executable iOS environment. As shown in Figure 1, agents can know about the user through two sources: an activity history, provided as their only prior context, and a simulated user, reachable through an ask_user action, who answers clarification questions. Both are grounded in rich seeded data around one coherent persona in the environment. iPrefBench comprises 130 underspecified tasks, and each omitted detail is designed to be either inferable (i.e., grounded in specific evidence in activity history) or ask-only (i.e., held solely by the simulated user). To further assess whether agents can apply historical preferences appropriately in challenging real-world scenarios, we include tasks in which current instructions override past patterns, recent behavior indicates changing preferences, or preferred options are unavailable. iPrefBench assesses both whether agents complete tasks correctly for the user (i.e., personalized task com-pletion ) and whether they seek user input when necessary (i.e., user-agent interaction ). Personalized task completion is measured by task-specific rubrics, split into two types: action-completion criteria measure whether required operations were successfully executed (e.g., a restaurant reservation was made), while per-sonalization criteria measure whether each user-dependent decision matches the intended values (e.g., the restaurant, time, and party size). However, correct outcomes alone do not establish user satisfaction: an agent may succeed by interrogating the user about every detail, or luckily guessing the ask-only information correctly. Therefore, inspired by Grice’s maxims (Grice et al., 1975), we also evaluate user-agent interaction through recall and precision on ask-only information: recall measures whether the agent elicits all required ask-only information, while precision measures whether its requests obtain new ask-only information rather than ask for inferable or irrelevant details or repeat earlier requests. We evaluate seven frontier agents on iPrefBench. The results reveal a substantial gap between executing a task successfully and personalizing it for a particular user. Although Claude Opus 5, the best-performing agent evaluated, achieves a 91 .6% action-completion score, its task success rate is only 47 .7% because person-alization lags behind. Agents struggle particularly with ask-only information, and our interaction evaluation 2reveals a corresponding shortfall. By default, agents ask far too little: the recall on ask-only information is low across the board, with the highest at only 44 .3%. Yet what they do ask is not reliably necessary either, with precision between 60 % and 77 %. Explicitly adding a clarification phase can substantially increase the number of questions and raise the recall and task success rate, but lower precision in turn, exposing a tradeoff between silent guessing and excessive user burden. The challenge is therefore not simply to ask more, but to determine when asking is necessary. We hope iPrefBench can serve as a valuable testbed for building agents that know their user and work with them effectively. 
+
+# 2 Related Work 
+
+Computer-Use Agent Benchmarks. Computer-use agents have advanced rapidly (Zheng et al., 2024; Hong et al., 2024; Qin et al., 2025; Wang et al., 2026b), supported by executable benchmarks across desk-top (Xie et al., 2024; Yuan et al., 2026), mobile (Rawles et al., 2025), and web environments (Zhou et al., 2024; Koh et al., 2024; Xue et al., 2025; He et al., 2024). These benchmarks typically use fully specified tasks without prior user knowledge. MobileWorld (Kong et al., 2026) introduces underspecified tasks and an 
+
+ask_user action, but without user history, every missing detail must be asked. 
+
+Personalized Agent Benchmarks. A growing line of work evaluates preference inference from user his-tories for personalized tasks, but does not support interactive clarification (Cai et al., 2025; Yang et al., 2025; Wang et al., 2026a; Kim et al., 2026; Lyu et al., 2026). iOSWorld (Jang et al., 2026), on which our environment builds, seeds an iOS simulator with a coherent persona but neither exposes user history as prior context nor supports user interaction. VitaBench 2.0 (Chen et al., 2026c) and KnowU-Bench (Chen et al., 2026b) incorporate user histories and, in some cases, hidden information accessible through simulated users, but do not explicitly distinguish whether each missing detail is recoverable from the history or known only to the user, and thus cannot evaluate the efficiency of user-agent interaction, i.e., whether agents only ask necessary questions. 
+
+Interactive and Clarification Benchmarks. Interactive benchmarks (Yao et al., 2024; Qian et al., 2024, 2025; Barres et al., 2025; Vijayvargiya et al., 2026) study clarification with simulated users whom agents have no prior knowledge of, and mainly measure task outcomes or how much hidden information agents elicit. Ask-before-Plan (Zhang et al., 2024) penalizes missed and unnecessary questions, while AppWorld-UL (Chen et al., 2026a) evaluates information elicitation under underspecification, infeasibility, and confirmation-seeking scenarios. However, all of these settings lack user histories against which the necessity of clarification questions can be assessed. In contrast, iPrefBench evaluates agents on underspecified tasks, whose missing information can either be inferred from grounded user history or only be obtained by asking the user, and explicitly distinguishes the resolution source, enabling evaluation of personalized task completion and necessity-aware user-agent interaction. We provide a detailed comparison in Table A.1. 
+
+# 3 iPrefBench 
+
+3.1 Benchmark Overview 
+
+iPrefBench evaluates whether mobile-use agents can complete underspecified tasks for a user, by inferring missing information from user history and seeking clarification when necessary. For each task t ∈ T , let Ut denote the user-dependent details left unresolved by the instruction. Each 
+
+u ∈ Ut has an intended value and exactly one resolution source: (1) Inferable information (u ∈ U infer  
+
+> t
+
+): Information whose intended value can be recovered from consistent evidence in the user activity history H,such as a dominant pattern across past events or a stable user fact. (2) Ask-only information (u ∈ U ask  
+
+> t
+
+): Information unavailable in H that must be obtained by asking the user, such as the context of the current occasion. This split mirrors what a personal assistant can know about its user: stable preferences and habits leave traces in past activity, whereas the specifics of the current situation do not. This distinction allows us to 3evaluate both whether agents infer user-specific details correctly from the history, and whether they seek clarification only when needed, without unnecessary questions. 
+
+3.2 Environment 
+
+Executable iOS Environment. iPrefBench builds on the executable iOS simulator from iOSWorld (Jang et al., 2026), containing 26 mock apps populated with interconnected data (e.g., past restaurant reservations, financial transactions, messages, workouts and ticket orders) for a coherent user persona, Jordan Avery . The agent operates through standard mobile GUI actions (e.g., tap , type , and swipe ). We extend the action space with an ask_user action, which allows the agent to send a natural language message to the simulated user and receive a user response. Full details of the action space are provided in Appendix B.2. 
+
+User Activity History. We compose seeded application data as a chronological user activity history 
+
+H (Appendix C.1), representing a timeline of what the user did on their personal phone. Each event is converted from the underlying application metadata into natural-language descriptions. The activity history 
+
+H is provided to the agent as the only prior knowledge and context of the user. All inferable information (e.g., recurring preferences, habits and user facts) is designed to be recoverable from evidence in H.
+
+User Profile and User Simulator. To ground simulated user responses and facilitate evaluation, we derive a structured user profile P from the seeded application data (Appendix C.2), consolidating the persona’s preferences, habits, and personal information into 13 dimensions (e.g., identity, social relationships, finances, dining and travel preferences, and fitness habits). P is hidden from the agent and serves as a ground-truth reference for user simulation and evaluation. We simulate the interactive user with an LLM grounded in 
+
+P and, when applicable, task-specific hidden context. When the agent issues an ask_user action, the user simulator answers the question in character. To faithfully evaluate the agent’s own ability to recognize what is missing, we instruct the simulator to answer only what is asked, without proactively volunteering additional information. 
+
+3.3 Tasks 
+
+Task Design. As described in §3.1, each task intentionally leaves user-dependent details unspecified, with their intended values and resolution sources explicitly annotated. For example, “book me my usual restaurant for tomorrow” leaves three pieces of information underspecified: the restaurant, party size, and time. The user’s reservation history in H can resolve the usual restaurant, so asking the user about it is redundant. In contrast, the reservation time and party size, which describe the current occasion and cannot be supported by any history, must be obtained by asking rather than assumed. A single task may contain multiple inferable and ask-only requirements, and often requires agents to integrate supporting evidence across multiple historical events or transfer preferences inferred in one app to decisions in another. Success therefore requires reasoning about the user rather than simply retrieving a single past event. Real-world personalization can be even more complex, as things can diverge from past trends and historical behavior cannot be treated as unconditional specification of future intent. Therefore, we introduce three perturbation types: (1) Instruction perturbation : The current user instruction explicitly contradicts the dominant historical pattern. For example, a user who typically selects an inexpensive tier for rideshare may explicitly ask for a premium ride for a special trip. The agent must prioritize the current instruction over an inferred historical preference. (2) Preference perturbation : Recent behavior in H suggests that the user’s preference has shifted over time and departed from the long-run mode. For example, the user selected aisle seats consistently in recent months, while most historical flights were window seats. A personalized agent should therefore identify the evolving preference trend, rather than simply selecting the most frequent historical value. (3) Environment perturbation : The preferred option becomes unavailable in the current environment. The agent should respond to the situation by recognizing the unavailability, surfacing it to the user, and acting according to the user’s preference for alternatives or stopping if no substitution is acceptable. 
+
+Task Authoring and Quality Assurance. We use a three-stage task authoring and validation pipeline to ensure realistic underspecification, task feasibility, grounded resolution for each omitted requirement, and verifiable outcomes. First, coding agents with task-authoring skills generate candidate personalized tasks using the source code of the apps, user activity history and profile, and fully specified iOSWorld tasks as 4references. Second, human task-refinement experts review and revise each candidate task. Specifically, for each omitted detail, experts verify its resolution source. An inferable detail must be supported by a dominant pattern or explicit fact in H, and where the evidence is weak or mixed, we revise the seeded data so that H can support a clear preference sufficiently. An ask-only detail must not be recoverable from H, and its intended value is chosen to differ from the app’s pre-filled default when possible, so that silently accepting a default or guessing is unlikely to succeed by chance. At this stage, experts also remove duplicate tasks and diversify the candidate tasks to cover as many user preferences and apps as possible. Finally, experienced validation experts execute refined tasks in the simulator to verify environmental feasibility and rubric correctness, and correct remaining issues accordingly. Every task in the final iPrefBench therefore undergoes two rounds of human review and revision. More details are provided in Appendix D.1. 
+
+3.4 Evaluation 
+
+A personalized agent should complete user requests successfully with appropriate personalization, asking the user for additional information only when necessary. There are multiple failure modes: it may execute the correct operation while making wrong user-dependent choices (e.g., purchasing a game controller as requested, but not the model compatible with the user’s console), or eventually reach the correct outcome by repeatedly asking the user for every detail. We therefore evaluate two aspects of agent behavior: (1) Personalized Task Completion, for whether the agent completes the required operations and whether it personalizes them for the user correctly; and (2) User-Agent Interaction, for whether it involves the user only when necessary. More details are provided in Appendix E. 
+
+Personalized Task Completion. Each task is accompanied by a task-specific rubric containing two types of criteria. Each action-completion criterion evaluates an operation required by the instruction, indepen-dent of user-specific choices. For instance, a criterion requires that the agent successfully creates a restaurant reservation, regardless of the restaurant, time, or party size. Each personalization criterion corresponds to a user-dependent decision involved in the task, and is additionally labeled with its resolution source (i.e., inferable or ask-only). For example, correctly reserving the user’s usual restaurant satisfies an inferable per-sonalization criterion, and reserving at the intended time and party size satisfies the ask-only personalization criteria. An LLM judge (Zheng et al., 2023) evaluates each criterion as pass or fail using the execution trajectory (including screenshots, actions, and the final answer), user profile, task-specific hidden context, and rubric. Action-completion and personalization scores are computed as the fractions of satisfied criteria in their corresponding category, macro-averaged over tasks. A task counts as a success only if all of its criteria are satisfied. 
+
+User-Agent Interaction. Following the cooperative principle in conversation that a contribution should be as informative as required, and no more (Grice et al., 1975), we evaluate whether agents request all ask-only information while avoiding unnecessary questions. We first use an LLM judge to decompose ask_-user messages from the agent into a multiset of individual information requests Qt. Multiple indepen-dent requests within one message are treated separately, and repeated requests are counted as separate occurrences. Each request q ∈ Q t is semantically matched to an ask-only requirement, if any: ϕt(q) ∈
+
+U ask  
+
+> t
+
+∪ {⊥} , where ⊥ denotes no match. The set of distinct ask-only requirements elicited by the agent is Et = u ∈ U ask  
+
+> t
+
+∃q ∈ Q t, ϕ t(q) = u . We then compute interaction Recall and Precision as Recall =P 
+
+> t
+
+|Et|/ P 
+
+> t
+
+|U ask t | and Precision = P 
+
+> t
+
+|Et|/ P 
+
+> t
+
+|Qt|. Recall measures the fraction of ask-only details the agent elicits, while Precision measures the fraction of request occurrences that cover a new ask-only require-ment, penalizing requests for inferable or irrelevant information as well as repeated requests. Together, these metrics penalize both agents that silently fabricate what they cannot know and those that excessively burden the user with exhaustive questions. 
+
+3.5 Benchmark Statistics 
+
+The resulting iPrefBench contains 130 tasks, grounded in 3,051 user activity events across 26 apps. Among these tasks, 58 .5% contain at least one ask-only requirement, and 26 .9% require cross-app preference transfer. The benchmark also includes 11 instruction-perturbation, 10 preference-perturbation, and 13 environment-perturbation tasks. Each task contains an average of 2.09 action-completion and 2.87 personalization criteria, of which 1.98 are inferable and 0.89 are ask-only. More statistics are in Appendix D.2. 5Agent Personalized Task Completion User-Agent Interaction #Steps 
+
+SR Action Personalization Recall Precision #Ask Overall Infer Ask Claude Opus 5 47 .7 91 .6 69 .4 76 .3 51 .3 44 .2 65 .8 0.35 22 .5
+
+Claude Sonnet 5 39 .2 83 .1 64 .8 74 .2 41 .5 25 .7 60 .4 0.24 22 .0
+
+Gemini 3.1 Pro 36 .2 78 .6 60 .9 69 .2 40 .1 23 .9 77 .1 0.20 22 .6
+
+Gemini 3.7 Flash 30 .0 79 .6 55 .1 67 .5 21 .1 10 .6 70 .6 0.08 25 .6
+
+Kimi K3 36 .2 85 .8 63 .9 73 .0 39 .3 15 .9 75 .0 0.15 23 .1
+
+Qwen3.8-27B 26 .2 77 .5 54 .4 62 .1 29 .4 21 .2 70 .6 0.21 20 .7
+
+Qwen3.8-Flash-Next 31 .5 77 .6 58 .6 67 .8 33 .2 25 .7 60 .4 0.26 24 .7   
+
+> Table 1 Main results on iPrefBench. Personalized task completion is measured by success rate (SR), action completion and personalization score. We further divide the personalization score by information resolution source (i.e., inferable and ask-only). For user-agent interaction, we report Recall, Precision, and the average number of ask_user calls per task (#Ask). #Steps denotes the average number of actions per task. All scores are percentages except #Ask and #Steps.
+
+# 4 Experiments 
+
+4.1 Experimental Setup 
+
+We evaluate seven frontier models under the same mobile-use agent harness on iPrefBench: Claude Opus 5 (Anthropic, 2026a), Claude Sonnet 5 (Anthropic, 2026b), Gemini 3.1 Pro (Google, 2026a), Gemini 3.7 Flash (Google, 2026b), Kimi K3 (Kimi Team et al., 2026), Qwen3.8-27B (Qwen Team, 2026b), and Qwen3.8-Flash-Next (Qwen Team, 2026a). We also attempted to evaluate specialized GUI agents, but their limited context capacity or frequent invalid actions under our setting prevented meaningful personalization compar-isons (Appendix F.1). Each episode runs on a freshly seeded iOS simulator, with task-specific perturbations applied when applicable. Agents receive the full user activity log as context in all experiments except the study on user history exposure, to avoid confounding preference inference with retrieval or navigation ability. At each step, the agent observes the current screenshot and acts through the standard mobile-use action space including ask_user (Appendix B.2). Episodes end when the agent issues a stop action or reaches the maximum 50 -step budget. We use Claude Sonnet 5 for both the user simulator and LLM judges (validated in §4.5). Following §3.4, we report full task Success Rate (SR) , Action Completion and Personalization scores, and interaction Recall and Precision . Further details of the experimental setup are in Appendix F. 
+
+4.2 Main Results 
+
+Table 1 shows the performance of evaluated agents on iPrefBench, with the following observations: 
+
+Strong execution, weak personalization. Across all agents, action execution is substantially stronger than personalization. While agents achieve relatively high action-completion scores ( 77 .5% – 91 .6%), the full task success drops to 26 .2%– 47 .7% because personalization lags behind. For example, Claude Opus 5, the best-performing agent we evaluate, completes 91 .6% of required actions but only 69 .4% of user-dependent decisions and therefore succeeds on only 47 .7% of tasks. These gaps show that successfully executing required operations does not necessarily lead to user satisfaction. Frontier agents that can excel at short- to medium-horizon mobile navigation still fail to resolve user-dependent decisions for a specific user. 
+
+Ask-only information poses a particular challenge: agents struggle to decide when to ask. 
+
+Splitting personalization by resolution source, performance on ask-only information is consistently lower than on inferable information across the board, by up to 46 points for Gemini 3.7 Flash. This suggests that recognizing and resolving information that requires user input during execution remains a major bottleneck for current agents. The interaction metrics locate the cause in how agents involve the user. Although tasks contain 0.89 ask-only requirements on average, agents issue only 0.08 to 0.35 ask_user calls per task, eliciting at most 44 .3% of the information they could not know (i.e., Recall). Meanwhile, what they do ask is not 6Instruction perturbation Preference perturbation Environment perturbation −30 −20 −10 010 20 30           
+
+> Change from all tasks (pts)
+> All tasks Instr. Pref. Env. 0.0 0.2 0.4 0.6 0.8
+> #Asks per task
+> Action completion Personalization
+> Opus 5 Sonnet 5 Gemini 3.1 Pro Gemini 3.7 Flash Kimi K3 Qwen3.8-27B Qwen3.8-Flash-Next Figure 2
+
+Performance on the three perturbation subsets of iPrefBench. Left : action completion and personalization differences, computed for each agent as its subset score minus its overall score on the full benchmark. Bars are means across agents and markers are individual agents. Right : average number of ask_user actions per task. 
+
+reliably necessary either. Precision ranges from 60 .4% to 77 .1%, showing that a substantial fraction of their information requests are unnecessary or redundant. Agents thus struggle not merely with asking too little, but with identifying when asking is necessary. 
+
+Personalization is sensitive to conflicts with historical preferences. We further examine agent performance on the three perturbation subsets in Figure 2. On instruction- and preference-perturbation subsets, personalization scores are lower than the overall benchmark averages, whereas action-completion scores do not show a comparable decline. In contrast, environment perturbations encourage agents to ask more. When the historically preferred option becomes unavailable, agents start to seek user input, issuing 
+
+2.3× as many questions, and personalization on ask-only information improves for every agent. This contrast suggests that agents are more responsive to explicit environmental obstacles than to uncertainty that must be recognized from context by themselves. 
+
+4.3 Error Analysis 
+
+To better understand where personalization fails, we manually label failed trajectories from Claude Sonnet 5 and Qwen3.8-27B. We categorize personalization errors along two dimensions: where the missing information must come from (user history or the user) and whether the agent recognized what information was needed. The categorization yields four error types in Figure 3. For ask-only information, agents may recognize that a value is unspecified but nevertheless commit to one with their own guess without consulting the user (i.e., Silent Guess , Ex. F.3). Examining Qwen3.8-27B’s reasoning, we find that it often raises “should I ask?” before talking itself into a guess or over-reasoning from past behavior. In other cases, the missing requirements are never recognized as an open decision at all (Silent Default , Ex. F.1). For example, an agent asked to book a round trip without specified travel dates never considers the dates to be user preferences at all, and the app’s pre-filled dates simply pass through unchanged. Inferable information exhibits an analogous distinction. Some preferences are never surfaced as decisions ( Missed Inference , Ex. F.2), while others are recognized but resolved incorrectly from history (Wrong Inference , Ex. F.4). These errors suggest two distinct challenges for current agents: (1) identifying which user-dependent choices remain unresolved, and (2) once a choice is recognized, determining whether its value should be inferred from history or elicited from the user, and resolving it correctly. Detailed definitions and examples of these error types are provided in Appendix F.2, with additional qualitative analysis and case studies in Appendix F.3. 724% 22%           
+
+> Silent default
+> 34% 34%
+> Missed inference
+> 010 20 30 40 50
+> 43% 40%
+> Silent guess
+> 010 20 30 40 50
+> 21% 25%
+> Wrong inference
+
+Ask-only information Inferable information   
+
+> Decision not recognized Decision recognized
+> % of trajectories
+> Claude Sonnet 5 Qwen3.8-27B Figure 3
+
+Distribution of personalization failures along two dimensions: whether the unresolved information is ask-only or inferable, and whether the agent recognizes the corresponding decision. A trajectory may contain multiple errors.                                                 
+
+> Agent Clarification Personalized Task Completion User-Agent Interaction #Steps
+> SR Action Personalization Recall Precision #Ask Overall Infer Ask Claude Sonnet 5 on-demand 39 .283 .164 .874 .241 .525 .760 .40.24 22 .0
+> + pre-execution 53 .882 .077 .873 .982 .085 .042 .51.37 24 .5
+> Qwen3.8-27B on-demand 26 .277 .554 .462 .129 .421 .270 .60.21 20 .7
+> + pre-execution 35 .476 .667 .866 .065 .069 .060 .90.84 21 .5
+> Table 2
+
+Effect of an explicit pre-execution clarification phase on Claude Sonnet 5 and Qwen3.8-27B. All scores are percentages except #Ask and #Steps. 
+
+4.4 Additional Analysis and Discussion 
+
+To explore how agent personalization might be improved, we study two factors that correspond to two sources of knowledge about the user: explicitly prompting the agent to clarify unresolved information before execution, and varying how much of the user history is exposed to the agent. 020 50 100 500 1k Full 
+
+> 30 50 70
+> Score (%)
+
+(a) Personalization by source 
+
+> Inferable Ask-only
+> 020 50 100 500 1k Full
+> 020 40 60 80
+> Score (%)
+
+(b) User-agent interaction   
+
+> Recall Precision
+> History events in context
+> Claude Sonnet 5 Qwen3.8-27B
+> Figure 4
+
+Effect of different amounts of user history exposed in the agent’s context. (a) Personalization score split by information source. (b) User-agent interaction measured by recall and precision. 
+
+Effect of Explicit Clarification. Motivated by the low interaction recall observed, we introduce a pre-execution clarification phase, in which the agent examines the user task and activity history, identifies ambiguities that cannot be resolved from history, and asks the user before executing the task. As shown in Table 2, the explicit clarification phase substantially improves personalization and interaction recall, eliciting more questions from the agent. However, interaction precision decreases at the same time, indicating that explicit clarification alleviates under-asking at the cost of more unnec-essary requests. Simply encouraging agents to seek clarification improves coverage of ask-only require-ments, but does not help agents distinguish neces-sary requests from unnecessary ones. 
+
+Effect of User History Exposure. We further investigate how performance changes when differ-ent user history is exposed to the agent, ranging from no history to different retrieved subsets of task-relevant events, and the full unfiltered history. Task-relevant events are retrieved using the task instruction as query and text-embedding-3-small (OpenAI, 2024) 8as the embedder. As shown in Figure 4(a), inferable personalization rises sharply with a small set of relevant events (e.g., from 35 % to 63 % for Qwen3.8-27B with the top-50 events) and then plateaus, with the full history adding no further gain. Ask-only personalization, in contrast, barely moves. Figure 4(b) shows how history exposure instead changes user-agent interaction: with more history, agents ask fewer questions and interaction precision rises, as questions whose answers are already in the history are avoided. However, this does not necessarily indicate more appropriate interaction, as recall on ask-only information does not improve and even decreases (e.g., 33 .6 → 21 .2 for Qwen3.8-27B). More user history thus helps agents infer preferences and avoid unnecessary questions, but does not help them recognize what genuinely remains unresolved. 
+
+4.5 Validation of User Simulator and LLM Judges 
+
+We validate whether the user simulator faithfully answers agents’ questions and whether the LLM judges reliably produce assessments. 
+
+User Simulator. We inspect all question–answer pairs produced when interacting with four representative agents, and 96 .6% of responses are grounded in the user profile or task-specific hidden context and answer exactly what was asked without volunteering additional information (Appendix C.4). 
+
+LLM Judges. We first validate the LLM-based evaluation against human annotations on 100 sampled trajectories. Human annotators label each task-rubric criterion and each message issued by the agent. Our LLM judges agree with human labels on 95 .7% of rubric criteria ( κ = 0 .89 ), 97 .0% of task-level success (κ = 0 .94 ), and 95 .2% / 93 .9% of recall / precision judgments ( κ = 0 .90 / 0.82 ), and results are consistent with Gemini 3.7 Flash as an alternative judge (Appendix E.4). 
+
+# 5 Conclusion 
+
+In this work, we introduce iPrefBench, a user-centric benchmark for evaluating personalized agents in 130 
+
+underspecified mobile-use tasks. We center on two core capabilities for personalized agents: inferring user preferences from the user’s activity history, and asking the user for clarification when necessary. For each underspecified task, the agent needs to determine not only which information is missing, but also where it should come from. By controlling the provenance of each omitted detail, iPrefBench enables evaluation of whether the agent can execute the required action (i.e., action completion) and complete the task correctly for the particular user (i.e., personalization), and whether it involves the user only when necessary (i.e., user-agent interaction). Our evaluation on seven frontier agents reveals a clear gap between action execution and personalization, especially when the user preferences can only be obtained by asking. Agents struggle most to recognize which information is genuinely unavailable and requires user input. Explicitly encouraging clarification increases the number of questions, but at the cost of over-asking. These findings suggest that we are still far from a truly personalized agent that can know what to infer and when to ask. 
+
+# Acknowledgment 
+
+The authors would like to thank Dongxu Li for valuable feedback and colleagues from the OSU NLP group for constructive discussion. 9References 
+
+Anthropic. System card: Claude opus 5, 2026a. URL https://anthropic.com/claude-opus-5-system-card .Anthropic. System card: Claude sonnet 5, 2026b. URL https://anthropic.com/claude-sonnet-5-system-card .Victor Barres, Honghua Dong, Soham Ray, Xujie Si, and Karthik Narasimhan. τ 2-bench: Evaluating conversational agents in a dual-control environment. arXiv preprint arXiv:2506.07982 , 2025. Hongru Cai, Yongqi Li, Wenjie Wang, Fengbin Zhu, Xiaoyu Shen, Wenjie Li, and Tat-Seng Chua. Large language models empowered personalized web agents. In Proceedings of the ACM on Web Conference 2025 , pages 198–215, 2025. Junzhi Chen, Harsh Trivedi, Jane Pan, Michael JQ Zhang, Tejas Srinivasan, Niranjan Balasubramanian, and Ashish Sabharwal. Appworld-ul: Benchmarking diverse agent-user interactions for tool-use. arXiv preprint arXiv:2607.20536 , 2026a. Tongbo Chen, Zhengxi Lu, Zhan Xu, Guocheng Shao, Shaohan Zhao, Fei Tang, Yong Du, Kaitao Song, Yizhou Liu, Yuchen Yan, et al. Knowu-bench: Towards interactive, proactive, and personalized mobile agent evaluation. arXiv preprint arXiv:2604.08455 , 2026b. Yuxin Chen, Yi Zhang, Zhengzhou Cai, Yaorui Shi, Zhiyuan Yao, Chenhang Cui, Jingnan Zheng, Yaqi Huo, Xi Su, Qi Gu, et al. Vitabench 2.0: Evaluating personalized and proactive agents in long-term user interactions. arXiv preprint arXiv:2605.27141 , 2026c. Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Sam Stevens, Boshi Wang, Huan Sun, and Yu Su. Mind2web: Towards a generalist agent for the web. Advances in Neural Information Processing Systems , 36:28091–28114, 2023. Google. Gemini 3.1 pro: A smarter model for your most complex tasks, 2026a. URL https://blog.google/innovation-and-ai/ models-and-research/gemini-models/gemini-3-1-pro/ .Google. Introducing gemini 3.7 flash, 2026b. URL https://blog.google/innovation-and-ai/models-and-research/gemini-models/ introducing-gemini-3-7-flash/ .H Paul Grice, Peter Cole, Jerry L Morgan, et al. Logic and conversation. 1975 , 41:58, 1975. Hongliang He, Wenlin Yao, Kaixin Ma, Wenhao Yu, Yong Dai, Hongming Zhang, Zhenzhong Lan, and Dong Yu. Webvoyager: Building an end-to-end web agent with large multimodal models. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 6864–6890, 2024. Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yuxiao Dong, Ming Ding, et al. Cogagent: A visual language model for gui agents. In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 14281–14290. IEEE, 2024. Eric Horvitz. Principles of mixed-initiative user interfaces. In Proceedings of the SIGCHI conference on Human Factors in Computing Systems , pages 159–166, 1999. Lawrence Keunho Jang, Mareks Woodside, Geronimo Carom, Andrew Keunwoo Jang, Jing Yu Koh, and Ruslan Salakhutdinov. iosworld: A benchmark for personally intelligent phone agents. arXiv preprint arXiv:2606.09764 ,2026. Serin Kim, Sangam Lee, and Dongha Lee. Persona2web: Benchmarking personalized web agents for contextual reasoning with user history. arXiv preprint arXiv:2602.17003 , 2026. Kimi Team, Tongtong Bai, Yifan Bai, Yiping Bao, Jianfeng Cai, Xinyuan Cai, Peizhou Cao, Yuxuan Cao, Ziwei Chai, Y Charles, et al. Kimi k3: Open frontier intelligence. arXiv preprint arXiv:2607.24653 , 2026. Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Lim, Po-Yu Huang, Graham Neubig, Shuyan Zhou, Russ Salakhutdinov, and Daniel Fried. Visualwebarena: Evaluating multimodal agents on realistic visual web tasks. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 881–905, 2024. 
+
+> Apple and the Apple logo are trademarks of Apple Inc., registered in the U.S. and other countries and regions.
+
+10 Quyu Kong, Xu Zhang, Zhenyu Yang, Nolan Gao, Chen Liu, Panrong Tong, Chenglin Cai, Hanzhang Zhou, Jianan Zhang, Liangyu Chen, et al. Mobileworld: Benchmarking autonomous mobile agents in agent-user interactive and mcp-augmented environments. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 6142–6167, 2026. Henry Lieberman. Autonomous interface agents. In Proceedings of the ACM SIGCHI Conference on Human factors in computing systems , pages 67–74, 1997. Yibo Lyu, Gongwei Chen, Rui Shao, Weili Guan, and Liqiang Nie. Personalalign: Hierarchical implicit intent alignment for personalized gui agent with long-term user-centric records. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 36074–36089, 2026. Pattie Maes and Robyn Kozierok. Learning interface agents. In Proceedings of the Eleventh National Conference on Artificial Intelligence (AAAI-93) , pages 459–465. AAAI Press, 1993. OpenAI. New embedding models and API updates, January 2024. URL https://openai.com/index/ new-embedding-models-and-api-updates/ .Yi-Hao Peng, Dingzeyu Li, Jeffrey P Bigham, and Amy Pavel. Morae: Proactively pausing ui agents for user choices. In Proceedings of the 38th Annual ACM Symposium on User Interface Software and Technology , pages 1–14, 2025. Cheng Qian, Bingxiang He, Zhong Zhuang, Jia Deng, Yujia Qin, Xin Cong, Zhong Zhang, Jie Zhou, Yankai Lin, Zhiyuan Liu, et al. Tell me more! towards implicit user intention understanding of language model driven agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 1088–1113, 2024. Cheng Qian, Zuxin Liu, Akshara Prabhakar, Zhiwei Liu, Jianguo Zhang, Haolin Chen, Heng Ji, Weiran Yao, Shelby Heinecke, Silvio Savarese, et al. Userbench: An interactive gym environment for user-centric agents. arXiv preprint arXiv:2507.22034 , 2025. Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shi-jue Huang, et al. Ui-tars: Pioneering automated gui interaction with native agents. arXiv preprint arXiv:2501.12326 ,2025. Qwen Team. Qwen3.8-Flash-Next: A new architecture, towards ultimate cost-efficiency, August 2026a. URL https: //qwen.ai/blog?id=qwen3.8-flash-next .Qwen Team. Qwen3.8-Max: A new bar for coding and cowork, August 2026b. URL https://qwen.ai/blog?id=qwen3.8 .Chris Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, et al. Androidworld: A dynamic benchmarking environment for au-tonomous agents. In International Conference on Learning Representations , volume 2025, pages 406–441, 2025. Sanidhya Vijayvargiya, Xuhui Zhou, Akhila Yerukola, Maarten Sap, and Graham Neubig. Ambig-swe: Interactive agents to overcome underspecificity in software engineering. In International Conference on Learning Representa-tions , volume 2026, pages 146716–146737, 2026. Sarah Theres Völkel, Daniel Buschek, Malin Eiband, Benjamin R Cowan, and Heinrich Hussmann. Eliciting and analysing users’ envisioned dialogues with perfect voice assistants. In Proceedings of the 2021 CHI conference on human factors in computing systems , pages 1–15, 2021. Shuoxin Wang, Chang Liu, Gowen Loo, Lifan Zheng, Kaiwen Wei, Huanqian Yan, Xinyi Zeng, Jingyuan Zhang, and Yu Tian. Me-agent: A personalized mobile agent with two-level user habit learning for enhanced interaction. In 
+
+Findings of the Association for Computational Linguistics: ACL 2026 , pages 24206–24222, 2026a. Xinyuan Wang, Bowen Wang, Dunjie Lu, Junlin Yang, Tianbao Xie, Junli Wang, Jiaqi Deng, Xiaole Guo, Yiheng Xu, Chen Wu, et al. Opencua: Open foundations for computer-use agents. Advances in Neural Information Processing Systems , 38:139756–139806, 2026b. Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh J Hua, Zhoujun Cheng, Dongchan Shin, Fangyu Lei, et al. Osworld: Benchmarking multimodal agents for open-ended tasks in real computer environments. Advances in Neural Information Processing Systems , 37:52040–52094, 2024. Tianci Xue, Weijian Qi, Tianneng Shi, Chan Hee Song, Boyu Gou, Dawn Song, Huan Sun, and Yu Su. An illusion of progress? assessing the current state of web agents. arXiv preprint arXiv:2504.01382 , 2025. Qinglong Yang, Haoming Li, Haotian Zhao, Xiaokai Yan, Jingtao Ding, Fengli Xu, and Yong Li. Fingertip 20k: A benchmark for proactive and personalized mobile llm agents. arXiv preprint arXiv:2507.21071 , 2025. 
+
+11 Shunyu Yao, Noah Shinn, Pedram Razavi, and Karthik Narasimhan. tau -bench: A benchmark for tool-agent-user interaction in real-world domains. arXiv preprint arXiv:2406.12045 , 2024. Jiabo Ye, Xi Zhang, Haiyang Xu, Haowei Liu, Junyang Wang, Zhaoqing Zhu, Ziwei Zheng, Feiyu Gao, Junjie Cao, Zhengxi Lu, et al. Mobile-agent-v3: Fundamental agents for gui automation. arXiv preprint arXiv:2508.15144 ,2025. Mengqi Yuan, Zilong Zhou, Xinzhuang Xiong, Weiming Wu, Jiayang Sun, Jiamin Song, Kaiqian Cui, Bowen Wang, Haoyuan Wu, Yitong Li, et al. Osworld2. 0: Benchmarking computer use agents on long-horizon real-world tasks. 
+
+arXiv preprint arXiv:2606.29537 , 2026. Xuan Zhang, Yang Deng, Zifeng Ren, See Kiong Ng, and Tat-Seng Chua. Ask-before-plan: Proactive language agents for real-world planning. In Findings of the association for computational linguistics: EMNLP 2024 , pages 10836–10863, 2024. Boyuan Zheng, Boyu Gou, Jihyung Kil, Huan Sun, and Yu Su. Gpt-4v (ision) is a generalist web agent, if grounded. 
+
+arXiv preprint arXiv:2401.01614 , 2024. Lianmin Zheng, Wei-Lin Chiang, Ying Sheng, Siyuan Zhuang, Zhanghao Wu, Yonghao Zhuang, Zi Lin, Zhuohan Li, Dacheng Li, Eric Xing, et al. Judging llm-as-a-judge with mt-bench and chatbot arena. Advances in neural information processing systems , 36:46595–46623, 2023. Hanzhang Zhou, Xu Zhang, Panrong Tong, Jianan Zhang, Liangyu Chen, Quyu Kong, Chenglin Cai, Chen Liu, Yue Wang, Jingren Zhou, et al. Mai-ui technical report: Real-world centric foundation gui agents. arXiv preprint arXiv:2512.22047 , 2025. Shuyan Zhou, Frank F Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, et al. Webarena: A realistic web environment for building autonomous agents. In International Conference on Learning Representations , volume 2024, pages 15585–15606, 2024. 
+
+12 Table of Contents in Appendix 
+
+A Comparison with Existing Benchmarks 14 B Environment Details 14 
+
+B.1 Mock Applications . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14 B.2 Action Space . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14 B.3 Per-Task Environment Control . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 15 
+
+C User Details 15 
+
+C.1 User Activity History . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 C.2 User Profile . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16 C.3 User Simulator . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17 C.4 Human Validation of User Simulator . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 17 
+
+D Task Details 18 
+
+D.1 Task Collection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 18 D.2 Benchmark statistics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19 
+
+E Rubric and Interaction Judge Details 19 
+
+E.1 Task-specific Rubrics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19 E.2 Rubric-Based Completion Judge . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19 E.3 Interaction Judge . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 21 E.4 Validation of LLM-as-a-Judge . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22 
+
+F Experiment Details 22 
+
+F.1 Evaluated Agents . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22 F.2 Error Analysis . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 22 F.3 Additional Case Studies . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23 
+
+G Prompts 23 
+
+G.1 User Simulator . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 23 G.2 Personalized Mobile-Use Agent . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 24 G.3 Rubric-based Judge . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 25 G.4 Interaction Judge . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 26 G.5 Pre-execution Clarification . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 27 13 A Comparison with Existing Benchmarks 
+
+We provide a comparison with existing benchmarks in Table A.1.  
+
+> Table A.1
+
+Comparison of iPrefBench with existing benchmarks. Inferable Info. : tasks omit information that the agent can recover from the user’s behavioral history ( ∗: user data exists in the environment but is not exposed to the agent as context). Ask-only Info. : tasks omit information that can only be obtained by asking the user. Necessity-Aware Interaction Eval. : the user-agent interaction is evaluated against what genuinely needs to be asked. 
+
+Benchmark Environment Inferable Info. Ask-only Info. Necessity-Aware Interaction Eval. 
+
+General computer-use and GUI agent benchmarks 
+
+Mind2Web (Deng et al., 2023) Web ✗ ✗ ✗
+
+VisualWebArena (Koh et al., 2024) Web ✗ ✗ ✗
+
+OSWorld (Xie et al., 2024) Desktop ✗ ✗ ✗
+
+AndroidWorld (Rawles et al., 2025) Mobile ✗ ✗ ✗
+
+MobileWorld (Kong et al., 2026) Mobile ✗ ✓ ✗
+
+Personalized agent benchmarks 
+
+PersonalWAB (Cai et al., 2025) Web ✓ ✗ ✗
+
+Persona2Web (Kim et al., 2026) Web ✓ ✗ ✗
+
+PersonalAlign (Lyu et al., 2026) Mobile ✓ ✗ ✗
+
+ME-Agent (Wang et al., 2026a) Mobile ✓ ✗ ✗
+
+Fingertip (Yang et al., 2025) Mobile ✓ ✗ ✗
+
+iOSWorld (Jang et al., 2026) Mobile (iOS) ∗ ✗ ✗
+
+VitaBench 2.0 (Chen et al., 2026c) Tool ✓ ✓ ✗
+
+KnowU-Bench (Chen et al., 2026b) Mobile ✓ ✓ ✗
+
+Interactive agent benchmarks 
+
+IN3 (Qian et al., 2024) Tool ✗ ✓ ✗
+
+τ -Bench (Yao et al., 2024) Tool ✗ ✓ ✗
+
+τ 2-Bench (Barres et al., 2025) Tool ✗ ✓ ✗
+
+UserBench (Qian et al., 2025) Tool ✗ ✓ ✗
+
+AmbigSWE (Vijayvargiya et al., 2026) Code ✗ ✓ ✗
+
+Ask-before-Plan (Zhang et al., 2024) Tool ✗ ✓ ✓
+
+AppWorld-UL (Chen et al., 2026a) Tool ✗ ✓ ✓
+
+iPrefBench (ours) Mobile (iOS) ✓ ✓ ✓
+
+# B Environment Details 
+
+B.1 Mock Applications 
+
+iPrefBench builds on the executable iOS environment from iOSWorld (Jang et al., 2026), with 26 mock applications covering a wide range of everyday activities. These applications are populated with intercon-nected data associated with a coherent user persona. We verify and revise the seeded data to ensure they are consistent and can provide sufficient evidence for user preferences used in iPrefBench. Table B.1 lists all applications by category. 
+
+B.2 Action Space 
+
+Agents interact with the iOS simulator through a standard set of mobile-use actions for GUI interaction, along with an additional ask_user action. Table B.2 provides the complete action space and its parameter specifications. All screen coordinates are normalized to the range [0 , 1000] , with (0 , 0) representing the top-left corner and (1000 , 1000) the bottom-right corner. When an agent invokes ask_user , its message is forwarded to the user simulator, and the simulator’s response is returned to the agent as an observation. 14 Table B.1 The 26 mock applications in the iPrefBench environment, grouped by category. 
+
+Category App Description 
+
+Food & dining DineSpot Restaurant search and table reservations FreshCart Grocery shopping and delivery QuickBite Food ordering and delivery from restaurants TasteRank Restaurant reviews and ratings Work & productivity LockedIn Professional networking profile, connections, and job postings Notes Personal notes and lists Weather Weather forecasts Clock Alarms, timers, and world clocks CloudSheets Spreadsheet creation and editing CloudDocs Document creation and editing CloudDrive Cloud file storage and sharing CloudSlides Presentation creation and editing Messaging & email QuickChat Personal messaging with contacts and group chats TeamChat Workplace messaging channels and direct messages Mail Email Shopping & payments MegaMart Online retail shopping and order tracking SplitPay Peer-to-peer payments and shared expense splitting MyBank Bank accounts, transactions, and transfers Travel & transport CityRide Ride-hailing with multiple ride tiers SkyTrip Flight search and booking, including cabin and seat selection StayFinder Lodging search and booking Entertainment TicketBox Tickets for concerts, sports, and other live events Cinephile Movie information, ratings, and watchlists ScoreZone Sports scores, schedules, and followed teams Health & fitness Trailblaze Workout recording and activity logs (e.g., runs, rides, hikes) CalTrack Food logging and nutrition tracking 
+
+B.3 Per-Task Environment Control 
+
+All tasks in iPrefBench share a single seeded environment and base activity history H. However, some tasks, particularly the perturbation tasks (§3.3), require the environment to differ from this shared seed. iPrefBench supports a small set of declarative per-task fields, which are applied at episode setup and reverted afterwards: 1. Data overrides patch the data served by an app for the current task, e.g., marking an item out of stock, clearing a restaurant’s availability, or extending an app’s in-app history. 2. Log events append synthetic activity events to the history H rendered for the current task only. 3. Profile overrides update entries of the user profile P used by the simulator and the judges, for tasks where the user’s present preference diverges from the historical pattern. For example, environment perturbations are implemented through data overrides, while preference perturba-tions require log events to change the agent-received user activity history, data overrides to make sure the on-screen app data is consistent, and profile overrides to reflect the updated preference for the user simulator and evaluators. 
+
+# C User Details 
+
+Following iOSWorld (Jang et al., 2026), all applications in the simulator are seeded with data around a single fictional persona, Jordan Avery . iPrefBench exposes information about this user to the agent in two ways: (1) a chronological user activity history H, provided to the agent as prior context (Appendix C.1), and (2) an interactive user simulator that the agent can consult through ask_user (Appendix C.3). The simulator 15 Table B.2 Action space supported by iPrefBench. The first six actions provide standard mobile GUI interaction and task control, while ask_user is introduced to enable interactive clarification with the simulated user.                          
+
+> Action Parameters Description
+> tap_xy x,y: integers in [0 ,1000] Tap a specified screen position using normalized coordinates.
+> type text : string Enter text into the currently focused input field. The agent must focus the field before typing.
+> swipe direction :up, down, left, or right; optional x,y
+> Swipe in the specified direction, optionally from a given starting position.
+> home None Return to the device’s home screen.
+> wait duration :number (seconds; de-fault: 2.0) Pause execution to allow content loading, anima-tions, or other interface updates.
+> stop answer : string Terminate the task and return the agent’s final re-sponse.
+> ask_user question : string Send a natural-language clarification message to the simulated user and receive its response.
+
+is grounded in a structured user profile P derived from the seeded data (Appendix C.2), which also serves as ground truth for evaluation but is never shown to the agent. 
+
+C.1 User Activity History 
+
+We construct the user activity history H by converting the seeded application data into a unified, chronological sequence of natural-language events. Each event is represented by its timestamp followed by a natural-language description of the activity, which is converted from its metadata with an LLM (Claude Sonnet 5). Events are ordered chronologically, preserving temporal information that may be important for inferring recurring habits and evolving preferences. The following are two example events from the activity history: 
+
+> [2025-08-01 16:55] in MyBank transferred $300.00 from Total Checking to Savings for monthly savings. [2026-02-19 02:06] in QuickChat received a message from Camille Hart in Brunch Crew: “Alright, making this group official. Monthly brunch is non-negotiable.”
+
+By combining activities from different applications into a single history, H allows agents to infer user informa-tion beyond the context of any individual application. For example, payment transactions, restaurant orders, and restaurant ratings may jointly provide evidence of dining preferences, and messages and travel bookings may provide complementary information about travel plans. The activity history H is provided to the agent as its only prior knowledge of the user. In the default evaluation setting, the agent receives the full history at the beginning of each task. All inferable requirements in iPrefBench are grounded in evidence available in H. In contrast, ask-only requirements cannot be resolved from the history and must be obtained through the ask_user action. 
+
+C.2 User Profile 
+
+We derive a structured user profile P for the persona, grounded in the seeded application data and the corresponding user activity history H. The profile captures the user’s identity, relationships, preferences, habits, and other personal information across 13 dimensions, comprising 92 entries in total. Each entry records its value together with an evidence field that points to the supporting events in H, and every piece of information in P is designed to be recoverable from the history. Profile entries are first extracted with coding agents from the seeded data in H, and manually verified against their evidence in H during the task-authoring process. The structured profile serves as a hidden oracle for the user simulator and evaluation. It is not directly exposed to the agent under test. Table C.1 summarizes these domains and their representative contents. 16 Table C.1 The 13 dimensions of the structured user profile in iPrefBench, with representative information covered by each dimension. 
+
+Dimension Representative Information 
+
+Identity Name, occupation, education, and skills. Digital Devices, system settings, and default applications. Home and Household Home and work locations, roommate, and household information. People Family, friends, colleagues, and social relationships. Finances Accounts, payment methods, recurring bills, and spending habits. Health and Fitness Nutrition goals, exercise habits, and fitness preferences. Routines Daily, weekly, and monthly routines and commitments. Food and Dining Cuisine preferences, favorite restaurants, recurring orders, and dietary requirements. Entertainment and Culture Movies, music, reading, concerts, and sports interests. Hobbies Hobby interests, collections, and related activities. Travel and Transport Flight, seating, lodging, and rideshare preferences. Shopping Preferred retailers, brands, apparel sizes, and delivery preferences. Work and Career Professional presence and career interests. 
+
+C.3 User Simulator 
+
+We simulate the user with Claude Sonnet 5, prompted to role-play the persona (prompt in Appendix G). The simulator receives three sources of information: (1) the user profile P, with task-specific overrides applied when applicable; (2) the task-specific hidden context, i.e., the intended values of the task’s ask-only requirements (e.g., travel dates or party size); and (3) optional simulator context, which supplements additional situational details about the current request to keep the simulator’s replies coherent, without introducing additional evaluated requirements. To ensure faithful evaluation of the agent’s own ability to identify ambiguities, the simulator is instructed to answer only what the agent explicitly asks and never volunteer additional information. Human validation of these behaviors is reported in Appendix C.4. We present an example interaction between the agent and the user simulator below: 
+
+Example Interaction between the User Simulator and the Agent Task: I went to a show last night and a friend covered both our tickets — send them my share. 
+
+Task context (ask-only information): Concert companion: Theo Nguyen; Share amount in USD: 85. 
+
+Agent (ask_user ): Which friend covered both our show tickets last night? I couldn’t find a ticket payment to you in the recent SplitPay feed, so I want to make sure I send your share to the right person. 
+
+User: Theo Nguyen. 
+
+Agent (ask_user ): How much should I send Theo for your share of the tickets? I don’t have the ticket price on hand, so tell me the amount (or the total and I’ll send half). 
+
+User: $85. 
+
+C.4 Human Validation of User Simulator 
+
+We manually annotate all agent-user interactions produced by four representative agents in our experiments (Claude Sonnet 5, Gemini 3.7 Flash, Kimi K3, Qwen3.8-27B), yielding 89 question-answer pairs. For each question-answer pair, we check it in two aspects: • Grounding: Whether every fact in the reply is supported by the user profile, hidden task context, or the reply honestly declines something the profile genuinely does not cover. Fabricated (i.e., the reply states a concrete detail that appears nowhere in the profile or context), Contradicts (i.e., the reply gives 17 a value that conflicts with the profile or task context), Wrongly withheld (i.e., the reply claims not to know, or refuses, when the answer is in fact available) and Can’t tell (i.e., the profile is ambiguous or the question is too vague to judge) are all counted as failures. • Scope: Whether the reply answers everything asked and nothing more. Volunteered extra (i.e., the reply adds information the agent did not request) and Incomplete (i.e., the reply leaves part of the question unanswered) are all counted as failures. 
+
+96 .6% of pairs (86 of 89) are valid on both axes. Both grounding failures occur in tasks without ask-only requirements, where the simulator has no direct answer and must improvise for agent-produced unnecessary questions. The single scope failure is a reservation task in which the agent asks three specific questions (date, party size, and restaurant) and the simulator answers all three but additionally supplies the time. 
+
+# D Task Details 
+
+D.1 Task Collection 
+
+We construct iPrefBench through a three-stage pipeline consisting of automated candidate generation, human refinement, and execution-based validation. The pipeline produces 188 initial candidate tasks, from which 
+
+130 tasks are retained in the final benchmark.  
+
+> Stage 1: Automated Candidate Generation.
+
+We develop two task-authoring skills for coding agents to generate candidate tasks. The first skill generates personalized mobile-use tasks using the application source code, seeded user data, user activity history, structured user profile, and fully specified tasks from iOSWorld as references. Candidate tasks are designed to resemble realistic user requests while leaving user-dependent information underspecified. The second skill focuses on generating tasks with three types of perturbations: instruction perturbations, preference perturbations, and environment perturbations. These tasks introduce cases in which an explicit instruction overrides historical behavior, recent evidence indicates a change in preference, or a preferred option becomes unavailable in the environment. Together, the two skills generate an initial pool of 188 candidate tasks.  
+
+> Stage 2: Human Refinement.
+
+Eight human reviewers refine the generated candidates. They review the nat-uralness of each user instruction, verify that the requested operations are feasible in the environment, and identify the user-dependent information omitted from the instruction. For each omitted requirement, reviewers determine its resolution source and ensure that it is well grounded. An inferable requirement must be supported by a dominant pattern or an explicit fact in H; when the supporting evidence is weak or mixed, reviewers revise the seeded data so that H supports a clear preference. An ask-only requirement must not be recoverable from H, and its intended value is specified in the task-specific hidden context. Whenever possible, this value is chosen to differ from the app’s pre-filled default, so that silently accepting the default or guessing is unlikely to succeed by chance. Reviewers revise ambiguous requirements and the corresponding task rubrics to ensure that each requirement has a well-defined ground-truth value and resolution source. For tasks whose conditions must diverge from the shared environment, such as perturbation tasks, reviewers also specify or revise the corresponding per-task overrides (Appendix B.3). The reviewers also remove duplicate tasks and refine the candidate pool to improve coverage of different applications, user preferences, and task scenarios.  
+
+> Stage 3: Execution-Based Validation.
+
+Two experienced human validators execute the refined tasks in the iOS simulator. This stage checks that the requested operations can be completed in the environment and that the task rubrics correctly specify the expected outcomes. Remaining issues in task instructions, environmental feasibility, and rubrics are corrected during validation. Following refinement and validation, we retain 130 tasks in the final benchmark. Each retained task undergoes both human refinement and execution-based validation. 18 D.2 Benchmark statistics 
+
+Table D.1 summarizes the statistics of iPrefBench, including the user environment, task composition, and evaluation rubrics. A task involves cross-app preference transfer if the evidence for at least one of its inferable requirements comes from an app other than the one in which the requirement must be applied (e.g., inferring a dining preference from restaurant ratings in TasteRank and applying it to a reservation in DineSpot).                        
+
+> Table D.1 Statistics of iPrefBench.
+> Statistic Value
+> User persona
+> Activity events 3,051
+> Mock apps with seeded user data 26 Profile dimensions / entries 13 /92
+> Tasks
+> Tasks 130
+> Tasks with cross-app preferences 35 (26 .9%) Tasks with ≥1 ask-only slot 76 (58 .5%) Perturbed: inst. / pref. / env. 11 / 10 / 13 Apps covered 26
+> Profile entries covered 67 (72 .8%)
+> Rubrics
+> Avg. # Rubric criteria 4.96
+> action-completion 2.09
+> personalization (inferable / ask-only) 2.87 (1.98 /0.89 )
+
+The tasks cover all 26 applications in the iPrefBench environment. Figure D.1 shows the number of tasks involving each application, grouped by functional category. 
+
+# E Rubric and Interaction Judge Details 
+
+E.1 Task-specific Rubrics 
+
+Each task is associated with a rubric containing two types of criteria: action-completion and personalization criteria. Action-completion criteria specify the operations required to complete the task, independently of the values selected for user-dependent parameters. Personalization criteria assess whether the agent makes the correct user-dependent decisions. Each personalization criterion is additionally annotated with its information reso-lution source: inferable , if the intended value can be recovered from the user activity history H, or ask-only ,if the value is unavailable in H and must be obtained through user interaction. 
+
+E.2 Rubric-Based Completion Judge 
+
+We use an LLM-based judge (with Claude Sonnet 5) to evaluate each rubric criterion independently. The judge receives the task instruction, the complete execution trajectory, and the agent’s final answer. The trajectory contains the executed actions and screenshots at each step, together with a screenshot of the final interface state. The judge additionally receives the ground-truth user profile and task-specific hidden context when applicable. The judge is also given the run time of the task, i.e., the simulator clock during execution, to resolve relative temporal expressions such as “tomorrow” or “next Saturday.” For each criterion, the judge returns a binary label and a supporting explanation. A criterion passes only when the trajectory provides clear evidence that it has been satisfied. We compute action-completion and personalization scores as the fractions of satisfied criteria within their respective categories. Both action-completion and personalization scores are macro-averaged across tasks. 19 0 5 10 15 20 
+
+Number of tasks using the app 
+
+DineSpot FreshCart QuickBite TasteRank LockedIn Notes Weather Clock CloudSheets CloudDocs CloudDrive CloudSlides QuickChat TeamChat Mail MegaMart SplitPay MyBank CityRide SkyTrip StayFinder TicketBox Cinephile ScoreZone Trailblaze CalTrack Food & dining Work & productivity Messaging & email Shopping & payments Travel & transport Entertainment Health & fitness  
+
+> 130 tasks, 26 apps 94 use 1, 20 use 2, 14 use 3, 2 use 4 app(s)
+> 17 9927775322222 9317 9212 5412 5264Figure D.1
+
+Distribution of apps used by iPrefBench tasks. Bars count the tasks that require the app, grouped by app category and sorted within each category. Some tasks span multiple apps. 
+
+20 Personalization is further reported separately for inferable and ask-only criteria, which are macro-aggregated over tasks containing at least one criterion of the corresponding type. A task is considered fully successful only if all of its action-completion and personalization criteria are satisfied. 
+
+E.3 Interaction Judge 
+
+To evaluate whether agents ask appropriate clarification questions, we analyze the ask_user messages pro-duced during each task. The interaction judge receives all clarification questions issued during a task and the task’s annotated set of ask-only information. It identifies the individual pieces of information requested by the agent and semantically matches each piece to an ask-only requirement, if applicable. One information piece corresponds to a single decision or value the user must supply. A question requesting several independent values is decomposed into multiple pieces. Conversely, a question offering several candi-date answers for the same decision is counted as a single piece. Repeated requests are counted separately, even when they concern the same information. For each extracted piece, the judge returns a short description and either the matched ask-only requirement or a null match. Matching is semantic rather than based on exact wording. Requests for information that is inferable from history, irrelevant to the task, or otherwise not among the ask-only requirements receive null matches. Both interaction Recall and Precision are micro-aggregated: we sum the number of distinct ask-only require-ments elicited, the total number of ask-only requirements, and the total number of information requests across all tasks.  
+
+> Format-Level Message Quality.
+
+We also examine the format-level quality of each agent message along three criteria: specificity (i.e., it is clear which piece of information is being requested) (Vijayvargiya et al., 2026), 
+
+answerability (i.e., the user can answer from knowledge they plausibly have, given the context the message supplies) (Vijayvargiya et al., 2026), and option provision (i.e., when the answer space is a small closed set, the message surfaces the candidates rather than leaving the user to enumerate them) (Peng et al., 2025). An LLM judge scores each criterion on every message issued by the agent whenever the criterion applies, and the overall quality score is the message-level average over the applicable criteria.                                          
+
+> Table E.1 Message quality evaluation, which is the message-level average over the three criteria. Each criterion is scored only on the messages where it applies (Option Provision is only applicable to questions with a small closed set of answers).
+> Model Total #Ask Overall Quality Specificity Answerability Option Provision
+> Claude Opus 5 46 98 .55 100 .00 100 .00 93 .75
+> Claude Sonnet 5 31 100 .00 100 .00 100 .00 100 .00
+> Gemini 3.1 Pro 26 100 .00 100 .00 100 .00 100 .00
+> Gemini 3.7 Flash 11 93 .94 100 .00 100 .00 71 .43
+> Kimi K3 20 100 .00 100 .00 100 .00 100 .00
+> Qwen3.8-27B 27 100 .00 100 .00 100 .00 100 .00
+> Qwen3.8-Flash-Next 34 98 .53 100 .00 97 .06 100 .00
+
+As shown in Table E.1, all evaluated agents achieve near-perfect format quality. This indicates that the bottleneck in user interaction is not how agents ask but whether they ask: agents phrase their questions well once they decide to ask, yet, as shown in §4, they frequently fail to recognize when a question is necessary. Among the three criteria, option provision is the only one that poses a modest challenge. Agents occasionally pose questions without listing possible options (e.g., in-stock colors of an item, the seating sections available on a venue map), although the options are visible on the screen, shifting the burden of inspecting options back to the user. 21 E.4 Validation of LLM-as-a-Judge  
+
+> Human Validation.
+
+To assess the reliability of our LLM-based evaluation, we compare judge outputs against human annotations on 100 sampled agent trajectories. The trajectories are divided into two disjoint subsets of 50, each assigned to one human annotator. Each annotator evaluates the satisfaction of individual rubric criteria and the information requested in agent-user interactions. For personalized task completion, we measure agreement at both the rubric-criterion level and the task-success level. At the criterion level, agreement between human annotations and the LLM judge reaches 95.7%, with Cohen’s κ = 0 .89 . At the task level, agreement reaches 97.0%, with κ = 0 .94 .For interaction Recall, we compare the required-to-ask slots identified as elicited by the interaction judge with human annotations. Agreement reaches 95.2% ( κ = 0 .90 ). For interaction Precision, direct comparison at the level of individual extracted information pieces is not well-defined because the number and description of extracted pieces may differ between human annotators and the LLM judge. Instead, we compare the number of extra information requests identified by each, including requests for inferable or irrelevant information and redundant requests. Agreement on extra-request counts reaches 93.9% ( κ = 0 .82 ). Since these counts are ordinal, we additionally compute weighted Cohen’s κ, which accounts for the magnitude of disagreements between counts and reaches 0.91 .These results support the reliability of our LLM-based evaluation for both personalized task completion and information-request behavior.  
+
+> Cross-Judge Validation.
+
+We further re-evaluate all trajectories in Table 1 with Gemini 3.7 Flash as an alterna-tive judge. For personalized task completion, the two judges agree on 95 .9% of rubric criteria ( κ = 0 .91 ) and 
+
+96 .4% of task-level success labels ( κ = 0 .92 ), with similar agreement on action-completion ( 95 .7%, κ = 0 .87 )and personalization criteria ( 95 .9%, κ = 0 .92 ). For interaction evaluation, they agree on 99 .1% of ask-only requirements for recall ( κ = 0 .98 ) and on 98 .6% of per-task extra-request counts for precision ( κ = 0 .90 ;weighted κ = 0 .87 ). Overall, the results remain consistent with an alternative judge, demonstrating the consistency and reliability of our LLM-as-a-Judge. 
+
+# F Experiment Details 
+
+F.1 Evaluated Agents 
+
+We evaluate seven frontier agents in our experiments: Claude Opus 5 (Anthropic, 2026a), Claude Sonnet 5 (Anthropic, 2026b), Gemini 3.1 Pro (Google, 2026a), Gemini 3.7 Flash (Google, 2026b), Kimi K3 (Kimi Team et al., 2026), Qwen3.8-27B (Qwen Team, 2026b), and Qwen3.8-Flash-Next (Qwen Team, 2026a). We additionally attempted to evaluate open-weight specialized GUI agents under our standard full-history setting. Some (e.g., UI-TARS-1.5-7B (Qin et al., 2025) and GUI-Owl-1.5-32B-Instruct (Ye et al., 2025)) could not accommodate the complete user activity log within their supported context windows. Some (e.g., MAI-UI-8B (Zhou et al., 2025)) could accommodate the input length but frequently produced malformed or unparsable actions when the full history was included, resulting in a low Action Completion score of 16 .9%. Since these failures occur at the basic action-execution level, the resulting personalization scores would be heavily confounded by execution failures rather than reflecting the agents’ ability to infer preferences or seek clarification. We therefore exclude these models from the main comparative evaluation and focus on agents that can reliably operate under the same full-history setting. 
+
+F.2 Error Analysis 
+
+To understand how personalization fails, we manually label the error types in every failed trajectory of Claude Sonnet 5 (79 failed tasks) and Qwen3.8-27B (96 failed tasks), which are representative of closed and open agents. We first categorize personalization-related errors based on two axes: whether the underspecified information is ask-only or inferable, and whether the agent recognized the slot as open at all or resolved it incorrectly on its own without the user. This yields four error types: 22 • Silent Default (e.g., Figure F.1): an ask-only requirement is never considered, and the app’s pre-filled value is accepted directly as fact; • Missed Inference (e.g., Figure F.2): an inferable preference that the task depends on is never consid-ered; • Silent Guess (e.g., Figure F.3): the agent does treat an ask-only detail as open but fills it in incorrectly on its own, by guessing at the current situation and user intention, e.g., based on history, plausibility, instead of asking; • Wrong Inference (e.g., Figure F.4): the agent reasons about a preference based on H but resolves it to the wrong value. Figure 3 shows the error distributions. Note that a single trajectory may exhibit multiple error types. The results show that failures on iPrefBench are mostly personalization failures rather than navigation failures: 89 % of Sonnet 5’s and 84 % of Qwen3.8-27B’s failed trajectories contain at least one of the four personalization errors, consistent with the gap between action completion and personalization in Table 1. Although Qwen3.8-27B fails on more tasks, the error distributions of these two agents are close, suggesting that these are shared behaviors of agents optimized for autonomous execution rather than a weakness of any single model. 
+
+F.3 Additional Case Studies 
+
+In environment-perturbation tasks, the expected behavior is to recognize that the preferred option is un-available, surface this to the user, and then either proceed with an acceptable alternative or stop when no substitute is acceptable (§3.3). We observe three different failure patterns of handling such unavailabil-ity: (1) after finding the item unavailable, the agent keeps attempting other ways to obtain the same item (e.g., Figure F.5); (2) the agent directly substitutes an alternative without consulting the user (e.g., Fig-ure F.6); and (3) the agent skips the unavailable item, without considering alternatives or consulting the user (e.g., Figure F.7). 
+
+# G Prompts 
+
+G.1 User Simulator 
+
+Prompt for User Simulator  
+
+> You are {persona}, the owner of this phone. An assistant is performing a task for you on the phone and may ask you questions to clarify or confirm. Answer naturally and consistently with your profile. Ground every answer in the profile below and what this person would plausibly know. Do NOT invent or fabricate details that are not supported by the profile. If a question is not covered by the profile or you would not know the answer, say so honestly. If a question is too vague or broad for you to tell what is actually being asked, say that it’s unclear and ask what they mean rather than guessing or offering all related information. Do not perform the task yourself, and never reveal that you are an AI. Reply with EXACTLY one JSON object and no other text: {“reply”: “what you say”}
+> Profile:
+> {user_profile}
+> You asked the assistant to do the following for you:
+> {user_instruction} The assistant’s questions will be about this task. Answer in that context, but still only answer what’s asked — don’t volunteer details the assistant hasn’t asked for.
+> For THIS specific request, the concrete details you have in mind (these are NOT in the profile above) are:
+
+23 {task_context} Reveal each of these only if the assistant explicitly asks for it; never volunteer them. 
+
+The current situation for this request: 
+
+{simulator_context} Answer consistently with this. Say only what’s asked and stay in character; don’t volunteer extra details. 
+
+G.2 Personalized Mobile-Use Agent 
+
+Prompt for Agent 
+
+You are an iOS Simulator control agent. Reply with exactly one JSON object and no other text. Schema: {“summary”:“your reasoning for this turn”,“actions”:[. . . ]} Rules: • You are in an agentic loop. After your actions execute, you will receive a new observation. • Use the normalized 0-1000 coordinate space for all coordinates, where (0,0) is the top-left and (1000,1000) is the bottom-right. • Do not chain many actions unless the next state is highly predictable. Only use stop when the task is fully complete. • If uncertain about the UI — where an element is, what a control does — make the best grounded attempt and use the next observation to recover. You are acting on behalf of a specific user, and you are given their activity log for context. Their requests may be underspecified, and you should act the way they would. When a request leaves a detail open, first resolve it from what you know about the user rather than choosing an arbitrary default. When a detail genuinely matters and you cannot settle it confidently from what you know about them, use ask_user to ask or confirm instead of guessing. You are in vision-only mode: you do not have access to accessibility identifiers, UI metadata, or hidden state. Carefully estimate the centre of the element you want to tap in 0-1000 coordinates. Action schema — emit a JSON object with keys “actions” (array) and “summary” (string). Each action is a JSON object with “type" and the parameters listed below. Use ONLY the action "type" values listed below — never invent other types (there is no double_tap/triple_tap/hover/etc.). To select-all-then-replace text, tap the field and use "type" with the new text. 
+
+Available actions: 
+
+tap_xy 
+
+• Tap at a screen position using coordinates in 0-1000 space (0=top/left edge, 1000=bottom/right edge). • Parameters: x (integer, 0-1000), y (integer, 0-1000) • Example: {“type”: “tap_xy”, “x":500, “y":200} 
+
+type 
+
+• Type text into the currently focused input field. You must tap a text field first to focus it. IMPORTANT: Ensure the text field is focused before typing. If typing produces no result or duplicate text, tap the field again and retry. • Parameters: text (string, the text to enter) • Example: {“type”: “type”, “text”: “hello world”} 
+
+swipe 
+
+• Swipe in a direction, optionally from a specific origin point. • Parameters: direction (string, one of “up”/“down”/ “left”/“right”), x (integer, optional origin 0-1000), y (integer, optional origin 0-1000) • Example: {“type”: “swipe”, “direction”: “up”} 
+
+24 • Example with origin: {“type”: “swipe”, “direction”: “left”, “x":800, “y":500} 
+
+home 
+
+• Press the home button to return to the home screen. • Parameters: none • Example: {“type”: “home”} 
+
+wait 
+
+• Pause for a specified duration (seconds). Use this when you need to wait for content to load, animations to complete, or a delay before the next action. • Parameters: duration (number, seconds to wait; default 2.0) • Example: {“type”: “wait”, “duration”:3.0} 
+
+stop 
+
+• End the task and provide your final answer. ONLY use this when you have fully completed the goal. Do NOT stop early — keep trying alternative approaches if your current actions are not working. • Parameters: answer (string, REQUIRED — if the task asks you to return, tell, or report any information, you MUST include all requested data here. This is how you communicate results back to the user.) • Example: {“type”: “stop”, “answer”: “The movie’s year is 1972 and its rating is 9.2/10. It has been added to the Wishlist.”} 
+
+ask_user 
+
+• Ask the user a question to get clarification or confirmation. Use this when a choice or the task’s requirements are unclear, or when you don’t have enough information to complete the task confidently. • Parameters: question (string) • Example: {“type”: “ask_user”, “question”: “Which card should I pay with — the Visa or the Amex?”} 
+
+Output requirements: 
+
+• Return valid JSON only. Do not use markdown or code fences. • Do NOT use <function_calls >, <invoke >, or any XML-style tool tags — respond with plain JSON. • ALWAYS include a non-empty "summary" BEFORE the actions: concisely state your reasoning for this turn — what you observe, what you infer (including from the user context above, if any), and why you chose these actions. Keep it concise. Never return actions without a "summary". 
+
+User Activity Log: 
+
+{user_activity_log} 
+
+Goal: 
+
+{goal} 
+
+G.3 Rubric-based Judge 
+
+Prompt for Rubric-based Judge 
+
+You are a strict evaluation judge for an iOS agent benchmark. Read the goal, the trajectory, and any ground-truth (the user profile and request specifics) in the user message, then reply with EXACTLY ONE JSON object in the format the user message specifies. Do NOT use any agent action schema; do NOT wrap your answer in ‘actions’ or ‘summary’. Return only the judge JSON object. 
+
+Goal: 
+
+{goal} The task was run at {run_time}. This is the phone’s clock during the run — resolve any relative date in the goal or the rubric criteria (for example “next Saturday”, “the upcoming weekend”, “tomorrow”) against it. 
+
+25 You are evaluating whether an iOS agent successfully completed the above goal. The agent executed {N} steps. Full trajectory with per-step screenshots: {trajectory} The agent’s final answer was: “{agent_answer}” 
+
+The user’s profile (GROUND TRUTH for preference/personalization criteria). 
+
+Judge any criterion about the user’s preferences strictly for consistency with THIS profile — not your own assumptions: {user_profile} 
+
+This request’s specifics (GROUND TRUTH for intent criteria such as party size, day, or time — these are what the user actually wanted for this request): 
+
+{task_specific_hidden_context} Evaluate each of the following rubric criteria individually: 1. {criterion_1} 2. {criterion_2} 3. . . . Respond with ONLY a JSON object (no code fences) in this format: {“success”: true/false, “reasoning”: "overall assessment of whether the task was completed", “rubric_results”: [ {“criterion”: “criterion_text”, “satisfied”: true/false, “reasoning”: “why”}, . . . ]}success=true means the goal is fully and completely achieved. For each rubric criterion, set satisfied=true only if there is clear evidence in the trajectory and screenshots that the criterion was met. Treat each rubric criterion as the AUTHORITATIVE and INDEPENDENT definition of success for that item: judge it solely by its own literal wording, against the evidence and the ground-truth profile/specifics. Do NOT make a criterion stricter or looser based on how the goal is phrased — the goal is only what the agent was asked; the criterion is what counts. If the goal’s wording seems to demand more (or less) than a criterion states, follow the criterion. When a criterion refers to the user’s preferences or to this request’s specifics, judge it strictly against the user profile and request specifics provided above — not your own assumptions. For tasks that ask a question, evaluate whether the agent’s final answer is correct. 
+
+G.4 Interaction Judge 
+
+Prompt for Interaction Judge 
+
+You are a strict evaluation judge for the interaction quality of an iOS agent’s messages to the user. Reply with EXACTLY ONE JSON object in the required format. An iOS agent asked the user these clarifying questions: • {question_1} • {question_2} • . . . The user’s request had these REQUIRED-TO-ASK information slots (the agent could not know them without asking): {task_specific_hidden_context} 
+
+26 First, enumerate the pieces of information the agent requested across all the questions above. A piece is ONE thing the user has to decide or supply — one decision, or one value. Split a question that bundles several independent pieces (things the user would have to answer separately) into separate pieces. Candidate answers enumerated for ONE decision are ONE piece, not several: a question offering the user a choice between alternatives, or listing options to pick from, requests a single piece however many options it lists. Count every ask: if the same piece is requested more than once (e.g. re-asked in a later message), list it each time — do NOT merge repeats. For EACH piece, decide which required-to-ask slot (if any) it requests (semantic match, not exact wording). Use the EXACT slot name from the list above, or null if the piece does not correspond to any required slot. Respond with ONLY this JSON (no code fences): {“info_pieces”: [{“piece”: “short description”, “matched_-slot”: “slot name or null”}]} 
+
+G.5 Pre-execution Clarification 
+
+Prompt for Pre-execution Clarification 
+
+You are an assistant about to perform a task on a user’s phone on their behalf. You are given the user’s activity log (context about their habits and preferences) and the task. BEFORE starting, identify the choices or parameters this task leaves UNDERSPECIFIED and that depend on the USER’S PREFERENCES or intent — NOT objective/mechanical details you can figure out yourself. First try to resolve each open detail from the user’s activity log. Only ask about details that genuinely matter and that you CANNOT settle confidently from the log or from what you know about the user. Write ONE short, natural clarifying question for each such detail. Ask about every genuinely underspecified detail — but only those you cannot settle from the log; do not pad with unnecessary questions. If nothing needs clarifying, return an empty list. Reply with EXACTLY one JSON object and no other text: {“clarifying_questions": [“...”, “...”]} 
+
+User Activity Log: 
+
+{user_activity_log} 
+
+Task goal: 
+
+{goal} 
+
+27 Silent Default 
+
+Task: I need to get out to Seattle for a few days coming up — go ahead and book a round trip, and splurge on the extra legroom for me this time. 
+
+Agent Behavior: 
+
+The agent correctly navigates to flight search page in SkyTrip app, selects the user’s home airport (SFO) and destination (SEA), selects the Round Trip and chooses Comfort+ cabin for the extra legroom. Then, the agent states ”Comfort+ selected. Route SFO-SEA round trip Aug 19-22, 2026, 1 passenger. Now tapping Search to see flight options.” and proceeds to search flights. 
+
+Hidden Task Context: Departure date: next Monday; Return date: next Friday 
+
+Error Type: Silent Default Error Reason: The travel dates, which can only be obtained from asking the user as the hidden task context, are never treated as the open detail by the agent. It just states Aug 19-22 (the app’s pre-filled default) as facts and searches. Figure F.1 An example of Silent Default . When asked to book a round trip for “a few days coming up” without specific dates, the agent directly uses the app’s default departure and return dates as if they were the user’s, never treating travel dates as an open detail that needs to be resolved. 
+
+28 Missed Inference 
+
+Task: Book me a table for dinner tomorrow night — I'm in the mood for Japanese this time, somewhere nice. 
+
+Agent Behavior: 
+
+The agent searches Japanese in the restaurant-reservation app DineSpot, and selects Golden Gate Izakaya which is ”nicer” than a ramen shop. The agent directly uses the app’s default party size and the first available slot 7:00PM, states “Review Booking page confirms: Golden Gate Izakaya, Thu Aug 13 (tomorrow), 7:00 PM, 2 guests. Everything matches the request. Confirming the reservation now.” and proceeds to confirm the reservation. 
+
+Hidden Task Context: Party Size: 3; Time: 7:30PM 
+
+Relevant User History: 
+
+• … (For every restaurant reservation, the user always selected a seat preference based on the venue and occasion) 
+
+• [08-05 20:00] on DineSpot dined at Golden Gate Izakaya — party of 2, bar seating, at 8:00 PM 
+
+• [08-11 09:00] on DineSpot booked a table for 2 at Presidio Hearth, bar seating (for Thu Aug 20, 7:45 PM) 
+
+• [08-12 18:00] on DineSpot canceled a reservation for 2 at Fulton Tasting Table, bar seating — guest canceled travel plans (was for Wed Aug 19, 8:00 PM) 
+
+Error Type: Missed Inference Error Reason: The agent never notices that the user usually specifies a seating preference when booking a restaurant — typically Bar Seating at an izakaya, chef's-counter, or omakase venue. It does not treat seating as a preference at all in this task. Figure F.2 An example of Missed Inference . While the user sets a seat preference on every restaurant booking, and selects Bar Seating for an izakaya, chef’s-counter or omakase venue, the agent never notices this user preference, so seating is absent from its reasoning entirely. When booking at an izakaya, the agent leaves the reservation with “No Preference”. 
+
+29 Silent Guess 
+
+Task: I'm heading to the ballpark with friends — book us a ride there. What's the fare and ETA? 
+
+Agent Behavior: 
+
+The agent correctly identifies that the user follows the SF Giants and frequently attends games at Oracle Park, and sets the destination to Oracle Park accordingly. Then the agent states “Destination is set to Oracle Park with CityRideX option showing $9.80 fare and 14 min ETA, supporting up to 4 passengers - good for a group of friends. I'll request this ride.” and directly requests aCityRideX. 
+
+Hidden Task Context: Party size: 5 
+
+Error Type: Silent Guess Error Reason: The agent never asks how many people are in the group, since the word "friends" in the user's instruction is vague and gives no specific number. It silently assumes the group is no larger than four passengers, when in fact there are five people in total, so a CityRideXL is needed. Figure F.3 An example of Silent Guess . The user instruction explicitly mentions that the ride is “with friends” without the specific group size, and only the user knows the actual group size (i.e., 5) in the current situation. However, the agent directly assumes “with friends” as a group of at most four and books a ride that seats one person too few. 
+
+30 Wrong Inference 
+
+Task: Start recording my usual morning workout. 
+
+Agent Behavior: 
+
+The agent notices “activity history shows frequent morning runs logged in Trailblaze (e.g., Presidio, Embarcadero, Twin Peaks runs, often around 6-7 AM). This matches 'usual morning workout.’” and starts recording a run in Trailblaze. 
+
+Relevant User History: 
+
+• …… (in the past, the user usually runs in the morning) 
+
+• [07-27 08:30] logged in Trailblaze: Golden Gate Bridge & Back Ride — 44.2 km, 952 cal, 1:46, 628 m elevation, 2:24/km pace 
+
+• [07-28 08:15] logged in Trailblaze: Lands End Trail Hike — 9.6 km, 538 cal, 1:52, 324 m elevation, 11:40/km pace 
+
+• [07-31 06:25] logged a ride in Trailblaze — Golden Gate Coastal Ride: 41.9 km in 1:33, 616 m elevation, 886 cal 
+
+• [08-01 09:00] logged in Trailblaze: Sunset District Ride — 36.8 km, 880 cal, 1:28, 412 m elevation, 2:23/km pace 
+
+• [08-03 12:20] logged a walk in Trailblaze — Golden Gate Park Walk: 5.1 km in 59 min, 11:40/km pace, 28 m elevation, 238 cal 
+
+• [08-04 06:45] logged a ride in Trailblaze — Golden Gate Coastal Ride: 42.3 km in 1:38, 620 m elevation, 899 cal 
+
+• [2026-08-07 06:15] logged a ride in Trailblaze — Golden Gate Coastal Ride: 42.8 km in 1:34, 624 m elevation, 912 cal 
+
+• [2026-08-09 06:35] logged a ride in Trailblaze — Golden Gate Coastal Ride: 42.1 km in 1:37, 618 m elevation, 894 cal 
+
+• [2026-08-11 06:20] logged a ride in Trailblaze — Golden Gate Coastal Ride: 42.5 km in 1:35, 620 m elevation, 903 cal 
+
+Error Type: Wrong Inference Error Reason: The user did usually go for morning runs in the past. However, over the past month the user has switched to morning rides (more specifically, the Golden Gate Coastal Ride) and no longer goes for morning runs. The agent fails to capture this change in preference and still resolves "the usual morning workout" to the old habit. Figure F.4 An example of Wrong Inference . The agent grounds “my usual morning workout” in a real pattern in H,but in the pattern the user has already moved away from. 
+
+31 Handle Unavailability: Keep Attempting 
+
+Task: That ribeye from my last Costco order is exactly the steak I want — get me one of those. 
+
+Agent Behavior: 
+
+When the agent finds “No search results” for “ribeye steak”, it keeps trying by running ten distinct queries ("ribeye steak" → "ribeye" → "steak" → Costco-scoped "ribeye steak"/"steak"/"ribeye" → "USDA" → "beef" → all-stores "beef" → "Kirkland Signature ribeye") and two walks of the Meat & Seafood category and navigating to the previous Costco order, until the task hits the 50-step limit with an empty cart. 
+
+Hidden Task Context: Acceptable Substitution: a NY strip steak — from another store I already order from, if Costco has none 
+
+Relevant User History: 
+
+• [03-15 19:20] on FreshCart scheduled a Costco order for Kirkland Signature Farmed Atlantic Salmon, Eggs ×2, USDA Choice Ribeye Steak, Extra Virgin Olive Oil, and Thick Sliced Bacon Figure F.5 An example of keeping on trying when the preferred option is unavailable. The agent keeps attempting with different search keywords until the task hits the step limit with an empty cart. Handle Unavailability: Substitute Silently 
+
+Task: My tumbler's seen better days — reorder me my insulated tumbler. 
+
+Agent Behavior: 
+
+The agent correctly identifies the user’s tumbler and its color (Cream), and searches the same tumbler. However, when the agent notices “Cream might be a different variant or out of stock… Rose Quartz is currently selected.”, it decides to “Let's tap 'Buy Now' to see what happens” and continues to place the order with Rose Quartz color. In its final answer, it only mentions that “I have reordered the Stanley Quencher H2.0 FlowState Tumbler (40 oz) for you” but never flags the color difference. 
+
+Hidden Task Context: Acceptable Substitution: the same tumbler in Black 
+
+Relevant User History: 
+
+• [09-28 14:00] on MegaMart ordered a Stanley Quencher H2.0 FlowState Tumbler 40 oz (Cream) and Hydro Flask Wide Mouth Insulated Water Bottle 32 oz (Black) ($97.37) (delivered Tue Sep 30, 4:00 PM)  
+
+> Figure F.6
+
+An example of substituting silently when the preferred option is unavailable. The agent directly places the order with a different color and fails to disclose the substitution in its final answer to the user. 
+
+32 Handle Unavailability: Skip Directly 
+
+Task: Put together my weekly Trader Joe's restock. When you're done, give me the total and tell me what actually made it into the cart. 
+
+Agent Behavior: 
+
+When the agent realizes no results for Trader Joe’s Mandarin Orange Chicken, it considers “try just 'chicken' to see available chicken products.” but then directly moves to “Searching for gnocchi now.”. The order is eventually placed without Mandarin Orange Chicken or any similar substitutions. 
+
+Hidden Task Context: Acceptable Substitution: Trader Joe's Grilled Chicken Breast Strips if Mandarin Orange Chicken is out of stock 
+
+Relevant User History: 
+
+• … (The user bought Mandarin Orange Chicken in every Trader Joe’s grocery order) 
+
+• [03-09 15:30] in FreshCart placed a Trader Joe's midweek order for Mandarin Orange Chicken, Cauliflower Gnocchi, Almond Windmill Cookies, Butternut Squash Ravioli ×2, and Creamy Salted Peanut Butter — noted: "Extra cauliflower gnocchi if they have it!" (delivered Mon Mar 9, 5:12 PM) 
+
+• [03-16 15:02] on FreshCart placed a Trader Joe's order for Mandarin Orange Chicken ×3, Cauliflower Gnocchi ×2, Butternut Squash Ravioli, Creamy Salted Peanut Butter, Unexpected Cheddar Cheese, Hold The Cone Mini Ice Cream Cones (no replacement), Cage Free Large Eggs, and Sourdough Bread — noted: double-bag ice cream cones, refund only on eggs (shopper assigned Mon Mar 16, 3:14 PM) Figure F.7 An example of directly omitting the unavailable item. The agent skips the unavailable item without asking the user and completes the task without any potential substitution of the unavailable item. 
+
+33

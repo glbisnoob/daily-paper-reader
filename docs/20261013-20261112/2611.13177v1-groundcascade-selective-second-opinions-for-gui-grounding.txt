@@ -1,0 +1,522 @@
+Title: GroundCascade: Selective Second Opinions for GUI Grounding
+
+URL Source: https://arxiv.org/pdf/2611.13177v1
+
+Published Time: Wed, 11 Nov 2026 01:20:19 GMT
+
+Number of Pages: 11
+
+Markdown Content:
+# GroundCascade: Selective Second Opinions for GUI Grounding 
+
+## Adrian Phoulady University of Connecticut Storrs, CT, USA 
+
+adrian.phoulady@uconn.edu 
+
+## Hady Ahmady Phoulady Embry-Riddle Aeronautical University Daytona Beach, FL, USA 
+
+ahmadyph@erau.edu 
+
+## Abstract 
+
+Graphical user interface (GUI) grounding maps a screen-shot and a natural-language instruction to the screen lo-cation where an agent should act. Zoomed views can re-veal small targets but may lose the context needed to iden-tify them. We introduce GroundCascade, a training-free controller that uses agreement between a grounder’s full-screen and zoomed predictions to decide when to consult a complementary model. It selects between zoomed predic-tions while preserving corroborated full-screen locations. An optional Finalizer predicts from an unmarked joint crop when disagreement remains (Full); omitting it yields the two-stage Selective variant. GroundCascade reaches 85.33% on ScreenSpot-Pro with Indeed-UI-32B/8B/32B and 88.43% on the visible-target OSWorld-G-Refined sub-set with Qwen3.6-27B/3.8-27B/3.8-27B, gains of 2.66 and 2.35 percentage points over the stronger standalone two-pass grounder. On UI-Vision, GroundCascade reaches 72.20% category-balanced accuracy, with Selective slightly higher at 72.28%. Across these three evaluations, GroundCascade in Full mode uses 2.42–2.73 calls per re-quest, 31–39% fewer than unconditionally acquiring both models’ two-pass predictions. At matched second-model call budgets, selective acquisition gains 1.52–2.56 points over standalone Two-pass, compared with 0.22–0.69 points from stratified random acquisition. GroundCascade leads the official ScreenSpot-Pro leaderboard and exceeds re-ported GUI-specialist comparisons on OSWorld-G-Refined and UI-Vision, subject to differences in external evaluation protocols. 
+
+## 1. Introduction 
+
+GUI grounding maps a natural-language instruction and screenshot to where an agent should act. Professional inter-faces contain small icons and similar labels [14, 22]. Two-pass grounders magnify a crop around an initial full-screen prediction to resolve fine details [7, 8, 11, 43]. Yet a crop can hide the toolbar or panel that identifies a target, spoiling a correct full-screen prediction [8, 27]. A complementary model can repair errors [10], but need not be better; using  
+
+> GroundCascade
+> Indeed-UI-32B-zoomin Qwen-UI-Agent-27B †
+> KV-Ground-8B + router GUI-Owl-1.5-32B Holo2-235B
+> 75 80 85
+
+85.33 
+
+82.73 81.5 80.9 80.3 78.5 
+
+> 1,581 requests
+
+ScreenSpot-Pro  
+
+> GroundCascade
+> UI-Venus-2-27B ∗†
+> Qwen-UI-Agent-27B ∗†
+> UI-Venus-2-9B ∗
+> Hunmin-CUA-397B UI-Venus-1.5-30B ∗
+> 80 84 88
+
+88.43 ≤87.6 ≤86.9 ≤86.9 86.8 
+
+≤84.6 
+
+> 510 visible-target requests
+
+OSWorld-G-Refined 
+
+> GroundCascade
+> Qwen-UI-Agent-27B †
+> UI-Venus-2-27B †
+> GroundNext-3B UI-Venus-1.5-30B UI-Venus-2-9B
+> 50 60 70
+
+72.20 70.0 66.9 62.1 54.7 53.2 
+
+> 5,479 requests
+
+UI-Vision 
+
+GroundCascade Reported system Upper bound from 564 items † Weights unreleased 
+
+Figure 1. GroundCascade versus reported GUI-focused systems (accuracy, %). I32/I8/I32 (max 32B) is used on SSP and Q36/Q38/Q38 (max 27B) elsewhere. ∗ Hatched ≤ bars conditionally bound OSG-R accuracy if published scores are micro-accuracies over 564 requests; they are not measured 510-item scores. UIV is category-balanced; external protocols may differ [4, 6, 7, 10, 21, 28, 29, 36, 44]. 
+
+1arXiv:2611.13177v1 [cs.CV] 9 Nov 2026 Stage 1 · Grounder G         
+
+> Detail view BG
+> pG,C
+> pG,D
+> Hollow ◦: Context; filled •: Detail.
+> Stop if sG≤τs: return pG,D .up to 2 calls
+> unstable
+
+Stage 2 · Regrounder R            
+
+> Detail view BR
+> pG,D pR,C
+> pR,D
+> R’s Context–Detail pair; p⋆Dis the se-lected Detail point. Stop on Detail agree-ment ( τD): return p⋆D; otherwise on Context agreement ( τC): return pm⋆,C .up to 4 calls
+> disagree
+
+Stage 3 · Finalizer F 
+
+> Joint view J
+
+## ⋆   
+
+> Only if both agreement tests fail, Context and Detail locations define J(Eq. (3)).
+> Freturns a fresh prediction ( ⋆). up to 5 calls
+
+Figure 2. GroundCascade’s two modes. Selective uses Stages 1–2: stop when the Grounder is stable; otherwise acquire the Regrounder and test Detail, then tighter Context agreement. Full adds Stage 3, an unmarked joint view, only if both comparisons fail. Markers and outlines illustrate predicted locations, not model inputs; call labels are cumulative upper bounds because invalid Context skips Detail. 
+
+both two-pass models can take four calls. GroundCascade controls second-model calls using the Grounder ’s Context–Detail agreement (Fig. 2). It returns Detail when the predictions agree closely and otherwise obtains a Context–Detail pair from the Re-grounder . Agreement between Detail predictions returns the more self-consistent one; when Detail disagrees, close Context agreement preserves the more self-consistent model’s full-screen point. These two stages form the Selective variant; in its Full mode, GroundCascade adds a 
+
+Finalizer on an unmarked joint crop only when both tests fail. Decisions use screen-space distances, without training, model confidences, or marked candidates. GroundCascade reaches 85.33% on ScreenSpot-Pro (SSP) using Indeed-UI-32B/8B/32B, a 2.66-point gain over the stronger standalone two-pass grounder. GroundCascade tops the official SSP leaderboard [26]. With Qwen3.6-27B/ 3.8-27B/3.8-27B, it reaches 88.43% on the 510 visible-target requests of OSWorld-G-Refined (OSG-R), a 2.35-point gain. On UI-Vision Element Grounding (UIV), GroundCascade reaches 72.20% category-balanced accu-racy; omitting the Finalizer improves it slightly to 72.28% in Selective mode, 2.56 points above standalone Two-pass. The OSG-R and UIV results exceed the published compar-isons with Hunmin-CUA and Qwen-UI-Agent, respectively (Fig. 1, Sec. 4.2). The acquisition gate outperforms strati-fied random acquisition at the same executed Regrounder-call budget on all three evaluations (Sec. 4.4). Table 1 presents the matched model-invocation costs. The Regrounder need not be stronger in isolation: I8 trails I32 on SSP, and Q38 trails Q36 on OSG-R and UIV, yet selective acquisition improves the Grounder’s outcomes. The Context return can repair zoom-induced losses; final-ization adds 18 correct SSP answers and two OSG-R an-swers, with five fewer on UIV. Our error analysis separates missed escalation from the loss of correct predictions al-ready acquired (Sec. 5). Our contributions are: • A training-free controller for selective second Context– Detail acquisition, corroborated Context preservation, and optional fresh unmarked joint-view prediction. • Matched-budget evidence that selective acquisition con-centrates useful corrections over stratified random; anal-ysis of Context preservation and conditional finalization. 
+
+## 2. Related Work 
+
+Zoom and regional refinement. Iterative zooming and region search increase the effective resolution available for small targets [8, 19, 20]; region ranking and visual-token processing refine how crops are used [3, 17]. BAMI and FastFocus combine coarse-to-fine views with candidate se-lection or verification [37, 40], and GUI-Lens chooses crops for a general-purpose VLM [5]. Zooming can also discard needed context [8]. UI-Zoomer decides when to zoom from sampled consensus and token confidence [27]. MVP aggre-gates attention-guided views [42]; we evaluate its released pipeline with the same checkpoint. AutoFocus separates prediction, verification, and aggregation during active vi-sual search [38]; Chain-of-Ground, GMS, and MHVF like-wise use feedback, regional specialization, or hypothesis verification [2, 13, 16]. 
+
+Confidence, agreement, and verification. Zoom Consis-tency [10] uses consistency to route between two acquired two-pass pipelines and discusses early stopping in further zoom steps. GroundCascade instead uses the first pair to de-cide whether to acquire the second, with a separate, tighter test for preserving full-screen predictions. The matched unconditional-acquisition control is not a reproduction of Zoom Consistency’s router. SafeGround calibrates sampled spatial dispersion for deferral [31]; PACE uses coordinate-token entropy [15], and ARGUS benchmarks grounding un-certainty [12]. Unlike learned reflection [33, 41], Ground-Cascade’s Finalizer makes an ordinary grounding predic-tion with the original instruction. 2Model cascades. Cascades allocate computation selec-tively in detection [30], neural networks [34], and lan-guage models [1, 39]. Deferral theory distinguishes confi-dence in the current predictor from its performance relative to a downstream model [9]. Adaptive VLM Routing and LEASH study escalation in computer-use settings [18, 32]. GroundCascade routes using only two-pass coordinates, without token probabilities or hidden states. 
+
+## 3. GroundCascade 
+
+Let I be a screenshot of width W and height H, and let 
+
+q be an instruction. A grounding model M maps (I, q ) to a point or an invalid output. Valid points use zero-based screenshot coordinates, 0 ≤ x < W and 0 ≤ y < H . We use three views. The Context view is the full screenshot, giving pM,C = M (I, q ). The Detail view is a crop BM of nominally half the screen width and height, centered on the Context point and clipped to the screenshot. Its prediction 
+
+pM,D is mapped back to screenshot coordinates. An in-valid Context output skips the Detail call and leaves pM,D 
+
+invalid. The Joint view is defined below. The three roles, Grounder G, Regrounder R, and Finalizer F , need not be distinct checkpoints. We evaluate I32/I8/I32 on SSP and Q36/Q38/Q38 on OSG-R and UIV (Sec. 4.1); Sec. 4.3 also tests 8B Grounders on SSP. 
+
+Screen-space displacement. All decisions compare mapped points with the axis-normalized L∞ distance 
+
+d(a, b ) = max 
+
+ |ax − bx|
+
+W , |ay − by |
+
+H
+
+
+
+. (1) Threshold τ limits horizontal and vertical shifts to τ W and 
+
+τ H ; invalid points have d = ∞.Model self-displacement sM = d(pM,C , p M,D ) uses screenshot coordinates, independent of crop position. It is related to zoom consistency [10], which measures dis-placement from the crop center; ours uses axis-normalized 
+
+L∞ distance to the original Context point, which can differ when the crop is clipped. 
+
+Stage 1: Grounder. G produces its Context–Detail pair. If both predictions are valid and sG ≤ τs, the cascade returns 
+
+pG,D .
+
+Stage 2: Regrounder. Otherwise, R produces its own Context–Detail pair. We select the model with smaller self-displacement and its Detail candidate, 
+
+p⋆D = pm⋆,D , m⋆ = arg min  
+
+> M∈{ G,R }
+
+sM , (2) with ties broken in favor of G. If p⋆D is invalid, replace it with the other model’s Detail prediction if valid. The Re-grounder first checks Detail agreement: if d(pG,D , p R,D ) ≤
+
+τD , it returns p⋆D . Otherwise, if d(pG,C , p R,C ) ≤ τC , it re-turns pm⋆,C . Because returning a Context prediction over-rides the Detail-based choice, the Context-agreement test requires stronger cross-model agreement than the Detail-agreement test. Invalid points cannot satisfy an agreement test, and returned coordinates are never averaged. 
+
+Stage 3: Finalizer. The two-stage Selective variant stops here, returning p⋆D if neither agreement test passes. In Full mode, GroundCascade instead makes one last prediction from a joint view in these unresolved cases, allowing a broader observation when Detail crops lose context. Let 
+
+P contain the valid points among pG,C , p G,D , p R,C , p R,D .If P is empty, J is the full screenshot. Otherwise, let 
+
+x−, x +, y −, y + be the coordinate extrema and define 
+
+δ = max 
+
+ x+ − x−
+
+W , y+ − y−
+
+H
+
+
+
+,ρ = min {1, max {0.5, δ + 0 .1}} .
+
+(3) The joint crop J has side lengths ρW, ρH , rounded to pix-els, and is centered at the bounding-box midpoint (( x− +
+
+x+)/2, (y− + y+)/2) . Unlike the clipped Detail crop, J is shifted inside the screenshot to preserve its rounded dimen-sions and retain all valid in-screen points up to pixel round-ing. The two agreement comparisons determine whether F
+
+is needed; all available valid points determine its view. 
+
+F receives the unmarked view J and the original instruc-tion, without candidate coordinates. Its prediction pF,J is mapped back to the screenshot. The cascade returns the first valid point in (pF,J , p ⋆D , p G,C , p R,C ), or an invalid output if none exists. 
+
+Budget and parameters. Let r, f ∈ {0, 1} indicate whether the Regrounder and Finalizer are invoked. The Grounder uses at most two calls, the Regrounder at most two when invoked, and the Finalizer one. Thus, the number of executed calls per request, L, satisfies 
+
+L ≤ 2 + 2 r + f ≤ 5. (4) We report executed calls, both in total and per check-point. The thresholds used throughout are τs = 0 .01 (self-stability), τD = 0 .04 (Detail agreement), and τC = 0 .005 
+
+(Context agreement), all in the normalized metric of Eq. (1). Supplementary Sec. S1 gives the exact transforms. 
+
+## 4. Experiments 
+
+4.1. Setup 
+
+Benchmarks. We evaluate ScreenSpot-Pro (SSP; 1,581 professional-interface requests) [14], OSWorld-G-Refined (OSG-R; 510 visible-target requests, excluding the 54 absent-target cases in the original 564-item bench-mark) [35], and UI-Vision Element Grounding (UIV; 5479 instructions over 1,181 screenshot files containing 1,156 distinct images) [22]. A point must fall inside its target re-gion; invalid outputs are errors. UIV scores the unweighted mean of Basic, Functional, and Spatial accuracies; SSP and OSG-R use per-request accuracy. 3Standalone accuracy (%) GroundCascade accuracy (%) Inference cost                                    
+
+> G/R/F Benchmark Context Two-pass Selective Full Selective Full Saved (%) I32/I8/I32 SSP 73.69 82.67 84.19 85.33 2.49 2.56 36.11 Q36/Q38/Q38 OSG-R 84.90 86.08 88.04 88.43 2.37 2.42 39.28 UIV 66.02 69.72 72.28 72.20 2.62 2.73 31.20 Table 1. Accuracy and inference cost on three benchmarks. Model allocations ( G/R/F ) are specified by row. Context and Two-pass show the stronger standalone model per benchmark. Selective uses Stages 1–2; Full additionally invokes the Finalizer on unresolved requests. Inference cost is calls/query for each mode, followed by Full’s savings relative to unconditional acquisition of both two-pass models. UIV accuracy is category-balanced; bold marks the highest accuracy in each row.
+> “open the device in the device explorer”
+
+## ⋆⋆
+
+> (a) Zoom error repaired
+> “Replace “cat” with “dog” in all files.”
+
+## ⋆⋆    
+
+> (b) New location found
+> G Context G Detail R Context R Detail
+
+## ⋆ Finalizer Target     
+
+> Figure 3. ScreenSpot-Pro recoveries. (a) The Finalizer repairs a zoom-induced error. (b) It finds a target missed by all four upstream predictions (the Rpoints lie outside this excerpt). Prediction circles, Finalizer stars, and target boxes are evaluation overlays, not model inputs.
+
+Models and controls. We evaluate Indeed-UI-32B (I32), Indeed-UI-8B (I8) [7], KV-Ground-8B (K8) [11], Qwen3.6-27B (Q36) [24], and Qwen3.8-27B (Q38) [25]. Configura-tions denote G/R/F ; Selective does not invoke F . Table 1 reports I32/I8/I32 on SSP and Q36/Q38/Q38 on OSG-R and UIV. We test additional Indeed model orders on SSP, com-pare with the released MVP [42] pipeline, and report a UI-Venus-2 [28] interface check in the supplement. Matched controls reuse recorded predictions and views. 
+
+Evaluation protocol. Paired 95% percentile accuracy confidence intervals (CIs) use 10,000 bootstrap resamples: by request for SSP and by distinct image for OSG-R and UIV. The CIs are conditional on the reported configurations and do not account for configuration-selection uncertainty. Calls count executed model invocations, not tokens, run-time, or FLOPs (supplementary Sec. S2). 
+
+4.2. Main results 
+
+Table 1 compares the three reported allocations with the stronger standalone Context and Two-pass models on each benchmark. On SSP, GroundCascade (I32/I8/I32) reaches 85.33% (1,349/1,581), compared with 82.67% for stan-dalone Two-pass: 42 additional correct answers, or +2 .66 
+
+points (paired 95% CI [ +1.58, +3.80] points). Selec-tive reaches 84.19%; GroundCascade uses 2.56 calls/query, 36.11% fewer than unconditional acquisition. On OSG-R, GroundCascade (Q36/Q38/Q38) reaches 88.43% (451/510), compared with 86.08% for standalone Q36 Two-pass: 12 additional correct answers, or +2 .35 
+
+points (image-clustered 95% CI [+0.95, +3.86] points). Selective reaches 88.04%; GroundCascade uses 2.42 calls/query, saving 39.28%. On UIV, GroundCascade (Q36/Q38/Q38) reaches 72.20% category-balanced accuracy (3951/5479 correct, 72.11% pooled), a +2 .48 -point gain over standalone Q36 Two-pass (69.72%; image-clustered 95% CI [+1.69, +3.28] points). Omitting the Finalizer yields 72.28% in Selective mode, a +2 .56 -point gain over the same baseline (95% CI [+1.82, +3.30] points). Q38 alone scores 64.07% in Two-pass, but complements Q36. 
+
+Official leaderboard and published comparisons. Fig-ure 1 compares GroundCascade with selected publicly reported GUI-focused systems. On SSP, the strongest non-GroundCascade leaderboard entry is Indeed-UI-32B-4zoomin at 82.73% [7, 26]. On OSG-R, GroundCascade reaches 88.43% versus Hunmin-CUA’s 86.8% on the same 510 visible-target items [21]. Four other published scores are shown only as conditional upper bounds under the 564-item micro-accuracy interpretation, not as measured 510-item results (supplementary Sec. S2) [28, 29, 44]. On UIV, GroundCascade reaches 72.20% versus the published 70.0% for Qwen-UI-Agent-27B [44], whose averaging con-vention is unspecified; Selective reaches 72.28% (Tab. 1). GroundNext’s training applications overlap UI-Vision’s [4]. External checkpoints and inference protocols differ. Pro-prietary general-purpose systems have reported higher SSP scores (GPT-6 Astra: 92.7%; GUI-Lens with GPT-5.5: 87.9%) and are outside the specialist plot [5, 23]. Table 1 presents the controlled within-allocation comparisons. Across SSP, OSG-R, and UIV, unconditional two-model Detail selection scores 83.74%, 87.25%, and 71.93%; GroundCascade scores 85.33%, 88.43%, and 72.20% with 2.42–2.73 calls/query (31–39% fewer). On UIV, the accu-racy difference is small (paired CI [-0.40, +0.93] points). Figure 4 isolates the value of selective acquisition. On SSP, the released MVP pipeline [42] matches I32 Two-pass at 82.67% using 4.00 I32 calls/query. Ground-Cascade gains 2.66 points (paired 95% CI [ +1.08, +4.17] points) with 2.56 calls/query, including its I8 Regrounder. MVP uses only I32, whereas GroundCascade also uses I8; image and generation budgets differ, so the comparison con-cerns executed calls rather than equal compute. 
+
+4.3. Model identity and order 
+
+On SSP, all four allocations outperform their Grounder’s standalone Two-pass baseline. I32/K8/I32 reaches 85.01%; using I8 or K8 first adds 62 and 54 correct answers over their standalone baselines. Putting an 8B model first switches the Grounder and Re-grounder, while I32 remains the Finalizer (Tab. 2). On SSP, I8/I32/I32 reaches 83.93% using 0.54 I32 calls per request, versus 85.33% and 2.06 I32 calls for I32/I8/I32. This saves 74% of I32 calls at a cost of 22 correct answers (paired CI for I8-first minus I32-first: [ −2.59, −0.13] points). K8-first follows the same trade-off (Tab. 2). Both orders use about 2.5 calls per request; I32-first favors accuracy.                                      
+
+> I32 first: I32/8B/I32 8B first: 8B/I32/I32 8B model Acc. Calls I32 Acc. Calls I32 I8 85.33 2.56 2.06 83.93 2.54 0.54
+> K8 85.01 2.55 2.06 83.68 2.56 0.56 Table 2. Model identity and order on SSP (accuracy, %). Calls and I32 are mean total and 32B model invocations per request, respectively. Bold marks the highest accuracy and the fewest I32 calls.
+> −0.5 00.5 1.0 1.5 2.0 2.5
+> ScreenSpot-Pro
+> 390 of 1,581
+> OSWorld-G-Refined
+> 97 of 510
+> UI-Vision
+> 1,728 of 5,479
+> ScreenSpot-Pro
+> 99 of 390
+> Regrounder: Selective vs. Two-pass Finalizer: Full vs. Selective
+> +1.52
+> +0.28
+> +1.96
+> +0.22
+> +2.56
+> +0.69
+> +1.14
+> −0.09
+> Accuracy gain at equal executed calls (points) GroundCascade gate Random: mean, 95% range
+> Figure 4. Choosing which requests get a second opinion mat-ters more than the extra calls. Diamonds: accuracy gain from the GroundCascade gate. Gray: the same number of executed calls given to randomly chosen requests (mean and central 95% range). Top: Regrounder acquisition (Selective vs . standalone Two-pass); random allocations are stratified by recorded call cost (and UIV category), and labels give the requests that received R.Bottom: Finalizer calls on SSP (Full vs . Selective), drawn uni-formly among the 390 eligible requests. Both controls use 50,000 draws. SSP uses I32/I8/I32; OSG-R and UIV use Q36/Q38/Q38; UIV is category-balanced. Supplementary Tab. S1 lists the values.
+
+4.4. Why selectivity helps 
+
+Figure 4 isolates the advantage of selecting which requests receive the second model. 
+
+Acquiring the second model. At the same executed Regrounder-call budgets, stratified random acquisition pro-vides smaller mean gains (Fig. 4). On SSP, acquiring R
+
+on every early exit instead loses six correct answers. The gate therefore concentrates complementary predictions on requests with greater intervention value. 
+
+Resolving disagreement. On SSP, the Context-agreement branch is taken on 17 requests, yielding a net gain of 1 cor-rect answer over the preferred Detail candidate. Selective adds 24 correct answers over standalone Two-pass; Full’s 99 Finalizer calls add another 18. For Qwen OSG-R, selec-tive acquisition adds ten correct answers, followed by two more from the 21 Finalizer calls. On Qwen UIV, Selective adds 139 net correct requests over standalone Two-pass; the 595 Finalizer calls then reduce the correct count by five. Figure 5 decomposes these gains by stage, and supplemen-tary Tab. S3 gives repairs and regressions for each bench-mark. On SSP, Finalizer counterfactual predictions are avail-able for all 390 requests reaching R. Applying F to all 291 agreement exits would net −24 correct answers at 291 ex-tra calls. Uniform 99-call F allocation yields a central 95% net-change range [−10 , +7] , versus the gate’s +18 (Fig. 4, bottom). 50 0.5 1 1.5 2 2.5 3       
+
+> Gain (percentage points) ScreenSpot-Pro
+> I32/I8/I32 +23 +18 (27 / 9) +2.66
+> +1
+> OSWorld-G-Refined
+> Q36/Q38/Q38 +10 +2 (3 / 1)
+> +2.35
+> UI-Vision
+> Q36/Q38/Q38 +129 +10 −5 (70 / 75)
+> +2.45
+> Detail selection Context kept Finalizer net
+
+Figure 5. Where the gain comes from. Stage contributions to the accuracy gain over the stronger standalone Two-pass model; annotations show net correct-answer counts. Allocations follow 
+
+G/R/F as in Tab. 1. Choosing between the two models’ Detail points gives most of the gain on every benchmark; preserving cor-roborated Context points adds little; the Finalizer helps on SSP (27 repairs, 9 regressions) and slightly hurts on UIV (70 repairs, 75 regressions). Black ticks mark Full. UIV is pooled over its 5479 requests here (category-balanced gain: +2.48). 
+
+## 5. Error Detection and Recovery 
+
+We analyze routing, recovery, and remaining errors for the same three allocations reported in Table 1. 
+
+5.1. Agreement as a routing signal 
+
+Smaller Context-to-Detail displacement predicts greater re-liability: using negative displacement to rank Grounder De-tail correctness gives AUROC 0.718 on SSP. At the de-ployed threshold, the first gate escalates 157 of 274 stan-dalone Two-pass errors on SSP and 42 of 71 on Qwen OSG-R. Supplementary Tab. S4 reports precision and re-call across all three benchmarks. Escalation concentrates errors but also subjects some correct predictions to further inference. 
+
+5.2. Recovery and preservation 
+
+Zooming can turn correct predictions wrong [8, 27]. On SSP, it spoils 42 correct Context predictions; the first gate flags 38, and the cascade restores 28. Selecting only be-tween Detail predictions cannot directly recover a correct full-screen location lost through zooming. Stage 2 can instead preserve the more self-consistent model’s Context prediction when both full-screen predictions agree within 
+
+τC along each axis. On SSP, the Context-agreement branch returns 13 correct predictions on 17 requests, versus 12 from the preferred De-tail candidate. Across these benchmarks, Context preserva-tion contributes less than the Detail-based routing decisions. Detail itself repairs 184 Context errors, of which 165 remain correct after GroundCascade. All 19 cascade regressions relative to standalone Two-pass lose a successful zoom cor-rection. The controller must balance recovery of Context with preservation of useful Detail.          
+
+> Grounder
+> 1,581 requests up to 2 calls 390 1,074 correct (stable) 1,191 stop 117 wrong (9.8%) Escalated: 40% have a wrong standalone Two-pass prediction
+> Regrounder
+> 390 requests up to 2 calls 99 214 correct 291 stop 64 wrong (22.0%) Context: 17 (13 correct)
+> Finalizer
+> 99 requests +1 call 48 correct 34 wrong 17 48.5% correct (Selective: 30.3%)
+> Correct (by stage) Wrong Wrong after prior correct
+
+Figure 6. How requests move through GroundCascade on SSP 
+
+(I32/I8/I32). Each row is rescaled to arriving requests; tinted wedges show escalation to the next stage. The first gate sends 390 requests on, 40.3% of which have a wrong Grounder Detail point, against 9.8% of the 1,191 that stop. Stop segments are split into correct (tinted by stage), wrong, and wrong although a correct prediction had already been acquired (hatched; 48 of the 232 er-rors). Supplementary Fig. S1 shows OSG-R and UIV. 
+
+5.3. Where errors remain 
+
+Figure 6 follows SSP requests to their exit stage and marks errors made after a correct prediction had already been ac-quired; supplementary Fig. S1 does the same for OSG-R and UIV. On SSP, 117 of 232 errors exit at the Grounder, and both its predictions are wrong in 113 of them. The target lies entirely inside the Detail crop for 72 stable er-rors and entirely outside it for 43, with two partial overlaps. Stable errors therefore include mistakes within an available crop. On SSP, cross-model displacement better ranks in-correct Grounder Detail predictions than self-displacement (AUROC 0.807 vs. 0.718), but requires an additional Re-grounder Context call. Some incorrect returns occur even though an earlier ac-quired prediction is correct. On SSP, this happens for 26 of 60 errors on the Regrounder’s Detail-agreement route, 1 of 4 on its Context-agreement route, and 17 of 51 at the Fi-nalizer. On Qwen OSG-R, 15 Regrounder-exit errors like-wise had a correct acquired candidate; on UIV, these counts are 277 at R and 173 at F . The Finalizer recovers 6 of 40 SSP requests despite four incorrect earlier predictions; Fig. 3 shows two recoveries, one from this cohort. 
+
+## 6. Conclusion 
+
+GroundCascade uses agreement between two views to de-cide when to acquire a complementary grounder. Its Selec-tive variant preserves corroborated full-screen predictions alongside zoomed candidates; the Full controller adds a fresh joint-view prediction when disagreements remain. On SSP and OSG-R, GroundCascade improves on the stronger standalone two-pass model by 2.66 and 2.35 points; on UIV, Selective improves by 2.56 points, with no further gain from finalization. Across the three Full allocations, the con-6troller directs complementary predictions toward useful cor-rections while reducing model invocations by 31–39% rel-ative to unconditional two-model acquisition. 
+
+## LLM Usage Statement 
+
+ChatGPT assisted with literature review, paper writing and editing, recorded-prediction analysis, figures, and code. 
+
+## References 
+
+[1] Lingjiao Chen, Matei Zaharia, and James Zou. FrugalGPT: How to use large language models while reducing cost and improving performance. Transactions on Machine Learning Research , 2024. 3 [2] Minghua Chen, Xingming Liao, Weiqiang Zhong, and Zhuowei Wang. MHVF: Training-free GUI ground-ing via verification-guided multi-hypothesis search. 
+
+arXiv:2610.17792 , 2026. 2 [3] Liyang Fan, Xinping Bi, Yitai Li, Shuaimin Li, Hui Li, and Min Yang. RankGround: Efficient high-resolution GUI grounding via lightweight reranker-guided crop selection. 
+
+arXiv:2609.18690 , 2026. 2 [4] Aarash Feizi, Shravan Nayak, Xiangru Jian, Kevin Qinghong Lin, Kaixin Li, Rabiul Awal, Xing Han Lù, Johan Obando-Ceron, Juan A. Rodriguez, Nicolas Chapados, David Vazquez, Adriana Romero-Soriano, Reihaneh Rabbany, Per-ouz Taslakian, Christopher Pal, Spandana Gella, and Sai Ra-jeswar. Grounding computer use agents on human demon-strations. In ICLR , 2026. 1, 5 [5] Zichuan Fu, Shirong Wang, Wenlin Zhang, Guojing Li, Yimin Deng, Jingtong Gao, Junjia Qi, Hanyu Yan, Yefeng Zheng, Xiaopeng Li, Wanyu Wang, Xian Wu, and Xiangyu Zhao. GUI-Lens: Coarse-to-fine cropping for GUI ground-ing with general-purpose VLMs. arXiv:2608.03270 , 2026. 2, 5 [6] H Company. H Company’s new Holo2 model takes the lead in UI localization. https://huggingface.co/ blog / Hcompany / introducing - holo2 - 235b -a22b , 2026. 3 February 2026. 1 [7] Intelligence Indeed. Indeed-UI: High-resolution GUI grounding model. https : / / github . com / intelligence - indeed / Indeed - UI , 2026. 1, 4, 5 [8] Zhiyuan Jiang, Shenghao Xie, Wenyi Li, Wenqiang Zu, Pei-hang Li, Jiahao Qiu, Siqi Pei, Lei Ma, Tiejun Huang, Mengdi Wang, and Shilong Liu. Zoom in, click out: Unlocking and evaluating the potential of zooming for GUI grounding. 
+
+arXiv:2512.05941 , 2025. 1, 2, 6 [9] Wittawat Jitkrittum, Neha Gupta, Aditya K. Menon, Harikr-ishna Narasimhan, Ankit Rawat, and Sanjiv Kumar. When does confidence-based cascade deferral suffice? In Advances in Neural Information Processing Systems , 2023. 3 [10] Keon Kim and Krish Chelikavada. Zoom consistency: A free confidence signal in multi-step visual grounding pipelines. 
+
+arXiv:2604.15376 , 2026. 1, 2, 3 [11] Kingsware and Vocaela AI. KV-Ground: Small GUI grounding models for high-resolution images. https: //github.com/vocaela/kv-ground , 2026. 1, 4 [12] Divake Kumar, Sina Tayebati, Devashri Naik, Amanda Sofie Rios, Nilesh Ahuja, Omesh Tickoo, Ranganath Krishnan, and Amit Ranjan Trivedi. Argus: A cross-regime bench-mark for the transferability of uncertainty quantification in computer-use agents. In NeurIPS Evaluations and Datasets Track , 2026. 2 [13] Aiden Yiliu Li, Bizhi Yu, Daoan Lei, Tianhe Ren, and Shilong Liu. Chain-of-Ground: Improving GUI grounding via iterative reasoning and reference feedback. 
+
+arXiv:2512.01979 , 2025. 2 [14] Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. ScreenSpot-Pro: GUI grounding for professional high-resolution computer use. In ACM Multimedia , 2025. 1, 3 [15] Yunxiang Li, Xixin Wu, and Helen M. Meng. How many pixels is a digit worth? place-aware coordinate entropy for GUI agent confidence estimation. arXiv:2609.24277 , 2026. Accepted to EMNLP 2026. 2 [16] Zhecheng Li, Guoxian Song, Yiwei Wang, Zhen Xiong, Jun-song Yuan, and Yujun Cai. Generalist scanner meets special-ist locator: A synergistic coarse-to-fine framework for robust GUI grounding. arXiv:2509.24133 , 2025. 2 [17] Jiaping Lin, Fei Shen, Junzhe Li, Ping Nie, Fei Yu, Ming Li, and Haizhou Li. What happens before decoding? Prefill de-termines GUI grounding in VLMs. arXiv:2605.12549 , 2026. 2[18] Xunzhuo Liu, Bowei He, Xue Liu, Andy Luo, Haichen Zhang, and Huamin Chen. Adaptive vision-language model routing for computer use agents. arXiv:2603.12823 , 2026. 3 [19] Yichao Liu, Huawen Shen, Liu Yu, Shiyu Liu, Zeyu Chen, and Yu Zhou. DRS-GUI: Dynamic region search for training-free GUI grounding. In CVPR , 2026. 2 [20] Tiange Luo, Lajanugen Logeswaran, Justin Johnson, and Honglak Lee. Visual test-time scaling for GUI agent ground-ing. In ICCV , 2025. 2 [21] MNC AI. Hunmin-CUA: Post-training a 397b MoE for computer use. https://huggingface.co/blog/ mncai/hunmin- cua- post- training- a- 397b-moe-for-computer-u , 2026. 1, 5 [22] Shravan Nayak, Xiangru Jian, Kevin Qinghong Lin, Juan A. Rodriguez, Montek Kalsi, Nicolas Chapados, M. Tamer Özsu, Aishwarya Agrawal, David Vazquez, Christopher Pal, Perouz Taslakian, Spandana Gella, and Sai Rajeswar. UI-Vision: A desktop-centric GUI benchmark for visual percep-tion and interaction. In ICML , 2025. 1, 3 [23] OpenAI. GPT-6 Astra: A new generation of intelligence. 
+
+https : / / openai . com / index / gpt - 6 - astra/ ,2026. 3 September 2026. 5 [24] Qwen Team. Qwen3.6-27B: Model card. https:// huggingface.co/Qwen/Qwen3.6-27B , 2026. 4 [25] Qwen Team. Qwen3.8-27B: Model card. https:// huggingface.co/Qwen/Qwen3.8-27B , 2026. 4 
+
+7[26] ScreenSpot-Pro Benchmark Maintainers. ScreenSpot-Pro Leaderboard. https://gui- agent.github.io/ grounding-leaderboard/ , 2026. Accessed 5 Novem-ber 2026. 2, 5 [27] Fei Tang, Bofan Chen, Zhengxi Lu, Tongbo Chen, Songqin Nong, Tao Jiang, Wenhao Xu, Weiming Lu, Jun Xiao, Yueting Zhuang, and Yongliang Shen. UI-Zoomer: Uncertainty-driven adaptive zoom-in for GUI grounding. 
+
+arXiv:2604.14113 , 2026. 1, 2, 6 [28] Venus Team, Zhuohan Cai, Haoxing Chen, Jiaxuan Chen, Weizhi Chen, Changlong Gao, Zhangxuan Gu, Yuan Guo, Yusong Hu, Jianrong Jiang, Jianguo Li, Runze Li, Jinzhen Lin, Zhenyu Ma, Changhua Meng, Han Peng, Xinyu Qiu, Shuheng Shen, Zhongyi Shui, Weiqiang Wang, Ming Wen, Zhuoer Xu, Hang Yan, Kaiwen Yang, Ruilin Yao, Nan-jun Yu, Zhengwen Zeng, Lianrui Zhang, Yunzhu Zhang, Zhe Zhao, and Beitong Zhou. UI-Venus-2 technical report. 
+
+arXiv:2609.00028 , 2026. 1, 4, 5 [29] Venus Team, Changlong Gao, Zhangxuan Gu, Yulin Liu, Xinyu Qiu, Shuheng Shen, Yue Wen, Tianyu Xia, Zhenyu Xu, Zhengwen Zeng, Beitong Zhou, Xingran Zhou, Weizhi Chen, Sunhao Dai, Jingya Dou, Yichen Gong, Yuan Guo, Zhenlin Guo, Feng Li, Qian Li, Jinzhen Lin, Yuqi Zhou, Linchao Zhu, Liang Chen, Zhenyu Guo, Changhua Meng, and Weiqiang Wang. UI-Venus-1.5 technical report. 
+
+arXiv:2602.09082 , 2026. 1, 5 [30] Paul Viola and Michael Jones. Rapid object detection using a boosted cascade of simple features. In CVPR , 2001. 3 [31] Qingni Wang, Yue Fan, and Xin Eric Wang. SafeGround: Know when to trust GUI grounding models via uncertainty calibration. arXiv:2602.02419 , 2026. 2 [32] Qingni Wang, Changdae Oh, Yuzhe Yang, Sharon Li, Ji-achen Yang, Ang Li, and Xin Eric Wang. LEASH: Uncertainty-aware weak-to-strong escalation and oversight for computer-use agents. arXiv:2610.22280 , 2026. 3 [33] Wenkai Wang, Xiyun Li, Hongcan Guo, Wenhao Yu, Tian-qing Fang, Haitao Mi, Dong Yu, and Shengyu Zhang. Mea-sure twice, click once: Co-evolving proposer and visual critic via reinforcement learning for GUI grounding. In ACL ,2026. 2 [34] Xiaofang Wang, Dan Kondratyuk, Eric Christiansen, Kris M. Kitani, Yair Alon, and Elad Eban. Wisdom of committees: An overlooked approach to faster and more accurate models. In ICLR , 2022. 3 [35] Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang, Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang, Yuhui Xu, Zekun Wang, Yiheng Xu, Junli Wang, Doyen Sahoo, Tao Yu, and Caiming Xiong. Scaling computer-use grounding via user interface decomposition and synthesis. In 
+
+NeurIPS Datasets and Benchmarks Track , 2025. 3 [36] Haiyang Xu, Xi Zhang, Haowei Liu, Junyang Wang, Zhaozai Zhu, Shengjie Zhou, Xuhao Hu, Feiyu Gao, Junjie Cao, Zi-hua Wang, Zhiyuan Chen, Jitong Liao, Qi Zheng, Jiahui Zeng, Ze Xu, Shuai Bai, Junyang Lin, Jingren Zhou, and Ming Yan. Mobile-Agent-v3.5: Multi-platform fundamental GUI agents. arXiv:2602.16855 , 2026. 1 [37] Zhenhua Yang, Xiachong Feng, Weihong Zhong, Lunjun Liu, Xiaocheng Feng, and Bing Qin. Focus like a human: Ef-ficient GUI grounding via coarse-to-fine visual attention and parallel verification. In Proceedings of the Thirty-Fifth In-ternational Joint Conference on Artificial Intelligence , pages 428–436, 2026. 2 [38] Ruilin Yao, Shegnwu Xiong, Tianyu Zou, Shili Xiong, and Yi Rong. AutoFocus: Uncertainty-aware active visual search for GUI grounding. arXiv:2605.02630 , 2026. 2 [39] Murong Yue, Jie Zhao, Min Zhang, Liang Du, and Ziyu Yao. Large language model cascades with mixture of thought rep-resentations for cost-efficient reasoning. In ICLR , 2024. 3 [40] Borui Zhang, Bo Zhang, Bo Wang, Wenzhao Zheng, Yuhao Cheng, Liang Tang, Yiqiang Yan, Jie Zhou, and Jiwen Lu. BAMI: Training-free bias mitigation in GUI grounding. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 34596–34605, 2026. 2 [41] Renshan Zhang, Haoyang Meng, Yixiao He, Rui Shao, April Hua Liu, and Liqiang Nie. LookAgain: Closed-loop GUI grounding with visually grounded reflection. 
+
+arXiv:2608.09723 , 2026. 2 [42] Yunzhu Zhang, Zeyu Pan, Zhengwen Zeng, Shuheng Shen, Changhua Meng, and Linchao Zhu. MVP: Multiple view prediction improves GUI grounding. In CVPR , 2026. 2, 4, 5 [43] Hanzhang Zhou, Xu Zhang, Panrong Tong, Jianan Zhang, Liangyu Chen, Quyu Kong, Chenglin Cai, Chen Liu, Yue Wang, Jingren Zhou, and Steven Hoi. MAI-UI tech-nical report: Real-world centric foundation GUI agents. 
+
+arXiv:2512.22047 , 2025. 1 [44] Hanzhang Zhou, Panrong Tong, Xu Zhang, Quyu Kong, Chenglin Cai, Tianyu Xia, Gongjie Zhang, Jianan Zhang, Long Li, Long Chen, Lei Wang, Gaole Dai, Pengxiang Li, Liangyu Chen, Yue Wang, and Steven Hoi. Qwen-UI-Agent technical report: Toward next-generation real-world centric foundation GUI agents. arXiv:2607.28227 , 2026. 1, 5 
+
+8GroundCascade: Selective Second Opinions for GUI Grounding 
+
+# Supplementary Material 
+
+## S1. Controller and inference 
+
+Algorithm S1 gives the complete routing procedure. Selec-tive executes the algorithm through both Stage 2 agreement tests and returns the selected Detail point if neither passes; it omits only the Finalizer. 
+
+Inference settings. The Indeed/KV experiments used BF16, FlashAttention 2, deterministic decoding with at most 512 new tokens, and an image budget of approxi-mately 10 8 pixels. The Qwen runs use the same click-coordinate interface, disabled thinking, temperature zero, and their separately pinned BF16 vLLM checkpoints. Each call receives one view and the original instruction; GPU in-ference never receives target annotations. 
+
+Views and coordinates. For a valid Context point (x, y ) in integer screenshot coordinates, let ax = ⌊W/ 4⌋ and ay =
+
+⌊H/ 4⌋. The Detail crop [l, r ) × [t, b ) has bounds 
+
+l = max(0 , x − ax), r = min( W, x + ax),t = max(0 , y − ay ), b = min( H, y + ay ). (S1) Both cropped views are unmarked and resized to W × H
+
+by bicubic interpolation. Joint crops retain their rounded dimensions when shifted inside the screenshot. For a prediction (u, v ) on the 0–1000 grid, round to view pixels (ˆ u, ˆv) = (round( W u/ 1000) , round( Hv/ 1000)) ,
+
+Algorithm S1 GroundCascade inference. I is the screen-shot, q the instruction, and G, R, F the Grounder, Re-grounder, and Finalizer. TWO PASS skips Detail after in-valid Context; F IRST VALID returns the first valid point or invalid. GROUND CASCADE (I, q, G, R, F ) 
+
+> 1
+
+(pG,C , p G,D ) ← TWO PASS (G, I, q ) 
+
+> 2
+
+sG ← d(pG,C , p G,D ) 
+
+> 3
+
+if sG ≤ τs 
+
+> 4
+
+return pG,D  
+
+> 5
+
+(pR,C , p R,D ) ← TWO PASS (R, I, q ) 
+
+> 6
+
+sR ← d(pR,C , p R,D ) 
+
+> 7
+
+m⋆ ← G if sG ≤ sR, else R 
+
+> 8
+
+p⋆D ← FIRST VALID (pm⋆,D , p G,D , p R,D ) 
+
+> 9
+
+if d(pG,D , p R,D ) ≤ τD 
+
+> 10
+
+return p⋆D 
+
+> 11
+
+if d(pG,C , p R,C ) ≤ τC 
+
+> 12
+
+return pm⋆,C  
+
+> 13
+
+J ← JOINT CROP (I, p G,C , p G,D , p R,C , p R,D ) 
+
+> 14
+
+pF,J ← F (J, q ) mapped to I 
+
+> 15
+
+return FIRST VALID (pF,J , p ⋆D , p G,C , p R,C )
+
+then map back: 
+
+p =  round[ l + ˆuW (r − l)] , round[ t + ˆvH (b − t)] . (S2) Rounding uses ties to even; Context spans [0 , W ) × [0 , H ).The parser accepts only the first tool call, which must be non-refusal and contain two finite, nonnegative coordinates. Rounded view and mapped screenshot pixels must lie in bounds; invalid outputs are not clipped. 
+
+## S2. Evaluation details 
+
+Scoring. Target boxes include their boundaries. OSG-R consists of 470 rectangles and 40 polygons; polygons use the benchmark’s ray-crossing test. UIV contains 1,772 Basic, 1,772 Functional, and 1,935 Spatial queries across 1,181 screenshot files representing 1,156 distinct images. Its overall score equally averages category accuracies. 
+
+Published OSG-R bounds. The original benchmark has 564 requests, including 510 visible-target cases. If a published one-decimal percentage a is single-run micro-accuracy on all 564, its visible-target accuracy is at most 
+
+(a + 0 .05) · 564 /510 ; Fig. 1 rounds this ceiling upward to 0.1 point. The four reported scores 79.1, 78.5, 78.5, and 76.4% correspond to 446, 443, 443, and 431 correct of 564, respectively, but none can arise by rounding integer correct counts out of 510. This supports, without proving, the 564-item micro-accuracy interpretation: averaging runs or cate-gories could also yield those percentages. Refusal outcomes are unavailable. The starred, hatched ≤ bars are therefore 
+
+conditional bounds , not observed subset scores or matched evaluations. 
+
+MVP interface. Released MVP uses I32 on all 1,581 SSP requests with its own prompt, parser, attention-guided views and four-call interface; its image cap is 4096 × 2160 with 32 output tokens. 
+
+Controls and uncertainty. The standalone Two-pass base-line returns valid Detail, otherwise valid Context; invalid Context skips Detail. Call savings compare Full’s executed invocations with acquiring both models’ Two-pass predic-tions on every request, including the same invalid-Context skip. This unconditional control returns the valid Detail with smaller Context–Detail displacement (ties favor the Grounder), falling back to the other valid Detail; it omits Context return and finalization. Paired 95% accuracy intervals use 10,000 bootstrap re-samples (seed 20271001): by request for SSP and by RGB-identical image for OSG-R and UIV. All UIV queries shar-ing an image are sampled together across categories. 9Second-opinion budget control. We compare each flag-ship acquisition gate against 50,000 random allocations using recorded predictions and the same Stage 2 policy. Random requests are sampled without replacement within recorded Regrounder-call-cost strata, additionally preserv-ing UIV category budgets; each stratum receives the same number of acquisitions as the gate. This is a retrospective, executed-cost-matched control.                  
+
+> Benchmark Rrequests Gate gain Random mean Random 95% SSP 390 +1.52 +0.28 [-0.32, +0.89] OSG-R 97 +1.96 +0.22 [-0.39, +0.78] UIV 1728 +2.56 +0.69 [+0.33, +1.04]
+
+Table S1. Selective acquisition at fixed cost. Gains over stan-dalone Two-pass (percentage points). Random columns show the mean and central 95% range across stratified random allocations; UIV uses category-balanced accuracy. Each row uses its flagship model allocation. 
+
+## S3. Cross-model and category analysis 
+
+Model roles. On SSP, I32/I8/I32 and I32/K8/I32 reach 85.33% and 85.01%, versus 83.93% and 83.68% with G
+
+and R swapped. The Q38 Regrounder also trails the Q36 Grounder in standalone Two-pass accuracy on OSG-R (84.90% vs. 86.08%) and UIV (64.07% vs. 69.72%), yet contributes complementary predictions. 
+
+UIV categories. Selective outperforms Q36 Two-pass in all UIV categories (Tab. S2). Full further improves Ba-sic and Functional over Selective, but loses 11 net correct Spatial predictions across 308 Finalizer calls; its category-balanced change from Selective is -0.08 points.                           
+
+> UIV category Context Two-pass Selective Full Fcalls Basic 71.16 72.63 75.45 75.68 138 Functional 66.48 68.74 71.67 71.78 149 Spatial 60.41 67.80 69.72 69.15 308 Mean 66.02 69.72 72.28 72.20 595
+
+Table S2. Q36/Q38/Q38 on UI-Vision. Category accuracy (%) and Finalizer invocations. Context and Two-pass use the stan-dalone Q36 Grounder; Mean is the official equal-weight category score. 
+
+One-pass interface check. The UI-Venus-2 report lists 58.3% on UIV for its reproduced Qwen3.6-27B baseline, without specifying the aggregation. With its released coor-dinate interface and our pinned Q36 checkpoint, a separate run scores 3200/5479 (58.40% pooled; 58.65% category-balanced), versus 66.02% balanced for our structured-click Context. Prompts and serving conditions differ, so this comparison does not isolate an interface effect. 
+
+## S4. Finalizer and joint view 
+
+Matched-budget allocation. On SSP, 99 gated Finalizer calls add 18 correct answers (Tab. S3); uniform allocation among 390 eligible requests yields -1.5 in expectation.                       
+
+> Benchmark G/R/F Freq. Rep. Reg. ∆pp SSP I32/I8/I32 99 27 9+1.14 OSG-R Q36/Q38/Q38 21 31+0.39 UIV Q36/Q38/Q38 595 70 75 -0.08
+
+Table S3. Finalizer effect relative to Selective. Repairs and regressions count corrected and spoiled Stage 2 answers. ∆
+
+is the whole-benchmark accuracy change in percentage points (category-balanced for UIV). 
+
+Cross-model effect. On Qwen UIV, 70 Finalizer repairs and 75 regressions yield five fewer correct answers: six net repairs in Basic and Functional, offset by eleven Spa-tial losses (Tab. S2). 
+
+## S5. Error and recovery diagnostics 
+
+Table S4 reports gate detection and recovery for all three flagship allocations.                                                  
+
+> Metric SSP OSG-R UIV
+> G→Rprecision 157/390 42/97 1038/1728
+> G→Rrecall 157/274 42/71 1038/1662
+> R→Fprecision 69/99 12/21 405/595
+> R→Frecall 69/133 12/32 405/899
+> Frequests 99 21 595 Before F: correct (%) 30.3 42.9 31.9 After F: correct (%) 48.5 52.4 31.1
+> Frepair rate (%) 39.1 25.0 17.3
+> Fregression rate (%) 30.0 11.1 39.5
+
+Table S4. Gate detection and recovery. SSP uses I32/I8/I32; OSG-R and UIV use Q36/Q38/Q38. First-gate precision counts standalone Two-pass errors among escalations, and recall counts escalated standalone Two-pass errors among all such errors. Fi-nalizer recall counts escalated Stage 2 errors among all Stage 2 er-rors; repair and regression rates use incorrect and correct Stage 2 outputs as denominators. 
+
+Error-ranking AUROC. We rank standalone Two-pass errors by d(pG,C , p G,D ) (within-model) or d(pG,D , p R,C )
+
+(cross-model, cross-view). Their AUROCs on escala-tions are 0.655/0.762 for SSP, 0.707/0.796 for OSG-R, and 0.627/0.692 for UIV. Across all SSP requests, they reach 0.718/0.807 (paired gain CI: [0.049, 0.128]); cross-model ranking requires an R call. 
+
+Context preservation with Qwen. On UIV, the strict Context-agreement exit is taken on 150 requests, correct-ing 20 and regressing 10 Detail predictions (net 10). On 10 Grounder 
+
+510 requests up to 2 calls 97 384 correct (stable) 413 stop 29 wrong (7.0%) Escalated: 43% have a wrong standalone Two-pass prediction 
+
+Regrounder 
+
+97 requests up to 2 calls 21 56 correct (agreement) 15 76 stop 20 wrong (26.3%) 
+
+Finalizer 
+
+21 requests +1 call 11 correct 7 wrong 3 52.4% correct (Selective: 42.9%) 
+
+Grounder 
+
+5,479 requests up to 2 calls 1,728 3,127 correct (stable) 3,751 stop 624 wrong (16.6%) Escalated: 60% have a wrong standalone Two-pass prediction 
+
+Regrounder 
+
+1,728 requests up to 2 calls 595 disagree 639 correct 217 277 1,133 stop 494 wrong (43.6%) 
+
+Finalizer 
+
+595 requests +1 call 185 correct 237 wrong 173 31.1% correct (Selective: 31.9%) 
+
+Correct (by stage) Wrong Wrong after prior correct 
+
+Figure S1. Request flow on OSG-R (left) and UIV (right) , Q36/Q38/Q38, drawn as the SSP flow figure of the main paper. Regrounder exits combine Detail and Context agreement (11 and 150 Context exits). On UIV the Finalizer leaves 31.1% of its requests correct, against 31.9% for Selective. 
+
+OSG-R, the corresponding 11 exits have net effect 0. This isolates Context preservation from acquisition. 
+
+## S6. Additional request-flow diagnostics 
+
+Figure S1 traces requests through the cascade on OSG-R and UIV, extending the SSP diagnostic in the main paper. 11

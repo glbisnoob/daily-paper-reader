@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-10-09 ~ 2026-11-07</span>
+      <span class="dpr-home-dashboard-kicker">2026-10-13 06:00 ~ 2026-11-12 06:00 (UTC+8)</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 1 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 27 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>1</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>16</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>11</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-07 07:37:00 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-12 20:17:43 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,9 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日共生成 1 篇推荐（精读 1 篇，速读 0 篇）</p>
-<p>精读：《From Local Skills to Long-Horizon Web Tasks: Progressive Skill Exploration for LLM Web Agents》（8.0/10）</p>
-<p>这些结果覆盖了当下较热的方向，建议先看精读区论文的关键问题与方法。</p>
+<p>今日扫过 27 篇 GUI Agent 相关论文，精读 16 篇、速读 11 篇，重点集中在“让智能体更会操作界面”这条主线。最值得看的是两篇 9 分工作：《Adaptive-Group Process Rewards for GUI Agents》用自适应分组过程奖励优化操作决策，《MHVF》则以验证引导的多假设搜索实现免训练 GUI 定位；速读里的记忆模态选择与 STP-GUI 令牌剪枝也指向同一趋势——效果与效率并重。普通读者可先读这两篇 9 分论文的摘要与图示，再按兴趣跟进记忆与剪枝方向。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -80,12 +78,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">1 篇</strong>
+    <strong class="dpr-home-dashboard-count">16 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="From Local Skills to Long-Horizon Web Tasks: Progressive Skill Exploration for LLM Web Agents">From Local Skills to Long-Horizon Web Tasks: Progressive Skill Exploration for LLM Web Agents</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Adaptive-Group Process Rewards for GUI Agents">Adaptive-Group Process Rewards for GUI Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="MHVF: Training-Free GUI Grounding via Verification-Guided Multi-Hypothesis Search">MHVF: Training-Free GUI Grounding via Verification-Guided Multi-Hypothesis Search</span></li><li><span class="dpr-home-dashboard-paper-title" title="GroundGUI: GUI Grounding by High-Quality Data and Distillation-to-Reinforcement Learning">GroundGUI: GUI Grounding by High-Quality Data and Distillation-to-Reinforcement Learning</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>1</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>16</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -93,12 +91,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">11 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Learning How to Remember: Memory Modality Selection for GUI Agents">Learning How to Remember: Memory Modality Selection for GUI Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="CLASHarness: Benchmarking Multi-Agent Conflict in Computer Use via a Controllable and Verifiable Generation Pipeline">CLASHarness: Benchmarking Multi-Agent Conflict in Computer Use via a Controllable and Verifiable Generation Pipeline</span></li><li><span class="dpr-home-dashboard-paper-title" title="STP-GUI: Spatially-Aware Token Pruning for Efficient Web-GUI Agents">STP-GUI: Spatially-Aware Token Pruning for Efficient Web-GUI Agents</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>11</strong></span></div>
 </section>
 </div>
 

@@ -1,0 +1,1062 @@
+Title: AdaGround: Token-Normalized Adaptive Zooming with Verifier-in-the-Loop Refinement for GUI Grounding
+
+URL Source: https://arxiv.org/pdf/2610.36874v1
+
+Published Time: Wed, 28 Oct 2026 01:02:40 GMT
+
+Number of Pages: 24
+
+Markdown Content:
+# AdaGround: Token-Normalized Adaptive Zooming with Verifier-in-the-Loop Refinement for GUI Grounding 
+
+Bingchao Wang 1,2∗, Yongcheng Jing 2, Chengyu Wang 3, Jun Huang 3,Jie Yang 1†, Wei Liu 1†, Dacheng Tao 2†
+
+> 1
+
+Shanghai Jiao Tong University 2Nanyang Technological University 3Alibaba Cloud Computing 
+
+{bc_wang, jieyang, weiliucv}@sjtu.edu.cn , yongcheng.jing@ntu.edu.sg , dacheng.tao@gmail.com ,
+
+{chengyu.wcy, huangjun.hj}@alibaba-inc.com 
+
+Abstract 
+
+GUI grounding on high-resolution screens fails mostly on small targets, and zooming in is a common training-free remedy. However, most existing zooming pipelines do not match the zoom to the target’s size, accept the zoomed answer unconditionally and never revisit a wrong answer. To address these issues, we propose AdaGround, a training-free framework with three components: (1) Token-Normalized Adaptive Zooming , which sets the magnifi-cation, field of view and zoom depth of each sample from the model’s own estimate of the target size; (2) Verifier-in-the-Loop Refine-ment , which uses one marked-click Yes/No verifier to keep or reject each zoom, choose be-tween zoom chains, trigger re-grounding and, with an existence query, decide when to abstain; and (3) Compositional Structure Grounding ,which composes spreadsheet cells from their headers. On Qwen3-VL models, AdaGround surpasses state-of-the-art training-free zoom-ing methods and many trained GUI models, improving accuracy over the backbone by 7.4 to 20.6 points on OSWorld-G and ScreenSpot-Pro, and its gains carry over to held-out UI-Vision. Code is available at https://github. com/bcwang-sjtu/AdaGround .
+
+1 Introduction 
+
+Autonomous agents that operate graphical user interfaces (GUIs) are central to generalist assis-tants (Nguyen et al., 2025; Tang et al., 2025; Zhang et al., 2025). Their perceptual core is GUI ground-ing , which takes an instruction and a screenshot and localizes the target element precisely enough to act on it (Zheng et al., 2024; Hui et al., 2025). Large vision-language models (VLMs) (Bai et al., 2025a; Guo et al., 2025; Anthropic, 2024) cast ground-ing as coordinate generation (Cheng et al., 2024; Hong et al., 2024; Qin et al., 2025), which remains fragile on professional, high-resolution software, 
+
+> *
+
+This work is completed during Bingchao Wang’s research attachment at NTU. †Corresponding Authors. Accuracy (%) · Qwen3-VL-8B / -32B* *32B: FP8  
+
+> single pass ZoomClick (published, 32B only) MVP (published) AdaGround (ours) OSWorld-G 8B
+
+76.1  
+
+> 72.7 OSWorld-G 32B*
+
+79.3  
+
+> 72.0 ScreenSpot-Pro 8B
+
+66.2  
+
+> 65.3 ScreenSpot-Pro 32B*
+
+75.9     
+
+> 74.0 72.1 50 60 70 80
+> held-out benchmark
+> UI-Vision 8B
+
+32.0  
+
+> 31.9 UI-Vision 32B*
+
+47.6    
+
+> 44.1 39.2 20 30 40 50
+
+Figure 1: Accuracy of AdaGround, the single pass and the published results of MVP and ZoomClick, each measured from its own single pass. ZoomClick reports Qwen3-VL-32B only. UI-Vision is held out. 
+
+where targets are small and dense (Li et al., 2025b). Training-based specialists (Gou et al., 2025; Wu et al., 2025b; Liu et al., 2026b; Zhou et al., 2026) and learned focusing (Lei et al., 2026; Ouyang et al., 2026) improve it but need annotated data and re-training per backbone. This makes training-free test-time refinement attractive. It crops the screen-shot around a coarse prediction and re-grounds at higher resolution. 
+
+Shortcomings of training-free refinement. 
+
+Most current refinement pipelines share five shortcomings. (i) Scale-agnostic zoom geometry. 
+
+Iterative narrowing (Nguyen, 2024), Zoom-Click (Jiang et al., 2025), AdaZoom-GUI (Pei et al., 2026), UI-Zoomer (Tang et al., 2026a) and MVP (Zhang et al., 2026d) set the crop by fixed ratios, size triggers, candidate spread or fixed-size attention windows. None relates the zoom to the number of visual tokens the target will occupy in the rendered view. (ii) Open-loop acceptance. The zoomed prediction replaces the coarse one unconditionally, even when the crop has discarded the context that identified the target. 
+
+(iii) No second attempt. Without a check on the answer, a pipeline cannot tell which answers to 1arXiv:2610.36874v1 [cs.CV] 27 Oct 2026 Input                          
+
+> “rotate the pdf”
+> instruction
+> screenshot
+> 2992×1870 px
+> target 27×25 px
+> AdaGround training-free: one frozen VLM, used as a black box
+> CSG
+> router
+> reads the
+> instruction
+> element
+> cell
+> after VLR: (c)
+> (chosen here)
+> TNZ chain · (a)
+> 1Coarse guess
+> size
+> guess
+> size guess: 1 token
+> too small to read
+> 2Zoom in
+> crop
+> 3× zoom per side,
+> sized for 3 tokens
+> 3Keep it?
+> new
+> old
+> verifier prefers the
+> new point: keep ✓
+> v
+> re-checked: 2 tokens (< 3): zoom again
+> Fixed 4×
+> chain
+> whole-screen
+> guess
+> fixed-size crop at
+> 4× area → answer
+> VLR: verifier in the loop · (b)
+> 4Pick a chain v
+> TNZ
+> 4× verifier scores
+> both answers;
+> TNZ wins ✓
+> 5Retry if unsure
+> score high: no retry
+> v
+> 6Abstain if absent
+> no click if scores are low
+> (OSWorld-G only)
+> v
+> Output
+> click,
+> on target ✓
+> cell: point from
+> its headers (c)
+> or abstain
+> (a) TNZ: zoom by target size
+> coarse view
+> 1 token = 32 px
+> zoom
+> zoomed view
+> target ≈ 3 tokens
+> the model’s own size guess sets the zoom:
+> smaller target → more zoom, tighter crop;
+> zoom if under 6 tokens, again if under 3
+> (b) VLR: one Yes/No verifier, four decisions
+> candidate click
+> “… Is the red circle on the UI element that this instruction refers to? Answer Yes or No.”
+> VLM
+> first token
+> Yes
+> No
+> score v= probability
+> of “Yes” (vs. “No”)
+> 3keep a zoom
+> 4pick a chain
+> 5retry
+> 6abstain
+> also asks “on screen?”
+> (c) CSG: a cell from its headers
+> 1
+> 2
+> 3
+> 4
+> 5
+> ABCD
+> (schematic)
+> “… cell C4 …”
+> → column C, row 4
+> find header C → x
+> find header 4 → y
+> if C is up and right
+> of 4: click ( x,y)
+> else: VLR answer
+
+Figure 2: Overview of AdaGround. Compositional Structure Grounding (CSG) reads the instruction. Two zoom chains, Token-Normalized Adaptive Zooming (TNZ) and a fixed 4× crop, run on every sample. Verifier-in-the-Loop Refinement (VLR) uses one Yes/No verifier to keep a zoom, pick a chain, retry with the rejected click crossed out, and abstain. Top : the pipeline on one ScreenSpot-Pro sample with Qwen3-VL-8B (real model outputs), where 
+
+v badges mark the model’s Yes/No checks. Bottom : (a) TNZ, (b) VLR and (c) CSG, of which (a) and (c) are schematic. 
+
+revisit. (iv) White-box, vote-based aggregation. 
+
+Attention-guided methods (Xu et al., 2025) such as MVP need attention maps from inside the backbone. MVP also aggregates its views by spatial voting, which cannot tell which of two disagreeing views is right. (v) Always zooming and answering. Targets absent from the screen are solved by no view, and targets defined by their position in a structure, like a spreadsheet cell, lose their evidence in a tight zoom. Yet every pipeline zooms and answers. 
+
+AdaGround. Our key observation is that differ-ently zoomed views fail on different samples. On Qwen3-VL-8B ScreenSpot-Pro, a fixed crop and an adaptive one are right on 63 .5% and 59 .6% of samples, but at least one of them is right on 68 .9% .Refinement should therefore not commit to one zoom but choose, per sample, which zoomed an-swer to trust. The grounder itself can make that choice when shown a marked click. We propose 
+
+AdaGround (Figure 2), a training-free framework in which the grounder sizes its own zoom and veri-fies its own answers. Token-Normalized Adaptive Zooming (TNZ) answers (i). From the model’s own bounding box on the coarse view, it solves per sample for the magnification, the crop side and the number of zoom stages. They are chosen so that the target spans a fixed number of visual tokens while the crop still covers the coarse localization error. Verifier-in-the-Loop Refinement (VLR) an-swers (ii)–(iv) and the absent targets of (v). One marked-click Yes/No verifier drives verification-gated acceptance , a verifier-arbitrated chain port-folio and negative-feedback re-grounding . The port-folio selects between the TNZ chain and a fixed-crop chain by verification instead of by vote, and re-grounding runs with the rejected location crossed out. With a companion existence query, the verifier also decides existence-gated abstention . Compo-sitional Structure Grounding (CSG) answers the structural targets of (v) by composing a spreadsheet cell from its separately grounded column and row headers. Throughout, the VLM is a black box that takes images and text and returns text and first-token probabilities. One set of constants serves both backbones and all benchmarks (Section 3.5). 
+
+Results. On OSWorld-G (Xie et al., 2026) and ScreenSpot-Pro, with Qwen3-VL-8B and Qwen3-VL-32B, AdaGround is above every published re-sult of MVP and ZoomClick (Figure 1), by up to 
+
+7.3 points. The lead is significant in every paired test against MVP’s per-sample predictions. Ada-Ground is also above all proprietary models and trained GUI specialists in Tables 1 and 2, including 72B ones. Its gains are largest on ScreenSpot-Pro’s high-resolution screens ( +14 .9 and +20 .6 points 2over the single pass) and carry over to held-out UI-Vision (Nayak et al., 2025). On ScreenSpot-v2 (Wu et al., 2025b), whose large targets the single pass already resolves, they are not significant. Our contributions are as follows: • TNZ sizes every zoom in visual tokens from the model’s own estimate of the target, so that the target reaches a legible span at any screen resolution (Property 1). • VLR makes the grounder its own verifier. One marked-click Yes/No question replaces open-loop acceptance and voting, and it decides re-grounding and abstention. • CSG composes structural targets from separately grounded headers instead of zooming. 
+
+2 Related Work 
+
+GUI grounding. GUI grounding is commonly cast as coordinate generation by a VLM (Cheng et al., 2024; Bai et al., 2025a; Guo et al., 2025), following UI-specialised models (Baechler et al., 2024; You et al., 2024). Specialists fine-tuned on GUI corpora (Gou et al., 2025; Wu et al., 2025b; Hong et al., 2024; Lin et al., 2025; Wu et al., 2026) and reinforcement post-training or self-distillation (Liu et al., 2026b; Tang et al., 2026b; Zhou et al., 2026; Qiu et al., 2026; Zhang et al., 2026c) improve the grounder itself. AdaGround instead changes how an off-the-shelf grounder is queried. 
+
+Test-time zooming. Iterative narrowing (Nguyen, 2024) re-predicts on crops of fixed geometry around the previous answer, RegionFocus (Luo et al., 2025) and DiMo-GUI (Wu et al., 2025a) zoom into candidate regions, and V ∗ (Wu and Xie, 2024) searches for small objects outside GUIs. Three recent systems refine the zoom. ZoomClick (Jiang et al., 2025) crops with a fixed shrink ratio for a fixed three iterations. AdaZoom-GUI (Pei et al., 2026) uses a trained grounder’s box as a small-or-large trigger and then mag-nifies by a predefined ratio. UI-Zoomer (Tang et al., 2026a) sizes one crop from the variance of eight sampled candidates, scaled by a model-and benchmark-specific constant. None derives the zoom from the target’s token span, and all three accept the zoomed prediction uncondition-ally (shortcomings (i) and (ii)). Other training-free pipelines progressively zoom onto interface ele-ments (Liu et al., 2026d), refine through multi-step visual reasoning (Li et al., 2025a) or search over screen regions (Liu et al., 2026a). Others miti-gate grounding biases (Zhang et al., 2026a), crop coarse-to-fine with OCR and detected components as cues (Fu et al., 2026), or guide a visual search by the perplexity of coordinate tokens (Yao et al., 2026). 
+
+Attention-guided and vote-based aggregation. 
+
+MVP (Zhang et al., 2026d), the attention-guided zooming method we compare against, extracts attention-cropped views and aggregates their pre-dictions by spatial clustering. Attention-driven grounding (Xu et al., 2025) likewise reads the model’s attention, and GUI-RC (Du et al., 2026) votes over sampled predictions on a spatial grid. Concurrent with our work, Re-Prefill (Lin et al., 2026a) selects visual tokens from the attention of a first prefill and modifies the model’s prefill in a second pass. Like MVP, it needs model inter-nals. AdaGround reads only the generated text and first-token probabilities, and replaces voting with verification (shortcoming (iv)). 
+
+Verification and feedback. GUI-Cursor (Zhao et al., 2026) and UI-Ins (Chen et al., 2026) train spatial feedback and instruction reasoning into the grounder. LookAgain (Zhang et al., 2026b) and Measure Twice, Click Once (Wang et al., 2026b) train the grounder or a visual critic to re-examine its clicks. SafeGround (Wang et al., 2026a) and Kumar et al. (2026) calibrate and benchmark un-certainty in GUI grounding. AdaGround obtains these signals from the unmodified model through one Yes/No question about a marked click and an existence question (shortcomings (iii) and (v)). 
+
+Learned focusing and agent memory. Fo-cusUI (Ouyang et al., 2026) learns a position-preserving selection of visual tokens, GUI-Spotlight (Lei et al., 2026) trains a model to narrow its focus, and DeepEyes (Zheng et al., 2026) and AdaptVision (Lin et al., 2026b) learn to request zooms. Agent frameworks add visual procedural memory (Liu et al., 2026c) or evolve skills from traces (Hu et al., 2026; Xiao et al., 2026). Ada-Ground is training-free and solves whether and how far to zoom from the model’s own size estimate. 
+
+3 The AdaGround Framework 
+
+As shown in Figure 2 (Algorithm 1 in Appendix A), AdaGround maps a screenshot–instruction pair 
+
+(S, I ) to a click point or an abstention. CSG (Sec-tion 3.4) first reads the instruction. Every sample 3then runs through two zoom chains, the TNZ chain (steps 1–3 of Figure 2, Section 3.2) and the fixed 
+
+4× chain. VLR (Section 3.3) uses one Yes/No ver-ifier to keep a zoom (step 3), pick a chain (step 4), retry (step 5) and abstain (step 6). Finally, a cell flagged by CSG is composed from its headers. All three components share one set of constants (Sec-tion 3.5). 
+
+3.1 Problem Formulation 
+
+Given a screenshot S ∈ RH×W ×3 and an instruc-tion I, GUI grounding predicts a point p = ( x, y ),which is correct iff p ∈ B, the ground-truth region of the referenced element. When the instruction has no target on screen, the only correct output is an abstention, and an abstention on any other sample is an error. An off-the-shelf VLM M , used with-out any weight update, receives a rendered view and the instruction and emits a coordinate as text, 
+
+p = M (R(S, b ), I ). The renderer R(S, b ) scales the area of S by b, so the linear scale is √b and 
+
+b > 1 up-samples. Access to M is black-box. We read its generated text and first-token probabilities, and never its attention maps, hidden states or gradi-ents. 
+
+Token pitch and token span. Encoders that work at dynamic resolution tile a rendered view into patches and merge neighbouring patches into one visual token. Qwen3-VL (Bai et al., 2025a) merges 2 × 2 patches of 16 pixels, so one token covers a square of side π = 32 rendered pixels. For a target whose shorter side measures s original pixels, shown in a view of linear scale k relative to the screenshot, the token span 
+
+σ = s k π (1) is the number of visual tokens the target occupies along its shorter side in the view the model is given. Because it is measured after rendering, it is com-parable across resolutions, crops and up-sampling. Accuracy climbs steeply below about three tokens and gains much less above (Appendix E). This mo-tivates two design choices of TNZ. Every zoom is normalized to a target span of τ tokens, and the first zoom fires under a looser criterion than later ones. 
+
+3.2 Token-Normalized Adaptive Zooming 
+
+TNZ decides per sample whether to zoom, how much, how wide and how often. All four decisions follow from one quantity that the model reports, the extent of the target. 
+
+Scale-aware coarse localization (step 1). The screenshot is first rendered at the budget b1 =min  1, max( bmin , A 0/(HW )) , which keeps the coarse view near A0 pixels. A 4K screenshot is therefore down-sampled, while a 1080p one is not. The model returns a coarse point p1 =
+
+M (R(S, b 1), I ). In a second, separate query on the same view, it also returns the target’s bounding box. The shorter side of that box, mapped back to original pixels, is the self-reported extent ˆs. Let 
+
+kprev = √b1 be the linear scale of the view that the current point came from. The estimated span is then ˆσ = ˆ s k prev /π . If no box is returned, no zoom is issued. ˆs only sets a scale and need only be right to within a factor (Appendix B.3). 
+
+Footprint-matched magnification and error-aware field of view (step 2). TNZ magnifies the crop so that the estimated footprint is rendered at 
+
+τ tokens, and sizes it to cover both the target’s context and the coarse localization error: 
+
+k = clip  τ π/ ˆs, 1, k max 
+
+, (2) 
+
+d = clip  max( γˆs, επ/k prev ), d min , d max 
+
+, (3) with dmax = min( W, H ). The term γˆs keeps the context proportional to the target. The term 
+
+επ/k prev reserves ε tokens of the view the current point came from, where one token covers π/k prev 
+
+original pixels. The square crop of side d is centred on the current point and shifted inside the screen-shot. 
+
+Property 1 (Invariance and coverage) (a) If the estimate is exact, ˆs = s, and τ π/k max ≤ s ≤
+
+τ π , the zoomed view renders the target at σ = τ
+
+tokens whatever the screenshot resolution (up to the renderer’s rounding). (b) If the current point is off the target centre by at most ε/ 2 tokens of the previous view along each axis, the target centre lies inside the crop (provided επ/k prev ≤ dmax ). Argument. (a) On this range Eq. (2) is unclipped, so Eq. (1) gives σ′ = s k/π = τ , in which neither H,
+
+W nor b1 appears. (b) d/ 2 ≥ επ/ (2 kprev ), which is 
+
+ε/ 2 tokens of the previous view in original pixels. Shifting the box inside the screenshot keeps the in-screen part of the centred box. □
+
+With Qwen3-VL and the constants of Section 3.5 the range of (a) is 24 to 96 pixels. Below this range, k saturates at kmax . Above it, k = 1 gives 4a native-resolution crop, which gated acceptance may reject. 
+
+Magnified re-grounding. The crop C, whose actual top-left corner after shifting is (x0, y 0), is rendered at area k2 and re-grounded. The answer, given in pixels of the zoomed view, is mapped back to the screenshot: 
+
+p′ = ( x0, y 0) + M  R(C, k 2), I /k. (4) 
+
+Adaptive depth. Each stage re-crops the screen-shot around the current answer. Stage t fires iff 
+
+ˆσ < λ tτ and, for t ≥ 2, kprev < k max , where 
+
+λ1 = λ > 1 and λt = 1 for t ≥ 2. At most D
+
+stages run. After every stage but the last, the box query is repeated on the zoomed view. The new box updates ˆs (in original pixels) whether or not 
+
+p′ is accepted, while kprev ← k only when p′ is ac-cepted (Eq. (6)). The depth, from zero to D stages, is thus decided per sample. A target whose coarse estimate already spans λτ tokens gets no crop. 
+
+3.3 Verifier-in-the-Loop Refinement 
+
+TNZ proposes and VLR decides. A black-box Yes/No verifier and a companion existence query close the loop around four decisions that earlier pipelines take open-loop or through model inter-nals. 
+
+The verifier. For a candidate point p,
+
+v(p) = PM (YES | xp)
+
+PM (YES | xp) + PM (NO | xp) , (5) where xp = ( V(S, p ), q (I)) and first-token proba-bilities are summed over the case variants of each word. The verification view V(S, p ) is the window of side d0(W, H ) = clip( ⌊pW H/ 8⌋, 512 , 1024) 
+
+centred on p and shifted inside the screenshot. It is rendered at 4× area with a red circle drawn at p. The question q(I) asks whether the circle lies on the element the instruction refers to (Ap-pendix A.3). 
+
+Verification-gated acceptance (step 3). A TNZ stage’s answer p′ replaces the current answer p only if the verifier does not prefer p,
+
+p ← p′ iff v(p′) ≥ v(p), (6) and v(p) is queried only when a zoom is planned, so unzoomed samples cost no verification. 
+
+Verifier-arbitrated chain portfolio (step 4). 
+
+Chains of different zoom geometry fail on differ-ent samples. On Qwen3-VL-8B ScreenSpot-Pro, the chains cTNZ and c4× defined below are right on 59 .6% and 63 .5% of samples, but at least one of them is right on 68 .9% (Appendix B.1). VLR therefore runs a static portfolio C = {cTNZ , c 4×},the same for every input, benchmark and backbone. Here cTNZ is TNZ with gated acceptance, and c4×
+
+runs the common fixed 4× crop as a chain. It first answers on the whole screen and then re-grounds in a 1288 × 728 -pixel window around that answer at 4× area. The answers {p(c)}c∈C are grouped by complete linkage with radius δpx , so a point joins a group only if it lies within δpx of every mem-ber. Each group G is represented by its member 
+
+r(G) from the highest-priority chain, with cTNZ 
+
+first. With two or more groups, the representatives of the K largest groups, GK , are verified, each on its own window, and 
+
+p = arg max 
+
+> G∈G K
+
+v r(G); (7) with a single group, its representative is returned. With the two chains used here, arbitration thus keeps the better-verified of two disagreeing an-swers, whereas the spatial vote of MVP (Zhang et al., 2026d) keeps the largest cluster. 
+
+Negative-feedback re-grounding (step 5). 
+
+When the verifier does not confirm the answer kept by arbitration, v(p) < θ r, the model is asked again, but on different evidence. The rejected location is crossed out in red on the whole-screen view, and a note saying that it was judged not to be the target is appended to the instruction for that pass. The model then re-grounds from coarse to fine. It answers on the whole screenshot, then on a native-resolution crop of side d0 around the new point, and finally on a tighter crop of side d0/2 around the resulting point at 3× linear magnification, which gives p′′ . The answer is replaced, p ← p′′ , iff v(p′′ ) > v (p).
+
+Existence-gated abstention (step 6). Let e(S, I )
+
+be the normalized first-token Y ES probability, as in Eq. (5), of one query on the whole screenshot (b = 1 ) asking whether any element on the screen can carry out the instruction. Neither signal alone is a safe reason to refuse. The existence query denies targets that are present but tiny on the whole-screen view, and the verifier rejects answers it cannot con-firm at its own scale. AdaGround therefore abstains 5Method Text Element Layout Fine-gr. Refusal Overall                                                                                                                  
+
+> Closed-source / proprietary models
+> Operator †◦ (OpenAI, 2025) 51.3 42.4 46.6 31.5 0.0 40.6 Gemini-2.5-pro †◦ (Comanici et al., 2025) 59.8 45.5 49.0 33.6 38.9 45.2 Seed1.5-VL †◦ (Guo et al., 2025) 73.9 66.7 69.6 47.0 18.5 62.9
+> Open-source SFT / RL-trained specialists
+> Qwen2.5-VL-72B †(Bai et al., 2025b) 52.6 74.6 74.7 55.3 0.0 62.2 UI-TARS-72B †◦ (Qin et al., 2025) 69.4 60.6 62.9 45.6 0.0 57.1 UI-Venus-Ground-72B †(Gu et al., 2025) 82.1 71.2 70.7 64.4 –70.4 OS-Atlas-7B †◦ (Wu et al., 2025b) 44.1 29.4 35.2 16.8 7.4 27.7 UGround-V1-7B †◦ (Gou et al., 2025) 51.3 40.3 43.5 24.8 0.0 36.4 Jedi-7B †◦ (Xie et al., 2026) 65.9 55.5 57.7 46.9 7.4 54.1 GTA1-72B †(Yang et al., 2026) 57.9 76.9 77.3 66.7 0.0 66.7
+> Training-free test-time methods
+> Qwen3-VL-8B single pass 78.2 68.5 71.9 53.7 0.0 64.7 + MVP †(published, from its 68 .8single pass) 82.4 76.7 79.5 61.7 –72.7 +3.9
+> + AdaGround (ours) 85.1 80.0 81.8 65.1 27.8 76.1 +11.3
+> Qwen3-VL-32B ∗single pass 81.6 75.8 77.5 63.1 0.0 71.8 + MVP †(published, from its 71 .7single pass) 81.6 76.4 77.5 62.4 –72.0 +0.3
+> + AdaGround (ours) 85.8 84.8 84.6 67.1 14.8 79.3 +7.4
+
+Table 1: OSWorld-G accuracy (%). Refusal: abstention rate on the 54 absent-target instructions. †Quoted from the cited papers or the tables of Yang et al. (2026) and Zhang et al. (2026d). ◦Original instructions (Appendix D.2). –: not reported. Bold : best training-free result. Subscripts: gain over the method’s own single pass. ∗FP8 weights. 
+
+only when the mean of the two is low, which re-quires each to be below 2θe,
+
+> 12
+
+ v(p) + e(S, I ) < θ e, (8) where p is the answer after re-grounding, so 
+
+v(p) is the larger of the scores before and af-ter re-grounding. An answer the verifier accepts (v(p) ≥ θr) is never withdrawn, and abstention never overrides a CSG-composed answer. Absten-tion is enabled only where the task admits a refusal (OSWorld-G). 
+
+3.4 Compositional Structure Grounding 
+
+A spreadsheet cell is defined by its place in a struc-ture, not by its appearance. The cell is identified by its column and row headers. These lie out-side any crop tight enough to magnify the cell, so zooming tends to discard the evidence. CSG changes the primitive instead of the view. The same model, reading the instruction text only, rewrites 
+
+I into a program ρ ∈ { GROUND , CELL (col , row )}
+
+(the router of Figure 2, whose ‘element’ branch is GROUND ). Any other output is executed as 
+
+> GROUND
+
+. CELL (col , row ) grounds descriptions of the column header and of the row header sepa-rately. Each header is grounded first on the whole screenshot and then on a crop of side d0/2 around that point at 3× linear magnification, which gives 
+
+(xcol , y col ) and (xrow , y row ). The program then composes 
+
+p = ( xcol , y row ) iff xcol > x row , y col < y row , (9) i.e. when the column header lies to the right of and above the row header, as in a spreadsheet grid. Otherwise it falls back to the VLR answer. 
+
+3.5 One Configuration 
+
+One set of constants serves both backbones and all benchmarks (Table 5). The coarse view uses 
+
+A0 = 2 .2 MP and bmin = 0 .25 . TNZ uses τ = 3 ,
+
+γ = 16 , ε = 4 , kmax = 4 , λ = 2 , dmin = 192 
+
+and D = 2 . The verifier window has side d0 and is rendered at 4× area, and c4× uses a 1288 × 728 
+
+window at 4× area. Arbitration uses δpx = 14 
+
+and K = 3 , re-grounding uses θr = 0 .99 (whole screen at b = 1 ), and abstention uses θe = 0 .03 .Only π comes from the encoder. 
+
+4 Experiments 
+
+4.1 Experimental Setup Backbones and benchmarks. Following MVP (Zhang et al., 2026d), we evaluate Qwen3-VL-8B-Instruct and Qwen3-VL-32B-Instruct (Bai et al., 2025a), the latter with FP8 weights. We develop on three benchmarks, each in full. OSWorld-G (Xie et al., 2026) (refined split, 564 instructions) in-cludes 54 instructions whose target is absent from the screen. ScreenSpot-Pro (Li et al., 2025b) (1,581 instructions) covers professional desktop software on high-resolution screens, with a median target of 24 pixels on its shorter side. ScreenSpot-v2 (Wu et al., 2025b) ( 1,272 instructions) has larger targets (median 85 pixels). As a held-out test we 6Method Dev. Creative CAD Scientific Office OS Overall 
+
+Closed-source / proprietary models 
+
+GPT-4o † (Hurst et al., 2024) 0.7 0.6 1.5 1.2 0.9 0.0 0.8 Claude Computer Use † (Anthropic, 2024) 12.6 16.8 11.9 25.8 26.9 8.1 17.1 UI-TARS-1.5 † (Qin et al., 2025) 63.9 50.4 58.2 69.3 79.6 51.0 61.6 Seed1.5-VL † (Guo et al., 2025) 53.8 59.2 59.0 61.4 74.8 60.2 60.9 
+
+Open-source SFT / RL-trained specialists 
+
+SeeClick-7B † (Cheng et al., 2024) 0.3 0.6 1.9 2.0 0.9 1.5 1.1 UGround-V1-7B † (Gou et al., 2025) 28.1 31.7 14.6 39.0 49.6 24.5 31.1 GUI-G1-3B † (Zhou et al., 2026) 31.1 26.6 32.2 48.0 59.1 16.1 37.1 SE-GUI-7B † (Yuan et al., 2026) 44.5 37.2 42.1 54.7 70.4 38.8 47.2 InfiGUI-G1-7B †§ (Liu et al., 2026b) 50.2 44.0 49.0 59.4 67.4 44.4 51.9 GTA1-72B † (Yang et al., 2026) 57.2 51.0 49.8 63.0 77.0 57.1 58.4 UI-Venus-Ground-72B †§ (Gu et al., 2025) 59.5 55.4 57.5 66.5 77.8 57.7 61.9 
+
+Training-free test-time methods 
+
+Qwen3-VL-8B single pass 47.2 46.0 44.4 53.9 71.3 49.0 51.3 + MVP † (published, from its 55 .0 single pass) 61.5 60.2 61.3 67.3 82.6 62.8 65.3 +10.3 
+
++ AdaGround (ours) 61.5 57.2 65.5 66.9 85.2 66.3 66.2 +14.9 
+
+Qwen3-VL-32B ∗ single pass 43.1 53.7 57.1 63.0 73.0 43.9 55.3 + MVP † (published, from its 55 .3 single pass) 71.6 69.3 74.7 70.5 87.4 73.5 74.0 +18.7 
+
++ ZoomClick † (from its 54 .0 single pass; Jiang et al., 2025) 72.6 64.2 71.3 68.9 90.0 69.4 72.1 +18.1 
+
++ AdaGround (ours) 71.6 70.1 76.6 74.8 91.3 75.0 75.9 +20.6 
+
+Table 2: ScreenSpot-Pro accuracy (%). †Quoted from the cited papers or as compiled by Yang et al. (2026) and Zhang et al. (2026d). §Category averages computed from the reported text/icon accuracies. Bold : best training-free result. Subscripts: gain over the method’s own single pass. ∗FP8 weights.                                                          
+
+> Method Basic Func. Spatial Avg.
+> Open-source SFT / RL-trained specialists †
+> UI-TARS-7B (Qin et al., 2025) 20.1 24.3 8.4 17.6 UI-TARS-72B (Qin et al., 2025) 31.4 30.5 14.7 25.5 UI-Venus-Ground-72B (Gu et al., 2025) 45.6 42.3 23.7 36.8 OS-Atlas-7B (Wu et al., 2025b) 12.2 11.2 3.7 9.0 UGround-V1-7B (Gou et al., 2025) 15.4 17.1 6.3 12.9 GUI-Spotlight (Lei et al., 2026) 32.1 30.2 9.1 23.4
+> Training-free test-time methods
+> Qwen3-VL-8B single pass 29.2 30.1 11.8 23.7 + MVP †38.3 38.8 18.7 31.9 +4.7
+> + AdaGround (ours) 37.0 38.7 20.4 32.0 +8.3
+> Qwen3-VL-32B ∗single pass 44.2 43.2 22.6 36.7 + MVP †49.4 52.0 30.8 44.1 +7.7
+> + ZoomClick †45.1 45.1 28.3 39.2 +2.6
+> + AdaGround (ours) 52.5 51.7 38.4 47.6 +10.9
+
+Table 3: UI-Vision element grounding (Nayak et al., 2025) (held out), accuracy (%). Avg.: mean of the three tasks (as published for † rows). †From Zhang et al. (2026d) (specialists from the UI-Vision leader-board) and Jiang et al. (2025). Subscripts: gain over the method’s own single pass (MVP: 27.2, 36.4; Zoom-Click: 36.6). Bold : best training-free. ∗FP8 weights. 
+
+add UI-Vision (Nayak et al., 2025) (the element grounding task, with 5,479 instructions on 1,181 
+
+screenshots of 83 desktop applications and a me-dian target of 26 pixels). 
+
+Baselines. The single pass grounds on the whole screenshot and comes from the same runs as Ada-Ground. MVP (Zhang et al., 2026d), a recent attention-guided zooming method, is our main com-parison on the same backbones. ZoomClick (Jiang et al., 2025) reports Qwen3-VL-32B results. The 
+
+OSWorld-G SSPro SSv2 
+
+8B 32B ∗ 8B 32B ∗ 8B 32B ∗
+
+Single pass 64.7 71.8 51.3 55.3 92.1 94.7 Fixed 4× crop 70.7 77.1 63.5 73.9 91.9 95.4 
+
+cTNZ 72.7 76.6 59.6 72.4 92.5 95.4 + arbitration 73.6 76.8 65.6 75.6 92.5 96.0 
+
++ re-grounding 73.2 77.0 66.2 76.0 91.9 95.4 + CSG 73.6 77.8 66.2 75.9 91.9 95.4 + abstention 76.1 79.3 66.2 75.9 91.9 95.4 
+
+Oracle of two chains 76.1 79.8 68.9 78.8 94.0 96.6 
+
+Table 4: Where the gains come from : accuracy (%) as components are added (Algorithm 1). Shaded: Ada-Ground. Bold : best per column (oracle excluded). Underlined: the better chain. Oracle: either chain is right. SSPro/SSv2: ScreenSpot-Pro/-v2. ∗FP8 weights. 
+
+main tables quote both as published. For paired tests, we also reproduce MVP with its official code and published configuration on Qwen3-VL-8B. For Qwen3-VL-32B, we score the per-sample ScreenSpot-Pro predictions released by its authors (Appendices C and D.1). The fixed 4× crop, Ada-Ground’s chain c4× alone, is analysed as an abla-tion (Section 4.3). 
+
+Protocol. A prediction is correct if its point falls inside the target region. OSWorld-G uses its official scorer, which credits an absent-target instruction only when the system abstains. ScreenSpot-Pro, ScreenSpot-v2 and UI-Vision give every instruc-tion a target and are scored point-in-box. Ada-7Ground and its baselines use greedy decoding on vLLM 0.11 .2 (Kwon et al., 2023). All constants were fixed during development on OSWorld-G, ScreenSpot-Pro and ScreenSpot-v2 (Appendix A). UI-Vision, on which the configuration was nei-ther developed nor tuned, serves as a held-out test. An earlier version of the method had been evalu-ated on it (Appendix A). Paired differences are in points, with 95% confidence intervals from 4,000 
+
+bootstrap resamples of screenshots (Table 13, Ap-pendix D.2). A difference is called significant when its interval excludes zero. 
+
+4.2 Main Results Comparison with MVP and ZoomClick. Ada-Ground scores above MVP’s published results on OSWorld-G and ScreenSpot-Pro with both back-bones (Tables 1 and 2), by 3.4 and 7.3 points on OSWorld-G and by 0.9 and 1.9 on ScreenSpot-Pro, and above ZoomClick’s published Qwen3-VL-32B result on ScreenSpot-Pro. Measured from each method’s own single pass, AdaGround adds more than MVP and ZoomClick in every case. Paired against MVP’s per-sample predictions, the lead is significant in every test (Table 13). It is +6 .2 and 
+
++4 .2 points on OSWorld-G and ScreenSpot-Pro against our Qwen3-VL-8B reproduction, which re-covers the gain MVP adds to its own single pass, and +1 .8 against MVP’s released Qwen3-VL-32B ScreenSpot-Pro predictions. The OSWorld-G lead holds without abstention, which MVP does not use. Our reproduction and its single pass both score below MVP’s published results (Appendix D.1). 
+
+Held-out benchmark. On UI-Vision, Ada-Ground matches MVP’s published average with Qwen3-VL-8B ( 32 .0% against 31 .9% ) and ex-ceeds it with Qwen3-VL-32B ( 47 .6% against 
+
+44 .1% ), as well as ZoomClick’s 39 .2% (Table 3). 
+
+4.3 Ablation: Where the Gains Come From 
+
+Table 4 adds the components one at a time (Ap-pendix B.1). Fixed crop. The full AdaGround is significantly above the fixed 4× crop chain c4×
+
+on ScreenSpot-Pro, on held-out UI-Vision (most on spatial instructions) and on OSWorld-G with Qwen3-VL-8B (Table 13). Token span explains where a zoom pays. On the same samples before and after a crop pass (Qwen3-VL-8B), accuracy rises by +7 .8 and +10 .8 points when the target spans under one token and stops rising from two tokens on (Appendix E), so TNZ targets τ = 3 Two zoom chains are right on different samples Qwen3-VL-8B, ScreenSpot-Pro either right: 68.9% both wrong    
+
+> only one right (231; 227 checked)
+> The grounder’s own Yes/No check picks the right one fixed 4× crop: 63.5% TNZ chain: 59.6% 146 85
+> grounder 78.0%
+> always fixed crop 63.4% coin flip 50.0%
+
+Figure 3: Chain arbitration (counts: samples on which only that chain is right). The Yes/No check runs when-ever the two clicks differ. With Qwen3-VL-32B the three bars read 72 .4, 56 .9 and 50 .0% .
+
+tokens. TNZ as a gated chain ( cTNZ ) improves the single pass by 4.8 to 17 .1 points on OSWorld-G and ScreenSpot-Pro and beats the fixed crop on held-out UI-Vision. On ScreenSpot-Pro the two chains disagree on 45 and 34% of samples, and 
+
+chain arbitration (Figure 3) raises cTNZ there by 5.9 and 3.2 points, 39 and 36% of the way from the better chain to the oracle. A crop fixed at TNZ’s median geometry arbitrates as well on OSWorld-G and ScreenSpot-Pro but significantly worse on ScreenSpot-v2 and held-out UI-Vision (Qwen3-VL-8B, Appendix B.6). CSG recovers the OSWorld-G spreadsheet cells that zooming loses (2 and 5 samples net). Abstention adds 2.5 and 1.4
+
+points on OSWorld-G and withdraws at most one correct answer (Table 7). Cost. The two chains with arbitration alone (about 10 calls) already beat the fixed crop on ScreenSpot-Pro (Table 4). 
+
+5 Conclusion 
+
+We presented AdaGround , a training-free, black-box framework that addresses five shortcomings of test-time refinement for GUI grounding. With one configuration shared by Qwen3-VL-8B and Qwen3-VL-32B, AdaGround scores above MVP’s published results on OSWorld-G and ScreenSpot-Pro and above many trained GUI models, including 72B ones. It is also significantly above its own fixed 
+
+4× crop chain on ScreenSpot-Pro and on held-out UI-Vision. The lesson for test-time refinement is that zoom geometries fail on different samples and that the grounder itself, asked about a marked click, can choose between them. On ScreenSpot-Pro, this choice recovers more than a third of the headroom above the better chain. 
+
+Limitations 
+
+Scope. We evaluate Qwen3-VL-8B and Qwen3-VL-32B (FP8 weights) on OSWorld-G, 8ScreenSpot-Pro and ScreenSpot-v2, on which the constants were developed, and on held-out UI-Vision. Our conclusions are limited to these two backbones and four benchmarks and do not extend to agentic tasks in which grounding is one step of a longer episode. On Qwen3-VL-32B OSWorld-G, the comparison with MVP rests on its published number and is not paired. 
+
+Cost. AdaGround reads 3.5 to 3.9 times the vi-sual tokens of the fixed 4× crop and 6 to 12 times those of the single pass. With sequential calls, its latency is 3.4 to 4.2 times that of the fixed crop (Appendix A.4). The extra compute pays off where targets are small. On ScreenSpot-v2, whose targets are large, AdaGround matches the fixed crop at a higher cost. 
+
+Components. A second crop fixed at TNZ’s me-dian geometry is not significantly different from TNZ in arbitration on OSWorld-G and ScreenSpot-Pro, nor in the full pipeline on any benchmark, at fewer visual tokens (Appendix B.6). TNZ assumes that the model answers the box query with a box. A model that returns a point instead gets no zoom from TNZ. A target that falls outside an over-tight view is rejected by verification and left to the fixed 
+
+4× chain and re-grounding. 
+
+Verifier and abstention. One verifier score con-trols acceptance, re-grounding, arbitration and ab-stention, so a verifier that prefers a plausible but wrong element passes that preference to every deci-sion it controls. Many of its decisions are between scores near 1 (Appendix B.1). The joint absten-tion rule is set for few false refusals ( 0.8% and 
+
+0.4% ; Appendix B.2) and catches 15 and 8 of the 
+
+54 absent-target instructions of OSWorld-G. 
+
+Structure. CSG covers spreadsheet cells but does not handle slider positions or text-cursor place-ment. On these cells, the single-pass answer does as well as the composed one (Appendix B.1). 
+
+Ethical Considerations 
+
+AdaGround is an inference-time procedure that trains no model and collects no new data. All ex-periments use the screenshots and instructions of four public GUI grounding benchmarks and in-volve no human subjects. Better grounding makes GUI agents more capable, including agents that act without supervision. A wrong click can trig-ger an unintended, possibly irreversible action, and capable agents can be misused to automate interac-tions that services intend for humans. Abstention removes one failure mode but does not replace user confirmation before consequential actions. 
+
+References                    
+
+> Anthropic. 2024. Introducing computer use, a new Claude 3.5 Sonnet, and Claude 3.5 Haiku. Anthropic News. Gilles Baechler, Srinivas Sunkara, Maria Wang, Fedir Zubach, Hassan Mansoor, Vincent Etter, Victor Carbune, Jason Lin, Jindong Chen, and Abhanshu Sharma. 2024. Screenai: A vision-language model for ui and infographics understanding. In Proceed-ings of the Thirty-Third International Joint Con-ference on Artificial Intelligence, IJCAI-24 , pages 3058–3068. International Joint Conferences on Arti-ficial Intelligence Organization. Main Track. Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, et al. 2025a. Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 .Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wen-bin Ge, Sibo Song, Kai Dang, Peng Wang, Shi-jie Wang, Jun Tang, Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhaohai Li, Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren Fu, Yiheng Xu, and 8 oth-ers. 2025b. Qwen2.5-vl technical report. Preprint ,arXiv:2502.13923. Liangyu Chen, Hanzhang Zhou, Jianan Zhang, Pan-rong Tong, Xu Zhang, Quyu Kong, Chen Liu, Yuqi Liu, Wenxuan Wang, Yue Wang, et al. 2026. Ui-ins: Enhancing gui grounding with multi-perspective in-struction as reasoning. In International Conference on Learning Representations , volume 2026, pages 54418–54444. Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Li YanTao, Jianbing Zhang, and Zhiyong Wu. 2024. Seeclick: Harnessing gui grounding for advanced visual gui agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Lin-guistics (Volume 1: Long Papers) , pages 9313–9332. Gheorghe Comanici, Eric Bieber, Mike Schaekermann, Ice Pasupat, Noveen Sachdeva, Inderjit Dhillon, Mar-cel Blistein, Ori Ram, Dan Zhang, Evan Rosen, et al. 2025. Gemini 2.5: Pushing the frontier with ad-vanced reasoning, multimodality, long context, and next generation agentic capabilities. arXiv preprint arXiv:2507.06261 .Yong Du, Yuchen Yan, Fei Tang, Zhengxi Lu, Chang Zong, Weiming Lu, Shengpei Jiang, and Yongliang Shen. 2026. Test-time reinforcement learning for gui grounding via region consistency. In Proceedings of the AAAI Conference on Artificial Intelligence ,volume 40, pages 30593–30601.
+
+9Zichuan Fu, Shirong Wang, Wenlin Zhang, Guojing Li, Yimin Deng, Jingtong Gao, Junjia Qi, Hanyu Yan, Yefeng Zheng, Xiaopeng Li, et al. 2026. Gui-lens: Coarse-to-fine cropping for gui ground-ing with general-purpose vlms. arXiv preprint arXiv:2608.03270 .Boyu Gou, Demi Ruohan Wang, Boyuan Zheng, Yanan Xie, Cheng Chang, Yiheng Shu, Huan Sun, and Yu Su. 2025. Navigating the digital world as humans do: Universal visual grounding for gui agents. In In-ternational Conference on Learning Representations ,volume 2025, pages 30851–30883. Zhangxuan Gu, Zhengwen Zeng, Zhenyu Xu, Xin-gran Zhou, Shuheng Shen, Yunfei Liu, Beitong Zhou, Changhua Meng, Tianyu Xia, Weizhi Chen, et al. 2025. Ui-venus technical report: Building high-performance ui agents with rft. arXiv preprint arXiv:2508.10833 .Dong Guo, Faming Wu, Feida Zhu, Fuxing Leng, Guang Shi, Haobin Chen, Haoqi Fan, Jian Wang, Jianyu Jiang, Jiawei Wang, et al. 2025. Seed1. 5-vl technical report. arXiv preprint arXiv:2505.07062 .Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yuxiao Dong, Ming Ding, et al. 2024. Co-gagent: A visual language model for gui agents. In 
+
+2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 14281–14290. IEEE. Longtao Hu, Xiao Liang, and Linchao Zhu. 2026. From interaction traces to persistent skills: On-line evolution for computer-use agents. CoRR ,abs/2609.04869. Zheng Hui, Yinheng Li, Dan Zhao, Colby R. Banbury, Tianyi Chen, and Kazuhito Koishida. 2025. Winspot: GUI grounding benchmark with multimodal large language models. In ACL (2) , pages 1086–1096. Association for Computational Linguistics. Aaron Hurst, Adam Lerer, Adam P Goucher, Adam Perelman, Aditya Ramesh, Aidan Clark, AJ Os-trow, Akila Welihinda, Alan Hayes, Alec Radford, et al. 2024. Gpt-4o system card. arXiv preprint arXiv:2410.21276 .Zhiyuan Jiang, Shenghao Xie, Wenyi Li, Wenqiang Zu, Peihang Li, Jiahao Qiu, Siqi Pei, Lei Ma, Tiejun Huang, Mengdi Wang, et al. 2025. Zoom in, click out: Unlocking and evaluating the poten-tial of zooming for gui grounding. arXiv preprint arXiv:2512.05941 .Divake Kumar, Sina Tayebati, Devashri Naik, Amanda Sofie Rios, Nilesh Ahuja, Omesh Tickoo, Ranganath Krishnan, and Amit Ranjan Trivedi. 2026. Uncertainty quantification for computer-use agents: A benchmark across vision-language mod-els and gui grounding datasets. arXiv preprint arXiv:2606.25760 .Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph Gon-zalez, Hao Zhang, and Ion Stoica. 2023. Efficient memory management for large language model serv-ing with pagedattention. In Proceedings of the 29th symposium on operating systems principles , pages 611–626. Bin Lei, Nuo Xu, Ali Payani, Mingyi Hong, Chun-hua Liao, Yu Cao, and Caiwen Ding. 2026. GUI-spotlight: Adaptive iterative focus refinement for enhanced GUI visual grounding. In Proceedings of the 43rd International Conference on Machine Learning , volume 306 of Proceedings of Machine Learning Research , pages 65506–65519. PMLR. Aiden Yiliu Li, Bizhi Yu, Daoan Lei, Tianhe Ren, and Shilong Liu. 2025a. Chain-of-ground: Improving gui grounding via iterative reasoning and reference feedback. arXiv preprint arXiv:2512.01979 .Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. 2025b. Screenspot-pro: Gui grounding for professional high-resolution computer use. In Pro-ceedings of the 33rd ACM International Conference on Multimedia , pages 8778–8786. Jiaping Lin, Fei Shen, Junzhe Li, Ping Nie, Fei Yu, Ming Li, and Haizhou Li. 2026a. What happens before decoding? prefill determines gui grounding in vlms. arXiv preprint arXiv:2605.12549 .Kevin Qinghong Lin, Linjie Li, Difei Gao, Zhengyuan Yang, Shiwei Wu, Zechen Bai, Stan Weixian Lei, Li-juan Wang, and Mike Zheng Shou. 2025. Showui: One vision-language-action model for gui visual agent. In 2025 IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 19498–19508. IEEE. Zichuan Lin, Yicheng Liu, Yang Yang, Lvfang Tao, and Deheng Ye. 2026b. Adaptvision: Efficient vision-language models via adaptive visual acqui-sition. In CVPR , pages 11923–11932. Computer Vision Foundation. Yichao Liu, Huawen Shen, Liu Yu, Shiyu Liu, Zeyu Chen, and Yu Zhou. 2026a. DRS-GUI: dynamic region search for training-free GUI grounding. In 
+
+CVPR , pages 34606–34616. Computer Vision Foun-dation. Yuhang Liu, Zeyu Liu, Shuanghe Zhu, Pengxiang Li, Congkai Xie, Jiasheng Wang, Xueyu Hu, Xiao-tian Han, Jianbo Yuan, Xinyao Wang, et al. 2026b. Infigui-g1: Advancing gui grounding with adaptive exploration policy optimization. In Proceedings of the AAAI Conference on Artificial Intelligence , vol-ume 40, pages 32267–32275. Zhou Liu, Ligang Huang, Zeli Su, Zewei Pan, Zhaoyang Han, Xing Chen, Yuanfeng Song, and Wentao Zhang. 2026c. Skilllens: Visual skill cards for retrieval-augmented GUI action prediction and on-policy distillation. CoRR , abs/2608.10775. 
+
+10 Ziwei Liu, Tao Feng, Borui Kang, Yanbing Yang, and Jun Luo. 2026d. Zoom to essence: Trainless gui grounding by inferring upon interface elements. 
+
+arXiv preprint arXiv:2603.14448 .Tiange Luo, Lajanugen Logeswaran, Justin Johnson, and Honglak Lee. 2025. Visual test-time scaling for gui agent grounding. In 2025 IEEE/CVF Interna-tional Conference on Computer Vision (ICCV) , pages 19989–19998. IEEE. Shravan Nayak, Xiangru Jian, Kevin Qinghong Lin, Juan A. Rodríguez, Montek Kalsi, Nicolas Chapa-dos, M. Tamer Özsu, Aishwarya Agrawal, David Vázquez, Christopher Pal, Perouz Taslakian, Span-dana Gella, and Sai Rajeswar. 2025. Ui-vision: A desktop-centric GUI benchmark for visual percep-tion and interaction. In ICML , volume 267 of Pro-ceedings of Machine Learning Research . PMLR / OpenReview.net. Anthony Nguyen. 2024. Improved gui grounding via it-erative narrowing. arXiv preprint arXiv:2411.13591 .Dang Nguyen, Jian Chen, Yu Wang, Gang Wu, Namy-ong Park, Zhengmian Hu, Hanjia Lyu, Junda Wu, Ryan Aponte, Yu Xia, et al. 2025. Gui agents: A survey. In Findings of the Association for Computa-tional Linguistics: ACL 2025 , pages 22522–22538. OpenAI. 2025. Introducing Operator. OpenAI Blog. Mingyu Ouyang, Kevin Qinghong Lin, Mike Zheng Shou, and Hwee Tou Ng. 2026. Focusui: Efficient ui grounding via position-preserving visual token selec-tion. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) ,pages 20313–20323. Siqi Pei, Liang Tang, Tiaonan Duan, Long Chen, Shuxian Li, Kaer Huang, Yanzhe Jing, Yiqiang Yan, Bo Zhang, Chenghao Jiang, et al. 2026. Adazoom-gui: Adaptive zoom-based gui ground-ing with instruction refinement. arXiv preprint arXiv:2603.17441 .Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, et al. 2025. Ui-tars: Pio-neering automated gui interaction with native agents. 
+
+arXiv preprint arXiv:2501.12326 .Xinyu Qiu, Yunzhu Zhang, Heng Jia, Shuheng Shen, Changhua Meng, and Linchao Zhu. 2026. Vista: View-consistent self-verified training for gui ground-ing. arXiv preprint arXiv:2606.14579 .Fei Tang, Bofan Chen, Zhengxi Lu, Tongbo Chen, Songqin Nong, Tao Jiang, Wenhao Xu, Weiming Lu, Jun Xiao, Yueting Zhuang, et al. 2026a. Ui-zoomer: Uncertainty-driven adaptive zoom-in for gui ground-ing. arXiv preprint arXiv:2604.14113 .Fei Tang, Zhangxuan Gu, Zhengxi Lu, Xuyang Liu, Shuheng Shen, Changhua Meng, Wen Wang, Wenqi Zhang, Yongliang Shen, Weiming Lu, et al. 2026b. Gui-g 2: Gaussian reward modeling for gui grounding. In Proceedings of the AAAI Conference on Artificial Intelligence , volume 40, pages 33214–33222. Fei Tang, Haolei Xu, Hang Zhang, Siqi Chen, Xingyu Wu, Yongliang Shen, Wenqi Zhang, Guiyang Hou, Zeqi Tan, Yuchen Yan, et al. 2025. A survey on (m) llm-based gui agents. arXiv preprint arXiv:2504.13865 .Qingni Wang, Yue Fan, and Xin Eric Wang. 2026a. Safeground: Know when to trust gui grounding models via uncertainty calibration. arXiv preprint arXiv:2602.02419 .Wenkai Wang, Xiyun Li, Hongcan Guo, Wenhao Yu, Tianqing Fang, Haitao Mi, Dong Yu, and Shengyu Zhang. 2026b. Measure twice, click once: Co-evolving proposer and visual critic via reinforce-ment learning for gui grounding. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,pages 20964–20984. Thomas Wolf, Lysandre Debut, Victor Sanh, Julien Chaumond, Clement Delangue, Anthony Moi, Pier-ric Cistac, Tim Rault, Rémi Louf, Morgan Funtowicz, et al. 2020. Transformers: State-of-the-art natural language processing. In Proceedings of the 2020 con-ference on empirical methods in natural language processing: system demonstrations , pages 38–45. Hang Wu, Hongkai Chen, Yujun Cai, Chang Liu, Qing-wen Ye, Ming-Hsuan Yang, and Yiwei Wang. 2025a. Dimo-gui: Advancing test-time scaling in gui ground-ing via modality-aware visual reasoning. In Proceed-ings of the 2025 Conference on Empirical Methods in Natural Language Processing , pages 26246–26256. Penghao Wu and Saining Xie. 2024. V*: Guided visual search as a core mechanism in multimodal llms. In 
+
+2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 13084–13094. IEEE. Qianhui Wu, Kanzhi Cheng, Rui Yang, Chaoyun Zhang, Jianwei Yang, Huiqiang Jiang, Jian Mu, Baolin Peng, Bo Qiao, Reuben Tan, et al. 2026. Gui-actor: Coordinate-free visual grounding for gui agents. Ad-vances in Neural Information Processing Systems ,38:15101–15128. Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, et al. 2025b. Os-atlas: Foundation action model for generalist gui agents. In International Conference on Learning Representations , volume 2025, pages 5090–5108. Yixiong Xiao, Lang An, Hucheng Yang, Pinxue Ma, Yongquan Chen, Jingjia Cao, Yusai Zhao, Ting Wang, Ting Liu, Siqi Bao, Jingbo Zhou, and Hua Wu. 2026. Omegause-sop: SOP engineering for professional computer use from human demonstrations. CoRR ,abs/2609.02149. 
+
+11 Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang, Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang, Yuhui Xu, Zekun Wang, et al. 2026. Scaling computer-use grounding via user interface decompo-sition and synthesis. Advances in Neural Information Processing Systems , 38. Hai-Ming Xu, Qi Chen, Lei Wang, and Lingqiao Liu. 2025. Attention-driven gui grounding: Leveraging pretrained multimodal large language models with-out fine-tuning. In Proceedings of the AAAI Con-ference on Artificial Intelligence , volume 39, pages 8851–8859. Yan Yang, Dongxu Li, Yutong Dai, Yuhao Yang, Ziyang Luo, Zirui Zhao, Zhiyuan Hu, Junzhe Huang, Am-rita Saha, Zeyuan Chen, et al. 2026. Gta1: Gui test-time scaling agent. In International Conference on Learning Representations , volume 2026, pages 48295–48323. Ruilin Yao, Shegnwu Xiong, Tianyu Zou, Shili Xiong, and Yi Rong. 2026. Autofocus: Uncertainty-aware active visual search for gui grounding. arXiv preprint arXiv:2605.02630 .Keen You, Haotian Zhang, Eldon Schoop, Floris Weers, Amanda Swearngin, Jeffrey Nichols, Yinfei Yang, and Zhe Gan. 2024. Ferret-ui: Grounded mobile ui understanding with multimodal llms. In European Conference on Computer Vision , pages 240–255. Springer. Xinbin Yuan, Jian Zhang, Kaixin Li, Zhuoxuan Cai, Lujian Yao, Jie Chen, Enguang Wang, Qibin Hou, Jinwei Chen, Peng-Tao Jiang, et al. 2026. Se-gui: Enhancing visual grounding for gui agents via self-evolutionary reinforcement learning. Ad-vances in Neural Information Processing Systems ,38:127658–127679. Borui Zhang, Bo Zhang, Bo Wang, Wenzhao Zheng, Yuhao Cheng, Liang Tang, Yiqiang Yan, Jie Zhou, and Jiwen Lu. 2026a. BAMI: training-free bias mitigation in GUI grounding. In CVPR , pages 34596–34605. Computer Vision Foundation. Chaoyun Zhang, Shilin He, Jiaxu Qian, Bowen Li, Liqun Li, Si Qin, Yu Kang, Minghua Ma, Guyue Liu, Qingwei Lin, Saravan Rajmohan, Dongmei Zhang, and Qi Zhang. 2025. Large Language Model-Brained GUI Agents: A Survey. Transactions on Machine Learning Research .Renshan Zhang, Haoyang Meng, Yixiao He, Rui Shao, April Hua Liu, and Liqiang Nie. 2026b. Lookagain: Closed-loop gui grounding with visually grounded reflection. arXiv preprint arXiv:2608.09723 .Yan Zhang, Daiqing Wu, Huawen Shen, Can Ma, and Yu Zhou. 2026c. Learn where to click from yourself: On-policy self-distillation for gui grounding. arXiv preprint arXiv:2605.00642 .Yunzhu Zhang, Zeyu Pan, Zhengwen Zeng, Shuheng Shen, Changhua Meng, and Linchao Zhu. 2026d. Mvp: Multiple view prediction improves gui ground-ing. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 27482–27492. Yu Zhao, Wei-Ning Chen, Huseyin A Inan, Samuel Kessler, Lu Wang, Lukas Wutschitz, Fangkai Yang, Chaoyun Zhang, Pasquale Minervini, Saravan Rajmo-han, and Robert Sim. 2026. Learning GUI grounding with spatial reasoning from visual feedback. In Pro-ceedings of the 43rd International Conference on Machine Learning , volume 306 of Proceedings of Machine Learning Research , pages 161193–161218. PMLR. Boyuan Zheng, Boyu Gou, Jihyung Kil, Huan Sun, and Yu Su. 2024. Gpt-4v(ision) is a generalist web agent, if grounded. In ICML , volume 235 of Proceedings of Machine Learning Research , pages 61349–61385. PMLR / OpenReview.net. Ziwei Zheng, Minghao Yang, Jack Hong, Chenxiao Zhao, Guohai Xu, Le Yang, Chao Shen, and Xing Yu. 2026. Deepeyes: Incentivizing "thinking with images" via reinforcement learning. In ICLR . pro-ceedings.iclr.cc. Yuqi Zhou, Sunhao Dai, Shuai Wang, Kaiwen Zhou, Qinglin Jia, and Jun Xu. 2026. Gui-g1: Understand-ing r1-zero-like training for visual grounding in gui agents. Advances in Neural Information Processing Systems , 38:95683–95705. 
+
+Appendix Contents 
+
+A Implementation Details and Prompts . . 13 
+
+A.1 Implementation Details . . . . . . . . 13 A.2 Prompt Template and Output Parsing. . . . . . . . . . . . . . . . . . 14 A.3 Verbatim Prompts . . . . . . . . . . . 15 A.4 Compute and Cost . . . . . . . . . . . 16 
+
+B Ablations and Component Analyses . . 16 
+
+B.1 Components . . . . . . . . . . . . . . 17 B.2 Abstention. . . . . . . . . . . . . . . . 17 B.3 Quality of the Size Estimate . . . . . 17 B.4 Design Choices. . . . . . . . . . . . . 18 B.5 Chain Arbitration . . . . . . . . . . . 18 B.6 Fixed-Geometry Controls. . . . . . . 18 
+
+C Reproduced Baselines and ScreenSpot-v2 . . . . . . . . . . . . . . . . 18 D MVP Comparison and Statistical Notes . . . . . . . . . . . . . . . . . . . . . . 18 
+
+D.1 MVP Setup . . . . . . . . . . . . . . . 18 D.2 Scoring and Paired Tests . . . . . . . 20 
+
+E Token-Span Analysis . . . . . . . . . . . . 20 
+
+E.1 Definition, Relation to Area Measures, and Pitch Sensitivity . . . 21 E.2 Accuracy versus Token Span. . . . . 21 12 E.3 The 2×2 Control and ScreenSpot-v2 . . . . . . . . . . . . . 22 E.4 What a Well-Placed Crop Leaves Behind . . . . . . . . . . . . . . . . . . 22 E.5 Targets without Visual Evidence . . 22 E.6 From the Analysis to the Design . . 23 
+
+A Implementation Details and Prompts 
+
+Table 5 lists the constants and Algorithm 1 the procedure. 
+
+Baselines and the fixed chain c4×. The single pass grounds on the whole screenshot at b = 1 .The fixed 4× crop , i.e. the chain c4×, re-grounds on a 1288 ×728 -pixel window centred on the single-pass answer (clamped to the screen size, shifted inside the screenshot) at four times its area. Both baselines come from the same runs as AdaGround. The verifier, re-grounding and CSG windows are squares of side d0(W, H ) or d0/2, where d0 is 
+
+512 pixels on a 1920 ×1080 screen and 1,018 on a 
+
+3840 ×2160 one. 
+
+Development and held-out evaluation. All components and constants, including the 
+
+1288 ×728 window, were developed on OSWorld-G, ScreenSpot-Pro and ScreenSpot-v2, mostly with Qwen3-VL-8B, by comparing alternatives on these benchmarks. The abstention rule and θe
+
+were chosen on the full OSWorld-G. No part of the three was held out, so their numbers include the effect of these choices. Varying τ ∈ { 2, 3, 4}
+
+(Qwen3-VL-8B) or θr ∈ { 0.9, 0.99 } changes ac-curacy by at most 0.6 points (Appendix B.4). The configuration was neither developed nor tuned on UI-Vision (Nayak et al., 2025), which is evaluated only with the final constants (Table 3) and the fixed-geometry control (Appendix B.6). An earlier version of the method had been evaluated on it. 
+
+Verifier score along the pipeline. The decisions of Section 3.3 give the following property. 
+
+Property 2 (Monotone verification) Treat v as a deterministic function of (S, I, p ). Up to the CSG step, the verifier score of the current answer never decreases wherever it is evaluated (a property of the score, not of accuracy). Argument. TNZ accepts only a non-decreasing v
+
+(Eq. (6)), and re-grounding accepts only a strictly higher one. Since |C| ≤ K, arbitration verifies every group and returns the arg max over a set that contains the cTNZ answer. A single consensus group keeps its cTNZ member. □
+
+A.1 Implementation Details 
+
+• Backbones and inference engine: Qwen3-VL-8B-Instruct and Qwen3-VL-32B-Instruct (FP8 weights) on vLLM 0.11 .2, greedy decod-ing (temperature = 0 ), enforce_eager=True ,
+
+4×NVIDIA H20 GPUs. • Prompt template: Qwen3-VL’s chat template with the grounding system message of Ap-pendix A.3, which states the size of the rendered view. The model writes points on the [0 , 1000] 
+
+grid of that view. This is its native convention, and the prompt does not restate it. A grounding pass generates at most 32 tokens. • Rendering: every view is resized to a 32 -pixel grid with 3,136 to 8,847 ,360 pixels. A view at area factor b > 1 is first up-sampled by √b in each dimension. A coarse view with b < 1 is capped at b times the pixel count of the full-resolution view. • Coarse pass: the budget b1 of Section 3.2 ren-ders a 1920 ×1080 screenshot at native resolution and a 3840 ×2160 one at about half its linear size. The point query and the box query are two sepa-rate calls on the same coarse view. If no box is returned, no zoom is issued. • TNZ geometry: Eqs. (2) and (3) with the con-stants of Table 5. The d × d crop is centred on the current answer, shifted inside the screenshot and rendered at k2 times its area. The box is re-queried on the zoomed view after every stage ex-cept the last, and ˆs is updated whether or not the stage is accepted. A zoomed answer p′ replaces 
+
+p iff v(p′) ≥ v(p), in which case kprev ← k.• Verifier-in-the-loop refinement: v(p) is read from the red circle of Table 5, drawn at the can-didate on its own window of side d0(W, H ) and rendered at four times the area. This window is independent of the crop of the stage being ver-ified. The score is v(p) = P (Yes )/(P (Yes ) + 
+
+P (No )) , computed from the first-token log-probabilities with the case variants of each word summed over the 20 most likely first tokens. A word outside them contributes zero, and v = 0 .5
+
+when neither word is among them. Re-grounding fires when v(p) < θ r and keeps its answer only if that answer verifies strictly higher. Arbitra-tion groups the chains’ answers at δpx = 14 
+
+pixels and verifies up to K = 3 group repre-sentatives. A tie goes to cTNZ . The existence query is one whole-screen Yes/No pass at b = 1 
+
+whose normalized Y ES probability is e(S, I ).13 Component Constant Value                                                                                                        
+
+> Rendering grid; pixels per view 32 px; 3,136 to 8,847 ,360
+> Coarse view pixel budget A0; floor bmin of b12.2MP; 0.25
+> TNZ token pitch π32 (Qwen3-VL) target span τ3tokens context multiple γ; error budget ε16 ;4tokens of the previous view maximum magnification kmax (linear) 4
+> first-stage looseness λ; maximum depth D2;2stages minimum crop side dmin 192 px Verifier window side d0(W, H )centred on the candidate, shifted inside the screenshot, 4×area mark red circle of radius r= max(10 ,⌊0.025 L⌋), stroke
+> max(2 ,⌊r/ 4⌋)
+> Chain arbitration portfolio C(priority order) {cTNZ , c 4×}
+> fixed chain c4×whole screen at b= 1 →1288 ×728 -px window around its answer, 4×area grouping radius δpx ; representatives K14 px; 3
+> Re-grounding threshold θr0.99 schedule whole screen at b= 1 with the rejected point crossed out →native crop of side d0→crop of side d0/2at 9×
+> area Abstention rule; threshold θeabstain iff 12(v(p) + e(S, I )) < θ e;0.03 ; never on a CSG-composed answer; OSWorld-G only CSG operators GROUND ,CELL (col ,row )
+> header refinement whole screen at b= 1 →crop of side d0/2at 9×area
+
+Table 5: Constants of AdaGround (Section 3.5). A single set serves both backbones and all benchmarks, and only 
+
+π is read off the encoder. d0(W, H ) is the window side of Section 3.3, L is the longer side of the rendered view, and 
+
+n× area means √n times the linear size. 
+
+OSWorld-G is the only benchmark here that ad-mits a refusal. On it, the pipeline abstains iff  
+
+> 12
+
+(v(p) + e(S, I )) < θ e = 0 .03 (Eq. (8)), where 
+
+v(p) is the score of the answer after re-grounding. It never abstains on a CSG-composed answer. 
+
+A.2 Prompt Template and Output Parsing Template structure. Every grounding pass uses the grounding system prompt of Appendix A.3, one image and the benchmark instruction I verbatim. The image is the whole screenshot or a crop, at the area factor of its stage, and no chain-of-thought or reasoning suffix is added. The box, verification, existence and program queries use the system mes-sage “You are a helpful assistant.” and the strings of Appendix A.3. 
+
+Output format and parsing. The point query re-turns a pair (α, β ) on the grid [0 , 1,000] 2 of the rendered view. The parser takes the first pair writ-ten as (x, y ), provided every such pair has inte-ger values. It maps this pair to the screenshot as 
+
+(⌊x0 + α w C /1000 ⌋, ⌊y0 + β h C /1000 ⌋), where 
+
+(x0, y 0) and wC × hC are the crop’s actual corner and size in original pixels (the whole screenshot for a whole-screen view). This is Eq. (4) with-out its dependence on the rendered size, so neither the rounding to the 32 -pixel grid nor the pixel cap enters the mapping. Every crop and window is centred on the current answer and shifted inside the screenshot, hence the actual corner rather than 
+
+p − d/ 2. A pass without such a pair yields no point, and its stage keeps the answer it had. Accordingly, TNZ does not zoom when the coarse pass fails, a zoom stage keeps its starting answer, re-grounding keeps the answer of its previous step, and a header grounding keeps its whole-screen point. The box query returns "bbox_2d": [x 1, y 1, x 2, y 2] on the same grid. Its shorter side, rescaled to original pixels, is ˆs.
+
+Determinism and reproducibility. Outputs are not bit-exact across runs, because the continuous batching of vLLM (Kwon et al., 2023) can change the batch in which a request is computed. Every configuration can be reproduced from public model weights, public benchmark inputs and the settings above. 14 Algorithm 1 AdaGround 
+
+Require: screenshot S (H × W ), instruction I, VLM M , token pitch π, constants of Section 3.5, portfolio C = {cTNZ , c 4×}
+
+in priority order 
+
+Ensure: click point p in screenshot pixels, or ABSTAIN 
+
+1: ρ ← REWRITE M (I) ▷ CSG: text-only program, ρ ∈ { GROUND , CELL (col , row )}
+
+2: p(c) ← c(S, I ) for every c ∈ C , with cTNZ = TNZ (S, I ) below ▷ VLR: chain portfolio 3: G ← complete-linkage groups of {p(c)} at radius δpx ; r(G) ← highest-priority member of G
+
+4: if |G| ≥ 2 then p ← arg max G∈G K v(r(G)) over the K largest groups else p ← r(G) ▷ Eq. (7) 5: if v(p) < θ r then 
+
+6: p′′ ← REGROUND (S, I, p ): whole screen, p crossed out → native d0 crop → d0/2 crop at 3× linear ▷ VLR: negative feedback 7: if v(p′′ ) > v (p) then p ← p′′ 
+
+8: end if 
+
+9: if ρ = CELL (col , row ) then 
+
+10: ground both header descriptions (whole screen, then d0/2 crop at 3× linear) → (xcol , y col ), (xrow , y row ) ▷ CSG 11: if xcol > x row and ycol < y row then return (xcol , y row ) ▷ Eq. (9) 12: end if 
+
+13: if refusal admissible and 12 (v(p) + e(S, I )) < θ e then return ABSTAIN ▷ VLR: Eq. (8) 14: return p
+
+Procedure TNZ (S, I ) ▷ Token-Normalized Adaptive Zooming with gated acceptance 1: b1 ← min(1 , max( bmin , A 0/(HW ))) ; p ← M (R(S, b 1), I ); ˆs ← shorter side of B OX M (R(S, b 1), I ) in original pixels; 
+
+kprev ← √b1
+
+2: for t = 1 to D do 
+
+3: ˆσ ← ˆs k prev /π 
+
+4: if no coarse box or ˆσ ≥ λtτ or (t ≥ 2 and kprev ≥ kmax ) then break ▷ adaptive depth 5: k ← Eq. (2); d ← Eq. (3); C ← box of side d centred on p, shifted inside S, top-left (x0, y 0)
+
+6: p′ ← (x0, y 0) + M (R(C, k 2), I )/k ▷ Eq. (4) 7: if t < D then ˆs ← shorter side of B OX M (R(C, k 2), I ) in original pixels (kept if no box) 8: if v(p′) ≥ v(p) then p ← p′; kprev ← k ▷ gated acceptance, Eq. (6) 9: end for 
+
+10: return p
+
+A.3 Verbatim Prompts 
+
+Every decision in AdaGround is a query to the same backbone M . The re-grounding threshold θr
+
+(Table 5) and the existence decision are defined on the first-token probabilities that these exact strings produce, so we give the strings in full. In them, 
+
+[instruction] stands for the benchmark instruction, inserted verbatim (in the rewrite query its double quotes are replaced by single quotes). The symbol 
+
+←- marks a line break, and quotation marks inside the prompts are typeset. 
+
+Grounding (system message). [H] and [W] are the height and width of the rendered view. 
+
+“You are an expert UI element locator. Given a GUI image and a user’s element description, pro-vide the coordinates of the specified element as a single (x,y) point. The image resolution is height 
+
+[H] and width [W] . For elements with area, return the center point. ←-←- Output the coordinate pair exactly: ←- (x,y)” 
+
+Size estimation (box query). The system message is “You are a helpful assistant.” and the user text is: 
+
+“Locate the UI element that this instruction refers to: " [instruction] ". ←- Output its bounding box as JSON [{"bbox_2d": [x1, y1, x2, y2]}] 
+
+with coordinates on the 0-1000 grid of the image.” 
+
+Verification v(p).
+
+“The red circle marks a candidate click position in this region of a screenshot. Instruction: " [instruc-tion] ". Is the red circle on the UI element that this instruction refers to? Answer Yes or No.” 
+
+Existence e(S, I ).
+
+“Instruction: " [instruction] ". ←- Is there a UI el-ement on this screen that this instruction refers to, so that the instruction can be carried out by clicking it? Answer Yes or No.” 
+
+Negative-feedback re-grounding. This query uses the grounding prompt above on the whole-screen view, with a red cross drawn at the rejected location and this note appended to the instruction: 
+
+“Note: a previous attempt clicked the location marked with the red X, and that was judged NOT to be the target. Find the correct element (it may be close to or far from the X).” 
+
+On a view of longer side L, the cross has arms reaching max(8 , ⌊0.012 L⌋) pixels from the centre along each axis. The cross and the note are used in the first, whole-screen pass only. The two crops that follow use the plain instruction. 
+
+CSG: instruction-to-program rewrite. A text-only query, with no image: 
+
+“Convert a GUI click instruction into a JSON pro-gram for a grounding engine. Operations: ←- 1. 
+
+15 {"op": "ground"} - the instruction names or de-scribes a UI element (button, icon, menu item, tab, field, link, list item, text, image, etc.) and clicking anywhere on that element is fine. Use this for almost all instructions. ←- 2. {"op": "cell", "col": "<column letters>", "row": <row number>} - the instruction asks for one cell inside the data grid of a spreadsheet, given by its column and row, e.g. “cell C12” or “the 3rd column and 12th row” -> {"op": "cell", "col": "C", "row": 12} . Do NOT use it for a row header (row number button), a column header (column letter button), a cell corner or fill handle, a cell described only by its content, or a grid that is not a spreadsheet (color palette, shape gallery, icon table, calendar) - use ground for those. ←-
+
+3. {"op": "along", "element": "<short description of the long element>", "fx": <0..1>, "fy": <0..1>} - the instruction asks for a specific relative position on a slider, progress bar, scroll bar, divider line or another long thin element; fx/fy are the relative position inside that element’s box, e.g. “the left end of the volume slider” -> fx 0.02, fy 0.5; “30% along the seek bar” -> fx 0.3, fy 0.5; “the bottom part of the vertical scroll bar” -> fx 0.5, fy 0.9; “the middle of the divider” -> fx 0.5, fy 0.5. ←- 4. {"op": "text_edge", "anchor": "<exact visible text>", "side": "before" or "after", "context": "<where that text is>"} - the instruction asks to place the text cursor immedi-ately before or after a specific visible piece of text, e.g. “put the cursor right after the word ’Total:’ in the table header” -> {"op": "text_edge", "anchor": "Total:", "side": "after", "context": "table header"} . ←- Instruction: "[instruction] " ←- Output only the JSON object.” 
+
+Programs of the last two types are not executed and fall back to GROUND . The CELL operator grounds two header instructions, “The column header la-beled " [col] " at the top of the spreadsheet grid” and “The row header labeled " [row] " at the left of the spreadsheet grid”. Each is grounded first on the whole screen at b = 1 and then on a crop of side d0/2 around that point at 9× area. The an-swer (xcol , y row ) is composed iff xcol > x row and 
+
+ycol < y row . Otherwise the VLR answer is kept. 
+
+Chain arbitration. The chains’ answers are grouped by complete linkage at δpx , so a point joins a group only if it lies within δpx of every member. Each group is represented by its mem-ber from the highest-priority chain. With a single group, its representative is returned. Otherwise the representatives of up to K largest groups are verified independently with the verification prompt above, each on its own window, and the highest v
+
+wins. No prompt shows two candidates at once. 
+
+A.4 Compute and Cost 
+
+All experiments ran on one node with 4× NVIDIA H20 (96 GB). AdaGround and the baselines ran                                                                                                                               
+
+> Qwen3-VL-8B Acc. Tok. (k) Calls Depth Lat. (s) p95
+> OSWorld-G
+> Single pass 64.7 1.7 1.0 1.0 0.9 1.3 Fixed 4×crop 70.7 5.3 2.0 2.0 3.1 3.8
+> cTNZ 72.7 10.4 6.9 4.0 7.7 10.5 + arbitration 73.6 16.2 9.3 4.2 11.1 14.6 + re-grounding 73.2 17.7 10.9 5.8 12.0 16.5 + CSG 73.6 17.9 12.0 5.8 12.7 17.2 + abstention 76.1 19.5 13.0 5.8 13.3 18.3
+> ScreenSpot-Pro
+> Single pass 51.3 5.4 1.0 1.0 4.7 7.6 Fixed 4×crop 63.5 9.1 2.0 2.0 7.3 10.3
+> cTNZ 59.6 15.7 6.9 4.0 11.8 18.8 + arbitration 65.6 27.3 9.8 4.5 21.0 33.1 + re-grounding 66.2 31.9 11.4 6.2 24.5 45.5 + CSG 66.2 31.9 12.5 6.2 24.9 45.8
+> ScreenSpot-v2
+> Single pass 92.1 2.7 1.0 1.0 1.8 2.6 Fixed 4×crop 91.9 6.0 2.0 2.0 4.2 5.2
+> cTNZ 92.5 12.2 6.9 4.0 8.9 11.3 + arbitration 92.5 18.8 9.3 4.3 13.3 17.2 + re-grounding 91.9 21.0 10.8 5.8 14.6 21.1 + CSG 91.9 21.0 11.8 5.8 14.9 21.4
+
+Table 6: Cost per sample (Qwen3-VL-8B, full bench-marks). Columns: accuracy (%), visual tokens (thou-sands), model calls, and calls in sequence (depth, with independent calls in parallel). Latency: mean and 95th-percentile seconds per sample on 150 random samples per benchmark, with sequential calls (Appendix A.4). The last row of each block is AdaGround. 
+
+under vLLM 0.11 .2 with batched offline infer-ence (at most 16 and 8 concurrent sequences), BF16 weights for Qwen3-VL-8B and FP8 weights for Qwen3-VL-32B. In Table 6, re-grounding is charged its three passes and their verification only where it fires, and the verification that triggers it on every sample. Latency is measured with se-quential calls on one GPU at batch size 1, on 150 
+
+random samples per benchmark, with vLLM’s pre-fix caching enabled (as in all experiments) and each stage’s warm-up excluded. The text-only CSG rewrite is sent as one batched request and charged at its mean share per sample. AdaGround takes 3.4
+
+to 4.2 times the latency of the fixed 4× crop. On both backbones it reads 3.5 to 3.9 times the visual tokens of that crop ( 1.7 to 2.0 times those of cTNZ 
+
+alone). On Qwen3-VL-32B it makes 12 .2 to 13 .7
+
+calls per sample, 6.2 to 6.6 of them in sequence. 
+
+B Ablations and Component Analyses 
+
+All results use the full benchmarks and, except for the quantity varied, the configuration of Section 3.5. Intervals are computed as in Appendix D.2. 16 B.1 Components 
+
+This subsection tests the steps of Table 4. 
+
+TNZ. cTNZ improves the single pass by 4.8 to 
+
+17 .1 points on OSWorld-G and ScreenSpot-Pro and stays within a point of it on ScreenSpot-v2 (+0 .4 and +0 .6, both intervals containing zero). Compared with the fixed 4× crop, it is signifi-cantly lower on Qwen3-VL-8B ScreenSpot-Pro (−3.9 [ −5.8, −2.0] ), and the other five differences (−1.5 to +2 .0 points) are not significant. On held-out UI-Vision, cTNZ is above the fixed crop by 
+
++2 .6 [+1 .5, +3 .6] and +2 .5 [+1 .2, +3 .8] points. There, the full AdaGround’s lead over the fixed crop is largest on spatial instructions, which name the target by its relation to other elements ( +4 .9
+
+and +7 .9). 
+
+Chain arbitration pays off where the chains’ an-swers fall into two groups. This happens on 716 
+
+(45% ) and 545 (34% ) of the 1,581 ScreenSpot-Pro samples (Qwen3-VL-8B and 32B), but only on 
+
+115 and 107 of the 564 OSWorld-G samples. On ScreenSpot-Pro, arbitration raises cTNZ by +5 .9[+4 .6, +7 .3] and +3 .2 [+2 .2, +4 .4] points, recov-ering 38 .8% and 35 .9% of the headroom between the better chain and the oracle (Table 8). Most of AdaGround’s gain over the fixed crop there is thus already present after arbitration ( 2.1 and 1.8
+
+of 2.7 and 2.0 points, Table 13). On OSWorld-G it adds +0 .9 [ −0.3, +2 .2] and +0 .2 [ −0.4, +0 .8] 
+
+points over cTNZ , and on ScreenSpot-v2 0.0 and 
+
++0 .6 [+0 .2, +1 .2] . Many verifier decisions are be-tween scores near 1. Both scores are at least 0.999 
+
+in 45 .2–76 .9% of TNZ acceptance decisions, and the two highest scores are in 10 .3–47 .2% of arbi-trations. 
+
+Re-grounding helps on ScreenSpot-Pro but costs 
+
+0.6 points on ScreenSpot-v2, where more than 92% 
+
+of answers are already right and it replaces more correct answers than it repairs. 
+
+CSG acts only on OSWorld-G, where it adds 2
+
+and 5 samples net (not significant). Qwen3-VL-8B and 32B rewrite 20 and 23 instructions into cell pro-grams and compose a cell on 19 of each. On these programs the chain up to re-grounding solves 13 of each, the single pass 15 and 17 , and AdaGround 15 
+
+and 18 . Returning the single-pass answer instead of composing (exempt from abstention, like a com-posed answer) does as well. It changes AdaGround by 0.0 [ −0.5, +0 .5] and −0.2 [ −1.1, +0 .5] points,                               
+
+> Backbone Rule θeOverall Present targets Abstentions
+> (correct / false) Qwen3-VL-8B no gate –73.6 81.4 0 / 0 existence 0.01 74.6 77.8 24 / 31 joint 0.03 76.1 81.2 15 / 4 Qwen3-VL-32B ∗no gate –77.8 86.1 0 / 0 existence 0.01 81.9 83.9 34 / 19 joint 0.03 79.3 86.1 8 / 2
+
+Table 7: Abstention rules on OSWorld-G . Existence :abstain iff e(S, I ) < θ e. Joint : abstain iff 12 (v(p) + 
+
+e(S, I )) < θ e (Eq. (8)). Abstentions: correct (absent target) / false (present target). Present targets: accuracy where the target is present. The existence rule uses 
+
+θe = 0 .01 , the most conservative value tried. Shaded: the configuration used elsewhere. ∗FP8 weights. 
+
+and on the composed cells it is right on 15 and 16 ,against 14 and 15 for the composed point. CSG’s gain thus comes from replacing the zoomed answer, not from composing the headers. 
+
+Abstention adds 2.5 and 1.4 points on OSWorld-G (Table 4) and accounts for about half or more of AdaGround’s gain there over the fixed crop ( 14 of 
+
+30 and 8 of 12 samples net). Without it, the lead over the crop is significant on Qwen3-VL-8B only (Table 13, superscript a). 
+
+B.2 Abstention 
+
+The existence query alone withdraws many an-swers whose target is present (Table 7). The joint rule of Eq. (8) abstains only when the verifier also fails to confirm the answer. Its overall accuracy stays within 75 .9–76 .2% and 79 .1–79 .6% for θe
+
+from 0.01 to 0.2. At θe = 0 .03 it recalls 27 .8% [17 .6, 40 .9] and 14 .8% [7 .7, 26 .6] of the absent tar-gets at false-refusal rates of 0.8% [0 .3, 2.0] and 
+
+0.4% [0 .1, 1.4] (Wilson intervals). On Qwen3-VL-32B the existence rule at θe = 0 .01 reaches a higher overall accuracy, but with 19 false absten-tions. The rule also works without AdaGround. Ap-plied to the answers of the fixed 4× crop and of MVP on OSWorld-G (Table 13, superscript b), it raises them to 73 .8% (+3 .0 [+1 .3, +5 .0] ) and 
+
+73 .0% (+3 .2 [+1 .5, +5 .0] ) on Qwen3-VL-8B. On 32B it raises the fixed crop to 78 .5% (+1 .4[+0 .2, +2 .8] ). 
+
+B.3 Quality of the Size Estimate 
+
+Both backbones return a box, and thus ˆs, on every sample. On ScreenSpot-Pro the estimate is coarse. Its median ratio to the true side is 1.2 (Qwen3-VL-8B) and 1.4 (32B), and its error is below the true 17 side on 82 .4% and 84 .1% of samples. Both back-bones therefore under-magnify on average (mean first-stage magnification 3.1 and 2.7, against 3.4
+
+with the true s). On ScreenSpot-v2 the estimate is closer (median ratio 0.8 and 0.9) and both over-magnify slightly ( 1.8 and 1.7 against 1.5). TNZ is robust to this error. With the true s, the arbitrated accuracy changes by −0.6 to −0.2 points, and ev-ery interval contains zero (Qwen3-VL-8B). The estimate is not corrected, and a target outside an over-tight view can only be rejected by verification, not recovered. 
+
+B.4 Design Choices 
+
+Removing one component of AdaGround at a time gives three significant differences, all of them losses. They come from abstention on OSWorld-G with both backbones and from re-grounding on Qwen3-VL-8B ScreenSpot-Pro. A looser re-grounding threshold ( θr = 0 .9) changes accuracy by at most one sample net in every cell. Accuracy is not sensitive to the target span and changes by at most 0.6 points at τ = 2 and τ = 4 . Within TNZ, the first zoom carries most of the gain over the coarse point. The negative feedback in re-grounding (the crossed-out location and the ex-clusion note) changes which answers re-grounding returns, but overall accuracy differs significantly on no benchmark. 
+
+B.5 Chain Arbitration 
+
+Arbitration (Eq. (7)) is significantly above the better chain on ScreenSpot-Pro, and significantly above a random choice in four of the six cells (Table 8). The gain comes from the samples on which exactly one chain is right. On Qwen3-VL-8B ScreenSpot-Pro, both chains are right on 858 
+
+samples, only c4× on 146 , only cTNZ on 85 and neither on 492 . The verifier is called on the 716 
+
+samples whose two clicks lie more than δpx apart (545 on Qwen3-VL-32B). These include 227 of the 231 samples with exactly one chain right. The other 4 keep cTNZ ’s answer. On these 227 , always taking c4× would be right on 144 (63 .4% ), while the verifier is right on 177 (78 .0% ). On Qwen3-VL-32B, the counts are 99 of 174 (56 .9% ) against 
+
+126 (72 .4% ). 
+
+Ties and score precision. On Qwen3-VL-8B, 
+
+304 of the 1,066 arbitrations ( 28 .5% ) are ties at four decimals. Most of them have both scores at 
+
+1.0000 , i.e. the verifier confirms both clicks. On 32B the tie rate is 9.8% , and fewer than half of these ties are at 1.0000 . Where exactly one chain is right on a tie, the verifier picks it on 28 of 56 .The net gain over c4× comes from decisions with a margin above 10 −4 (+61 samples, against −6 at smaller margins). The score uses the 20 most likely first tokens, which contain Yes and No in all 8,762 
+
+verifications. Scoring with the 1,000 most likely tokens changes no answer’s correctness. 
+
+B.6 Fixed-Geometry Controls 
+
+Table 9 tests whether the complementarity that arbitration exploits is specific to TNZ’s geom-etry. The control is a second fixed chain at TNZ’s median first-stage geometry (Qwen3-VL-8B, three development benchmarks). On OSWorld-G and ScreenSpot-Pro it is not significantly dif-ferent from TNZ, after arbitration or in the full pipeline. On these two benchmarks it uses 41 to 
+
+47% fewer visual tokens when the single pass the two chains share is counted once. On Qwen3-VL-8B ScreenSpot-Pro the chain alone is above cTNZ 
+
+(+2 .7 [+0 .9, +4 .5] ). On ScreenSpot-v2, whose tar-gets are larger, its 540 -pixel window is too narrow (TNZ’s median window there is 990 and 1,074 pix-els). It is significantly worse there after arbitration on both backbones, as it is on held-out UI-Vision (Qwen3-VL-8B), whose targets are small. In the full pipeline these losses are no longer significant. 
+
+C Reproduced Baselines and ScreenSpot-v2 
+
+Table 10 gives the overall accuracy on the three development benchmarks, including ScreenSpot-v2, for which MVP reports no results. Its targets are large (median 85 pixels), and the single pass already reaches 92 .1% and 94 .7% , which leaves refinement little to add. AdaGround ties the fixed 
+
+4× crop on both backbones and is not significantly different from the single pass (Table 13). Table 11 gives the reproduced baselines per cat-egory. 
+
+D MVP Comparison and Statistical Notes 
+
+Table 12 contrasts the designs of AdaGround and MVP (Zhang et al., 2026d). 
+
+D.1 MVP Setup 
+
+On Qwen3-VL-8B we reproduce MVP with its official code, prompt and published configuration 18 Accuracy (%) Arbitration minus (points) Verifier Benchmark cTNZ c4× random arbitration oracle better chain random pick 
+
+Qwen3-VL-8B 
+
+OSWorld-G 72.7 70.7 71.7 73.6 76.1 +0 .9 [ −0.3, +2 .2] 8/3 +1 .9 [+0 .6, +3 .1] 27/35 ScreenSpot-Pro 59.6 63.5 61.6 65.6 68.9 +2 .1 [+0 .8, +3 .3] 67/34 +4 .0 [+3 .1, +4 .9] 177/227 ScreenSpot-v2 92.5 91.9 92.2 92.5 94.0 0.0 [ −0.6, +0 .6] 8/8 +0 .3 [ −0.2, +0 .8] 27/46 
+
+Qwen3-VL-32B ∗
+
+OSWorld-G 76.6 77.1 76.9 76.8 79.8 −0.4 [ −2.1, +1 .5] 13/15 −0.1 [ −1.0, +0 .9] 11/24 ScreenSpot-Pro 72.4 73.9 73.1 75.6 78.8 +1 .8 [+0 .4, +3 .0] 65/37 +2 .5 [+1 .7, +3 .4] 126/174 ScreenSpot-v2 95.4 95.4 95.4 96.0 96.6 +0 .6 [ −0.1, +1 .2] 13/6 +0 .6 [+0 .2, +1 .0] 23/31 
+
+Table 8: Chain arbitration before re-grounding, CSG and abstention. Random: either chain with probability 12
+
+(expected). Oracle: either chain is right. Underlined: the better chain, chosen after the fact. Differences: 95% CI and, against the better chain, samples won/lost. Pick: verifier picks the right chain / samples with exactly one chain right (verifier called). ∗FP8 weights.                                                                                                               
+
+> Second chain Chain + arbitration AdaGround variant ∆vs. AdaGround
+> Qwen3-VL-8B
+> OSWorld-G cTNZ (AdaGround) 72.7 73.6 76.1 –fixed 540 ×540 crop, 2.78 ×71.1 ( −1.6)72.7 ( −0.9 [ −2.9,+1 .2] )75.7 −0.4 [ −2.3,+1 .5]
+> ScreenSpot-Pro cTNZ (AdaGround) 59.6 65.6 66.2 –fixed 540 ×540 crop, 2.78 ×62.4 ( +2 .7)65.7 ( +0 .1 [ −1.1,+1 .3] )66.1 −0.1 [ −1.3,+1 .1]
+> ScreenSpot-v2 cTNZ (AdaGround) 92.5 92.5 91.9 –fixed 540 ×540 crop, 2.78 ×89.3 ( −3.2)90.8 ( −1.7 [ −2.8,−0.7] )91.0 −0.9 [ −1.9,0.0]
+> UI-Vision hcTNZ (AdaGround) 30.4 31.3 31.7 –fixed 540 ×540 crop, 2.78 ×29.1 ( −1.2)30.2 ( −1.1 [ −1.8,−0.4] )31.2 −0.5 [ −1.2,+0 .3]
+> Qwen3-VL-32B ∗
+> OSWorld-G cTNZ (AdaGround) 76.6 76.8 79.3 –fixed 540 ×540 crop, 2.78 ×76.4 ( −0.2)77.5 ( +0 .7 [ −1.1,+2 .5] )78.0 −1.2 [ −2.9,+0 .2]
+> ScreenSpot-Pro cTNZ (AdaGround) 72.4 75.6 75.9 –fixed 540 ×540 crop, 2.78 ×75.3 ( +2 .9)76.6 ( +0 .9 [ −0.2,+2 .1] )77.0 +1 .1 [0 .0,+2 .3]
+> ScreenSpot-v2 cTNZ (AdaGround) 95.4 96.0 95.4 –fixed 540 ×540 crop, 2.78 ×93.9 ( −1.5)95.1 ( −0.9 [ −1.6,−0.2] )95.4 −0.1 [ −0.8,+0 .6]
+
+Table 9: Fixed-geometry controls . Each control replaces cTNZ with another second chain and leaves everything else unchanged. Values are accuracy (%). In parentheses: the paired difference in points to the same column of the 
+
+cTNZ (AdaGround) row, with 95% CI for arbitration. 2.78 ×: linear scale. hHeld out and pooled over its instructions (Qwen3-VL-8B only). ∗FP8 weights. 
+
+OSWorld-G ScreenSpot-Pro ScreenSpot-v2 Backbone Single Fixed 
+
+4× MVP AdaGround Single Fixed 
+
+4× MVP AdaGround Single Fixed 
+
+4× AdaGround Qwen3-VL-8B 64.7 70.7 69.9/72.7 † 76.1 51.3 63.5 61.9/65.3 † 66.2 92.1 91.9 91.9 Qwen3-VL-32B ∗ 71.8 77.1 72.0 † 79.3 55.3 73.9 74.1 ‡/74.0 † 75.9 94.7 95.4 95.4 
+
+Table 10: Overall accuracy (%) on the full benchmarks , with one configuration of AdaGround for both backbones and all benchmarks. Best value per backbone and benchmark in bold . MVP (Zhang et al., 2026d) values are our reproduction with its official code when unmarked, the authors’ released per-sample predictions when marked ‡,and published results when marked †. ∗FP8 weights. 
+
+(attention layer 24 , two sub-image inferences) un-der Hugging Face transformers (Wolf et al., 2020). The only change, made for speed, turns the vi-sion tower’s patch-embedding convolution into the equivalent linear map. On OSWorld-G we use its ScreenSpot-Pro attention pipeline, because its re-leased OSWorld-G code implements a different procedure. The reproduction scores below the pub-lished results (Table 10). So does MVP’s own single pass in our environment, with 65 .1% and 
+
+51 .5% on OSWorld-G and ScreenSpot-Pro against the published 68 .8% and 55 .0% . The gain MVP adds to its single pass is reproduced, at +4 .8 and 
+
++10 .4 points against the published +3 .9 and +10 .3.19 OSWorld-G Text Element Layout Fine-gr. Refusal Overall                                                                                                                                                           
+
+> Qwen3-VL-8B single pass 78.2 68.5 71.9 53.7 0.0 64.7 + fixed 4×crop ( c4×alone) 80.1 77.3 78.7 58.4 0.0 70.7 +6.0
+> + MVP (official code ‡, reproduced) 78.2 76.4 79.4 56.4 0.0 69.9 +4.8
+> + AdaGround 85.1 80.0 81.8 65.1 27.8 76.1 +11.3
+> Qwen3-VL-32B ∗single pass 81.6 75.8 77.5 63.1 0.0 71.8 + fixed 4×crop ( c4×alone) 82.0 84.2 86.6 63.8 0.0 77.1 +5.3
+> + AdaGround 85.8 84.8 84.6 67.1 14.8 79.3 +7.4
+> ScreenSpot-Pro Dev. Creative CAD Scientific Office OS Overall
+> Qwen3-VL-8B single pass 47.2 46.0 44.4 53.9 71.3 49.0 51.3 + fixed 4×crop ( c4×alone) 60.5 54.3 60.5 62.6 83.9 65.3 63.5 +12.2
+> + MVP (official code, reproduced) 58.2 54.5 57.5 60.6 82.6 63.8 61.9 +10.4
+> + AdaGround 61.5 57.2 65.5 66.9 85.2 66.3 66.2 +14.9
+> Qwen3-VL-32B ∗single pass 43.1 53.7 57.1 63.0 73.0 43.9 55.3 + fixed 4×crop ( c4×alone) 69.9 67.7 74.3 71.3 90.0 74.5 73.9 +18.5
+> + MVP (authors’ released predictions) 71.6 69.5 74.7 70.5 87.8 74.0 74.1 + AdaGround 71.6 70.1 76.6 74.8 91.3 75.0 75.9 +20.6
+> UI-Vision (held out) Basic Func. Spatial Avg.
+> Qwen3-VL-8B single pass 29.2 30.1 11.8 23.7 + fixed 4×crop ( c4×alone) 33.6 35.4 15.5 28.2 +4.5
+> + AdaGround 37.0 38.7 20.4 32.0 +8.3
+> Qwen3-VL-32B ∗single pass 44.2 43.2 22.6 36.7 + fixed 4×crop ( c4×alone) 50.5 50.5 30.6 43.9 +7.2
+> + AdaGround 52.5 51.7 38.4 47.6 +10.9
+
+Table 11: Reproduced baselines , accuracy (%) per category, which the main tables omit. The fixed 4× crop is AdaGround’s chain c4× alone (an ablation, Section 4.3). MVP (Zhang et al., 2026d) is reproduced with its official code on Qwen3-VL-8B, or scored from the per-sample predictions released by its authors for Qwen3-VL-32B ScreenSpot-Pro. ‡On OSWorld-G, MVP runs its ScreenSpot-Pro pipeline (Appendix D.1). Single pass and AdaGround as in Tables 1, 2 and 3. Subscripts: gain over the method’s own single pass. MVP’s single pass scores 
+
+65 .1 and 51 .5 in our reproduction, and the released predictions include none. UI-Vision Avg.: mean of the three tasks. ∗FP8 weights. 
+
+On Qwen3-VL-32B we score the ScreenSpot-Pro predictions released by MVP’s authors, which al-low a paired test, and list the published OSWorld-G result. 
+
+D.2 Scoring and Paired Tests Scoring. OSWorld-G uses its released evaluation, which scores polygon targets point-in-polygon and credits an absent target only on abstention. The other benchmarks are scored point-in-box with ab-stention off. As in the official scorer, an answer without a parsable point is wrong. On 12 of the 54 
+
+absent-target instructions, Qwen3-VL-32B states in text, in every configuration, that the element is not on the screen, and it returns no coordinate within the 32 -token limit of a grounding pass. Only Eq. (8) counts as a refusal, so these 12 are wrong for every method. The rows of Table 1 marked ◦
+
+are quoted from Xie et al. (2026), which evaluated them on the original instructions. On the refined instructions, its Figure 5 reports 63 .7 for UI-TARS-72B, 57 .5 for Operator, 47 for Gemini-2.5-pro and 
+
+63 .8 for Jedi-7B. 
+
+Paired tests. Paired differences, in Table 13 and Appendix B, carry 95% intervals from 4,000 boot-strap resamples of screenshots (the samples of one screenshot resampled together). For a baseline with abstention (superscript b), the verifier scores the baseline’s own answer, with the same existence query as AdaGround. 
+
+E Token-Span Analysis 
+
+Unless stated otherwise, this appendix uses the following baseline passes of Qwen3-VL-8B: the single pass, and a square crop of side d0(W, H )
+
+centred on its answer, rendered at native resolu-tion (the square crop ) and at 4× area (the square 
+
+4× crop ). These passes are separate from the ex-periments of Section 4 and have their own crop geometry and preprocessing, so their accuracies differ from Table 10. 20 MVP (Zhang et al., 2026d)          
+
+> AdaGround (ours)
+> Target scale not modelled; fixed-size attention crops estimated from the model’s own box; k
+> and dsolved per sample (TNZ) View selection attention maps from a chosen layer size estimate from the model’s own box output Aggregation spatial clustering of 3 predictions, largest group verifier arbitration over a static chain portfolio; verification-gated acceptance Failure handling none negative-feedback re-grounding; existence-gated abstention; compositional cell grounding Model access attention maps (white box) black box: text and first-token probabilities Decoding greedy greedy
+
+Table 12: AdaGround vs. MVP : design differences. 
+
+E.1 Definition, Relation to Area Measures, and Pitch Sensitivity 
+
+The token span σ = sk/π (Eq. (1), with π = 32 
+
+for Qwen3-VL (Bai et al., 2025a)) is measured in the rendered view. An area measure, the effective tokens on the target reff = T (AI ) · At/A I , is de-fined on the whole screenshot instead. Here At
+
+and AI are the areas of the target and the screen-shot, and T (AI ) is the number of visual tokens of the whole screenshot. It satisfies reff ≈ σ2 for a square target at k = 1 . A 4× up-sampled crop leaves At/A I unchanged but doubles σ. This is why σ, and not the area ratio, predicts the effect of a zoom. For example, a 24 -pixel target on a 
+
+3840 ×2160 screenshot spans 0.4 tokens on TNZ’s coarse view ( k ≈ 0.5), 0.75 at k = 1 and 1.5 after a 4× crop. Eq. (2) with the constants of Table 5 solves k = clip(3 ·32 /24 , 1, 4) = 4 and lands the target on 3.0.
+
+Pitch sensitivity. The pitch π only fixes the unit. What matters is that size is measured after render-ing. A gate on original pixels is a different rule, because the same target is rendered at different scales on different screens. 
+
+E.2 Accuracy versus Token Span 
+
+Table 14 and Figure 4 pool the whole-screen and crop passes of the three baselines on the three benchmarks (nine passes). They are restricted to 0–0.5 0.5–1 1–1.5 1.5–2 2–3 3–4 4–6 6–10 >10 
+
+Target token span ¾ in the view seen   
+
+> 20 40 60 80 100
+> Accuracy (%)
+> smaller gains (¾≳2–3 tokens)
+> TNZ target  ¿ = 3
+> pooled ScreenSpot-Pro OSWorld-G ScreenSpot-v2
+
+Figure 4: Accuracy versus token span per benchmark (bins with ≥ 30 views) and pooled (dashed), on views that contain the target (Table 14). Whiskers and bands: 
+
+95% screenshot-bootstrap intervals. Dotted line: TNZ’s target span τ = 3 .
+
+the 15 ,488 of 16 ,813 view–sample pairs whose view contains the target, so that a miss measures legibility and not framing. Accuracy climbs steeply below about three tokens and gains much less above. In the pooled data, all four steps be-low three tokens exclude zero, although the step from 1–1.5 to 1.5–2 tokens does so only narrowly (+4 .5 [+0 .03 , +8 .7] ). Two paired contrasts iso-late the span. Up-sampling the same crop 4×,which changes σ alone, gains 2.6 [+1 .1, +4 .0] ,
+
+6.6 [+4 .4, +8 .7] and 0.9 [ −0.1, +2 .0] points on ScreenSpot-Pro, OSWorld-G and ScreenSpot-v2. The second contrast compares the same sample on the coarse view and on the crop of the same base-line (bottom of Table 14 and Figure 5). The crop gains +7 .8 and +10 .8 points below one token and nothing significant once the target spans two to-kens or more. We call this empirical trend on three benchmarks with Qwen3-VL-8B the token-span regularity . It governs the benefit of a zoom. 
+
+Exceptions and composition. One ScreenSpot-Pro bin, four to six tokens, runs against the trend (−24 .1 [ −43 .3, −4.3] points below the bin beneath it), but it holds only 56 views from 41 screenshots. The pooled within-sample fade is partly composi-tion. Low-span cells are 72% ScreenSpot-Pro, and high-span cells are almost all ScreenSpot-v2. Even so, each benchmark follows the trend over its own range (cells with n ≥ 40 ). Every ScreenSpot-Pro cell starts below two tokens and gains ( +10 .6 to 21 Benchmark vs. single vs. fixed 4× vs. fixed 4×a vs. fixed 4×b vs. MVP vs. MVP a vs. MVP b                                                                                   
+
+> Qwen3-VL-8B
+> OSWorld-G +11 .3[+8 .3,+14 .4] +5 .3[+2 .3,+8 .5] +2 .8[+0 .4,+5 .4] +2 .3[0 .0,+4 .8] +6 .2[+3 .3,+9 .1] +3 .7[+1 .3,+6 .1] +3 .0[+0 .6,+5 .4]
+> 71/7 47/17 32/16 32/19 53/18 38/17 38/21 ScreenSpot-Pro +14 .9[+12 .8,+16 .9] +2 .7[+1 .3,+4 .0] ––+4 .2[+2 .6,+5 .9] ––276/41 81/39 125/58 ScreenSpot-v2 −0.2[−1.5,+1 .0] 0.0[−1.0,+1 .0] –––––31/34 22/22 UI-Vision +8 .3[+7 .2,+9 .4] +3 .9[+2 .9,+4 .8] –––––606/150 388/175
+> Qwen3-VL-32B ∗
+> OSWorld-G +7 .4[+4 .8,+10 .1] +2 .1[−0.2,+4 .4] +0 .7[−1.3,+2 .7] +0 .7[−1.4,+2 .7] –––51/9 28/16 20/16 21/17 ScreenSpot-Pro +20 .6[+18 .3,+22 .8] +2 .0[+0 .7,+3 .4] ––+1 .8[+0 .3,+3 .3] ––358/33 76/44 92/64 ScreenSpot-v2 +0 .7[−0.2,+1 .7] 0.0[−0.9,+0 .9] –––––25/16 16/16 UI-Vision +11 .0[+9 .6,+12 .5] +3 .8[+2 .7,+5 .0] –––––820/216 508/299
+
+Table 13: Paired differences (points) of AdaGround on the full benchmarks, with 95% confidence intervals (Appendix D.2) and, below, samples won/lost. MVP: our reproduction (Qwen3-VL-8B) or the authors’ released predictions (Qwen3-VL-32B ScreenSpot-Pro). UI-Vision: held out, pooled over its instructions. aAdaGround without abstention. bThe baseline with the abstention rule of Eq. (8) applied to its own answer (OSWorld-G). ∗FP8 weights. 
+
++13 .3 points). No OSWorld-G cell excludes zero (0.0 to +5 .1). Eight of ten ScreenSpot-v2 cells are negative ( −2.8 to +5 .7), none significantly. The sign flips from ScreenSpot-Pro to ScreenSpot-v2. The square 4× crop beats the single pass on the former ( +10 .7 [+8 .8, +12 .6] ) and loses to it on the latter ( −2.6 [ −4.0, −1.2] ). 
+
+E.3 The 2×2 Control and ScreenSpot-v2 
+
+A crop also discards the screen around the target, a cost the regularity does not describe. A 2×2
+
+control over {whole screen, crop } × { native, 4×} 
+
+places both the benefit and the cost in the crop. Rendering the whole screen at four times the area raises the median view scale from 1.01 to 1.76 ,so the median span grows 1.7× with no context lost. Yet accuracy changes by only +0 .4 points on ScreenSpot-Pro ( p = 0 .72 , at 2.2 times the visual tokens) and −0.7 on ScreenSpot-v2 ( p = 0 .23 ). Cropping at native scale changes them by +8 .1
+
+and −3.5 points. Span bought without restricting the view brings no gain. The crop both raises the span and removes candidate locations, and σ says which effect dominates. On ScreenSpot-v2, TNZ’s loose first-stage criterion fires on 92 .5% and 91 .8% 
+
+of samples (Qwen3-VL-8B and 32B). Gated accep-tance keeps the zoomed answer on only 60 .8% and 
+
+58 .2% , so cTNZ stays level with the single pass (Table 4). 
+
+E.4 What a Well-Placed Crop Leaves Behind 
+
+On ScreenSpot-Pro, an oracle square crop centred on the ground truth resolves only 287 of the single pass’s 787 failures and breaks 50 correct answers. With the square 4× crop, 322 of the 618 remaining failures ( 52% ) have the target inside the crop. In these cases the model saw the target and committed to another location. Refinement therefore needs a signal to accept or reject a zoomed answer, push the model off a wrong choice and choose between disagreeing views. 
+
+E.5 Targets without Visual Evidence 
+
+Two classes of OSWorld-G instruction are not about legibility. A spreadsheet cell is named by its column and row, whose headers lie outside any 22 ScreenSpot-Pro OSWorld-G ScreenSpot-v2 Pooled 
+
+σ (tokens) n Acc. n Acc. n Acc. n Acc. [95% CI] 
+
+0–0.5 342 24.0 366 42.6 0 – 708 33.6 [26.7, 40.4] 
+
+0.5–1 4180 55.4 1109 78.5 185 88.1 5474 61.2 [58.9, 63.6] 
+
+1–1.5 1396 63.1 532 78.2 743 90.3 2671 73.7 [70.6, 76.6] 
+
+1.5–2 813 66.9 173 91.9 615 89.3 1601 78.2 [75.0, 81.3] 
+
+2–3 317 75.4 174 87.4 1422 92.6 1913 89.3 [86.8, 91.6] 
+
+3–4 149 86.6 32 96.9 817 93.8 998 92.8 [90.3, 95.1] 
+
+4–6 56 62.5 27 92.6 1003 95.7 1086 93.9 [91.6, 96.0] 
+
+6–10 19 89.5 11 90.9 673 98.2 703 97.9 [96.5, 99.0] 
+
+> 10 2 100.0 8 100.0 324 95.1 334 95.2 [91.5, 98.4] 
+
+Within-sample (5,390 pairs in the ten cells with n ≥ 40 ; 5,399 in all) Before After n Mean σ before →after Acc. before Acc. after ∆ [95% CI] 
+
+< 1 < 1 1448 0.65 → 0.70 61.0 68.8 +7 .8 [+5 .5, +10 .1] 
+
+< 1 1–2 1190 0.73 → 1.45 68.1 78.8 +10 .8 [+8 .4, +13 .1] 
+
+1–2 1–2 643 1.37 → 1.40 82.3 86.2 +3 .9 [+1 .0, +6 .7] 
+
+1–2 2–3 455 1.25 → 2.42 81.3 87.3 +5 .9 [+2 .4, +9 .4] 
+
+1–2 3–6 235 1.71 → 3.46 83.0 87.2 +4 .3 [+0 .0, +8 .7] 
+
+2–3 2–3 307 2.37 → 2.42 92.5 92.5 +0 .0 [ −2.6, +2 .6] 
+
+2–3 3–6 332 2.41 → 4.73 93.1 92.8 −0.3 [ −2.8, +2 .1] 
+
+3–6 3–6 269 3.97 → 4.04 97.4 95.5 −1.9 [ −4.2, +0 .4] 
+
+3–6 > 6 283 4.07 → 8.02 96.8 95.8 −1.1 [ −3.9, +1 .7] 
+
+> 6 > 6 228 8.40 → 12 .68 100.0 98.2 −1.8 [ −4.1, +0 .0] 
+
+Table 14: Accuracy versus token span (Qwen3-VL-8B, with the nine baseline passes of Appendix E), on views that contain the target. Top: accuracy by the token span σ in the view the model saw, per benchmark and pooled ( n
+
+= views). Pooled cells carry 95% screenshot-bootstrap intervals, with all views of a screenshot resampled together. Bottom: the same sample on its coarse view and on the crop of the same baseline, with mean span, accuracy before and after, and the paired change. <1→<1 <1→1–2 1–2→1–2 1–2→2–3 1–2→3–6 2–3→2–3 2–3→3–6 3–6→3–6 3–6→>6 >6→>6 
+
+> Span before → after the crop pass (same sample; crops that contain the target)
+
+−5 0510 15     
+
+> Δ accuracy (points)
+> before < 1 before 1–2 before 2–3 before 3–6 before > 6
+> +7.8
+> 61% n=1448
+> +10.8
+> 68% n=1190
+> +3.9
+> 82% n=643
+> +5.9
+> 81% n=455
+> +4.3
+> 83% n=235
+> +0.0
+> 92% n=307
+> -0.3
+> 93% n=332
+> -1.9
+> 97% n=269
+> -1.1
+> 97% n=283
+> -1.8
+> 100% n=228
+
+Figure 5: Within-sample change from the crop pass (Table 14, bottom), by span before → after (green gain, red loss). Above each bar: accuracy before the crop and n. Whiskers: 95% paired screenshot-bootstrap intervals. 
+
+crop tight enough to magnify it. On these instruc-tions the zoomed chain solves fewer than the single pass (Appendix B.1). The 54 instructions whose target is absent are credited only on abstention, so a pipeline that always answers forfeits 9.6 points however well it grounds. Both call for a decision outside the zoom. 
+
+E.6 From the Analysis to the Design 
+
+(1) The steep climb below about three tokens sets the span τ of every zoom (Eq. (2)). (2) A crop gains most below one token and nothing significant above three, so a missed zoom costs more than an unnecessary one. The first stage therefore fires un-der the looser criterion ˆσ < λτ , λ > 1, and gated 23 acceptance undoes unnecessary zooms. (3) The span is unobservable, so TNZ estimates it from the model’s box. The context a crop discards is not predicted by the span (Appendix E.3), so ev-ery zoom is verified. (4) Errors with the target in view (Appendix E.4) motivate negative-feedback re-grounding, and (5) targets without visual evi-dence (Appendix E.5) motivate CSG and absten-tion. 24

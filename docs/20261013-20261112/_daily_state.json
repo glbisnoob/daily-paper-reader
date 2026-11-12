@@ -1,0 +1,441 @@
+{
+  "date": "20261013-20261112",
+  "date_label": "2026-10-13 06:00 ~ 2026-11-12 06:00 (UTC+8)",
+  "generated_at": "2026-11-12 20:17:43 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2610.17710v2",
+      "route": "20261013-20261112/2610.17710v2-adaptive-group-process-rewards-for-gui-agents",
+      "title": "Adaptive-Group Process Rewards for GUI Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向 GUI 智能体强化学习的自适应分组过程奖励，缓解稀疏结果奖励",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.17792v1",
+      "route": "20261013-20261112/2610.17792v1-mhvf-training-free-gui-grounding-via-verification-guided-multi-hypothesis-search",
+      "title": "MHVF: Training-Free GUI Grounding via Verification-Guided Multi-Hypothesis Search",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "免训练的GUI视觉定位，通过多假设搜索与局部视觉验证把自然语言指令映射到界面元素",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.19100v1",
+      "route": "20261013-20261112/2610.19100v1-groundgui-gui-grounding-by-high-quality-data-and-distillation-to-reinforcement-learning",
+      "title": "GroundGUI: GUI Grounding by High-Quality Data and Distillation-to-Reinforcement Learning",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "将自然语言意图映射到屏幕组件的GUI视觉定位与蒸馏到强化学习",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.19900v1",
+      "route": "20261013-20261112/2610.19900v1-how-gui-agents-fail-gracebench-for-execution-stability-diagnosis",
+      "title": "How GUI Agents Fail: GraceBench for Execution Stability Diagnosis",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "诊断GUI智能体步骤级执行稳定性的基准",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.20939v1",
+      "route": "20261013-20261112/2610.20939v1-mai-gym-an-open-all-in-one-platform-for-gui-agent-evaluation-and-rl-training-across-mobile-and-computer-environments",
+      "title": "MAI-Gym: An Open All-in-One Platform for GUI Agent Evaluation and RL Training across Mobile and Computer Environments",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "统一GUI智能体评测、数据采集与在线强化学习训练的平台",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.22200v1",
+      "route": "20261013-20261112/2610.22200v1-opengcua-toward-a-fully-open-stack-for-generalist-computer-use",
+      "title": "OpenGCUA: Toward a Fully Open Stack for Generalist Computer Use",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向通用计算机使用智能体的开放全栈框架",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.22234v1",
+      "route": "20261013-20261112/2610.22234v1-os-helix-unifying-gui-interaction-and-code-execution-in-native-computer-using-agents",
+      "title": "OS-Helix: Unifying GUI Interaction and Code Execution in Native Computer-Using Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "端到端训练的多模态计算机使用智能体，将 GUI 动作与代码执行统一到同一动作空间",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.26071v1",
+      "route": "20261013-20261112/2610.26071v1-cua-lite-an-open-platform-for-computer-use-agents",
+      "title": "CUA-Lite: An Open Platform for Computer Use Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "统一平台整合12个计算机使用智能体基准与3万余可验证任务，支持评测与强化学习",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.26203v1",
+      "route": "20261013-20261112/2610.26203v1-focused-omni-modal-gui-agents",
+      "title": "Focused Omni-Modal GUI Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向全模态观测的GUI智能体与聚焦感知适配器",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.26469v1",
+      "route": "20261013-20261112/2610.26469v1-vericua-learning-proactive-verification-for-reliable-gui-agent-rewards",
+      "title": "VeriCUA: Learning Proactive Verification for Reliable GUI Agent Rewards",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向计算机使用GUI智能体的强化学习奖励验证",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.31274v1",
+      "route": "20261013-20261112/2610.31274v1-pointerbench-a-diagnostic-benchmark-for-fine-grained-gui-grounding",
+      "title": "PointerBench: A Diagnostic Benchmark for Fine-Grained GUI Grounding",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向指令到界面元素细粒度定位的诊断基准",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.32536v1",
+      "route": "20261013-20261112/2610.32536v1-igg-a-benchmark-for-interactive-gui-grounding-under-visibility-constraints",
+      "title": "IGG: A Benchmark for Interactive GUI Grounding under Visibility Constraints",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向可见性约束下交互式GUI定位的基准",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.33645v1",
+      "route": "20261013-20261112/2610.33645v1-preview-enhancing-gui-grounding-with-preprocessed-views-and-cues",
+      "title": "PreView: Enhancing GUI Grounding with Preprocessed Views and Cues",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "免训练预处理器，提升自然语言指令到GUI控件的定位",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.33907v2",
+      "route": "20261013-20261112/2610.33907v2-os-wizard-scaling-computer-using-agents-to-specialized-software-via-knowledge-guided-exploration",
+      "title": "OS-Wizard: Scaling Computer-Using Agents to Specialized Software via Knowledge-Guided Exploration",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "通过知识引导探索让计算机使用智能体掌握专业桌面软件",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.36874v1",
+      "route": "20261013-20261112/2610.36874v1-adaground-token-normalized-adaptive-zooming-with-verifier-in-the-loop-refinement-for-gui-grounding",
+      "title": "AdaGround: Token-Normalized Adaptive Zooming with Verifier-in-the-Loop Refinement for GUI Grounding",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "结合自适应缩放与验证器闭环的免训练GUI定位",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2611.13177v1",
+      "route": "20261013-20261112/2611.13177v1-groundcascade-selective-second-opinions-for-gui-grounding",
+      "title": "GroundCascade: Selective Second Opinions for GUI Grounding",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "免训练 GUI 定位控制器，融合全屏与放大视图预测以定位指令对应元素",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.17928v1",
+      "route": "20261013-20261112/2610.17928v1-learning-how-to-remember-memory-modality-selection-for-gui-agents",
+      "title": "Learning How to Remember: Memory Modality Selection for GUI Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "研究VLM驱动的GUI智能体的记忆模态选择",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.19128v1",
+      "route": "20261013-20261112/2610.19128v1-clasharness-benchmarking-multi-agent-conflict-in-computer-use-via-a-controllable-and-verifiable-generation-pipeline",
+      "title": "CLASHarness: Benchmarking Multi-Agent Conflict in Computer Use via a Controllable and Verifiable Generation Pipeline",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "用可控可验证的生成流程评测计算机使用智能体的多智能体冲突处理",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.20390v1",
+      "route": "20261013-20261112/2610.20390v1-stp-gui-spatially-aware-token-pruning-for-efficient-web-gui-agents",
+      "title": "STP-GUI: Spatially-Aware Token Pruning for Efficient Web-GUI Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "为网页GUI智能体保留细粒度界面元素的空间感知令牌剪枝",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.22672v1",
+      "route": "20261013-20261112/2610.22672v1-not-all-graphs-are-maps-a-task-agnostic-exploration-framework-for-mobile-gui-navigation",
+      "title": "Not All Graphs Are Maps: A Task-Agnostic Exploration Framework for Mobile GUI Navigation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "为移动端图形界面智能体提供与任务无关的图导航与目的地记忆",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.20100v1",
+      "route": "20261013-20261112/2610.20100v1-task-state-governance-a-virtual-machine-for-verifiable-and-recoverable-gui-agent-execution",
+      "title": "Task-State Governance: A Virtual Machine for Verifiable and Recoverable GUI Agent Execution",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "任务状态治理范式与 TaskVM，实现可验证、可恢复的 GUI 智能体执行",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.31698v1",
+      "route": "20261013-20261112/2610.31698v1-understanding-tool-mediated-interaction-failures-in-agentic-gui-software-an-empirical-study",
+      "title": "Understanding Tool-Mediated Interaction Failures in Agentic GUI Software: An Empirical Study",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "涵盖40个应用、335个GUI智能体交互失败的实证缺陷库",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.34724v1",
+      "route": "20261013-20261112/2610.34724v1-harness-model-collaboration-for-long-horizon-continual-learning",
+      "title": "Harness-Model Collaboration for Long-Horizon Continual Learning",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "面向重复多步工作流的网页智能体长程持续学习",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.34735v1",
+      "route": "20261013-20261112/2610.34735v1-iprefbench-a-user-centric-benchmark-for-personalized-mobile-use-agents",
+      "title": "iPrefBench: A User-Centric Benchmark for Personalized Mobile Use Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "可执行 iOS 环境中的个性化移动端使用智能体基准",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.19384v1",
+      "route": "20261013-20261112/2610.19384v1-mma-safetybench-a-benchmark-for-multimodal-agent-safety-evaluation",
+      "title": "MMA-SafetyBench: A Benchmark for Multimodal Agent Safety Evaluation",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "含1083条对抗轨迹的多模态智能体安全基准，覆盖网页自动化、桌面GUI控制与移动导航",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.25503v1",
+      "route": "20261013-20261112/2610.25503v1-from-seeing-to-reporting-a-theory-of-reliable-visual-set-generation-in-vision-language-models",
+      "title": "From Seeing to Reporting: A Theory of Reliable Visual Set Generation in Vision-Language Models",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "改进VLM视觉报告（含GUI定位与点击目标选择）的推理时方法",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    },
+    {
+      "paper_id": "2610.30108v1",
+      "route": "20261013-20261112/2610.30108v1-multimodal-embodied-agents-a-unified-capability-centric-perspective-from-computer-use-to-robot-use",
+      "title": "Multimodal Embodied Agents: A Unified Capability-centric Perspective from Computer-Use to Robot-Use",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "提出覆盖计算机使用与机器人使用的统一能力框架，包含感知-规划-行动-验证等功能",
+      "first_seen_at": "2026-11-12 20:17:43 UTC",
+      "updated_at": "2026-11-12 20:17:43 UTC"
+    }
+  ]
+}
