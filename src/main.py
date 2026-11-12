@@ -7,6 +7,7 @@ import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from retrieval_window import explicit_window, window_presentation
 
 try:
     from source_config import get_source_backend, load_config_with_source_migration
@@ -87,6 +88,9 @@ def resolve_run_date_token(fetch_days: int | None) -> str:
     - 大窗口（>=阈值）使用区间 token：YYYYMMDD-YYYYMMDD
     - 其它情况使用单日 token：YYYYMMDD
     """
+    fixed_window = explicit_window()
+    if fixed_window:
+        return window_presentation(*fixed_window)[0]
     if fetch_days is not None:
         if fetch_days >= LONG_RANGE_DAYS_THRESHOLD:
             return build_run_date_token(fetch_days)
@@ -103,6 +107,9 @@ def resolve_run_date_token(fetch_days: int | None) -> str:
 
 
 def resolve_sidebar_date_label(fetch_days: int | None) -> str | None:
+    fixed_window = explicit_window()
+    if fixed_window:
+        return window_presentation(*fixed_window)[1]
     # 1) 显式传 --fetch-days 时，仅在大窗口模式下显示日期范围。
     if fetch_days is not None:
         if fetch_days >= LONG_RANGE_DAYS_THRESHOLD:

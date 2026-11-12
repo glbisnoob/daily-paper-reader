@@ -10,6 +10,8 @@ SRC_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
+from retrieval_window import explicit_window
+
 from supabase_source import (
     get_supabase_read_config,
     fetch_recent_papers,
@@ -77,6 +79,9 @@ def resolve_supabase_time_window(
     - 若存在 DPR_RUN_DATE=YYYYMMDD-YYYYMMDD：拉取该区间 [start_day 00:00, end_day+1d 00:00)
     - 否则回退旧逻辑：最近 days 天 [now-days, now)
     """
+    fixed_window = explicit_window()
+    if fixed_window:
+        return *fixed_window, "fixed UTC+8 cutoff"
     token = str(os.getenv("DPR_RUN_DATE") or "").strip()
     if re.match(r"^\d{8}$", token):
         # 关键修复：
@@ -300,6 +305,7 @@ def fetch_category_in_windows(
     - 若窗口仍然过大导致 500，可继续在上层按更小窗口重试（可选）。
     """
     max_published_new: datetime | None = None
+    fixed_window = explicit_window()
 
     for idx, (win_start, win_end) in enumerate(windows, start=1):
         start_str = win_start.strftime("%Y%m%d%H%M")
@@ -318,6 +324,12 @@ def fetch_category_in_windows(
         count = 0
         try:
             for r in client.results(search):
+                if fixed_window:
+                    published = r.published
+                    if published.tzinfo is None:
+                        published = published.replace(tzinfo=timezone.utc)
+                    if not fixed_window[0] <= published < fixed_window[1]:
+                        continue
                 pid = r.get_short_id()
                 if pid in seen_ids:
                     continue
@@ -386,6 +398,9 @@ def fetch_category_in_windows(
                 for candidate in (cat_max_left, cat_max_right):
                     if candidate and (max_published_new is None or candidate > max_published_new):
                         max_published_new = candidate
+            elif fixed_window:
+                # A partial response must not advance a continuous-run checkpoint.
+                raise RuntimeError(f"Incomplete arXiv retrieval for {category}") from e
             time.sleep(5)
         finally:
             group_end()
@@ -404,7 +419,8 @@ def fetch_all_domains_metadata_robust(
     config = load_config()
 
     # 1. 计算时间窗口（优先使用上次抓取时间）
-    end_date = datetime.now(timezone.utc)
+    fixed_window = explicit_window()
+    end_date = fixed_window[1] if fixed_window else datetime.now(timezone.utc)
     if days is None:
         days = resolve_days_window(1)
 
@@ -471,7 +487,12 @@ def fetch_all_domains_metadata_robust(
             group_end()
 
     # ignore_seen 语义：完全按 days_window 回溯，不使用 last_crawl_at / latest_published_at 作为起点
-    if ignore_seen:
+    if fixed_window:
+        # Never let a previous crawl or an overlapping manual run shorten this window.
+        seen_ids, latest_published_at = set(), None
+        start_date, end_date = fixed_window
+        source_desc = "fixed UTC+8 cutoff"
+    elif ignore_seen:
         log(
             "🧹 [Global Ingest] ignore_seen=true：将忽略 arxiv_seen（不跳过已见论文，不使用 latest_published_at），"
             "并忽略 crawl_state（不使用 last_crawl_at），改为严格按 days_window 回溯。",
@@ -494,7 +515,8 @@ def fetch_all_domains_metadata_robust(
                 source_desc = f"days_window={days}"
 
     # 兜底：无论来源如何，都不早于 (now - days_window)
-    start_date = max(start_date, end_date - timedelta(days=days))
+    if not fixed_window:
+        start_date = max(start_date, end_date - timedelta(days=days))
 
     # 安全兜底
     if start_date >= end_date:

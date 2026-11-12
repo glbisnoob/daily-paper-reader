@@ -12,6 +12,7 @@ import math
 import os
 import re
 from datetime import datetime, timedelta, timezone
+from retrieval_window import explicit_window
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Any, Iterable
 
@@ -64,6 +65,9 @@ def log(message: str) -> None:
 
 
 def resolve_supabase_recall_window(config: Dict[str, Any], end_dt: datetime | None = None) -> tuple[datetime, datetime]:
+  fixed_window = explicit_window()
+  if fixed_window:
+    return fixed_window
   paper_setting = (config or {}).get("arxiv_paper_setting") or {}
   try:
     days = int(paper_setting.get("days_window") or 9)

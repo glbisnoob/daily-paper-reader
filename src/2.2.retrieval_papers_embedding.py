@@ -12,6 +12,7 @@ import os
 import math
 import hashlib
 from datetime import datetime, timedelta, timezone
+from retrieval_window import explicit_window
 from dataclasses import dataclass, field
 from typing import Dict, List, Set, Any, Optional, Callable
 import re
@@ -106,6 +107,9 @@ def resolve_multi_source_vector_backend(config: Dict[str, Any], queries: List[di
 
 
 def resolve_supabase_recall_window(config: Dict[str, Any], end_dt: datetime | None = None) -> tuple[datetime, datetime]:
+  fixed_window = explicit_window()
+  if fixed_window:
+    return fixed_window
   paper_setting = (config or {}).get("arxiv_paper_setting") or {}
   try:
     days = int(paper_setting.get("days_window") or 9)

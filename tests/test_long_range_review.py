@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import os
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -231,7 +232,15 @@ class LongRangeReviewTests(unittest.TestCase):
             (ROOT / ".github/workflows/daily-paper-reader.yml").read_text()
         )
         steps = {step.get("name"): step for step in workflow["jobs"]["run"]["steps"]}
-        self.assertIn("1 <= days <= 365", steps["Validate requested window"]["run"])
+        command = steps["Validate requested window"]["run"].split()
+        for days, valid in (("0", False), ("366", False), ("1", True), ("365", True)):
+            with self.subTest(days=days), tempfile.TemporaryDirectory() as tmp:
+                env = dict(os.environ, GITHUB_EVENT_NAME="workflow_dispatch",
+                           REQUESTED_DAYS=days, GITHUB_ENV=tmp + "/env",
+                           GITHUB_OUTPUT=tmp + "/output")
+                result = subprocess.run([sys.executable, *command[1:]],
+                                        cwd=ROOT, env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode == 0, valid, result.stderr)
         self.assertIn("always()", steps["Save long-range review progress"]["if"])
         paths = steps["Save long-range review progress"]["with"]["path"].splitlines()
         self.assertIn(".local-runs/long-range-cache", paths)
