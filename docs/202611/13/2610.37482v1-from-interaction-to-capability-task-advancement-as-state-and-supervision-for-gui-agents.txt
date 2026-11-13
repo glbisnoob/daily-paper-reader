@@ -1,0 +1,854 @@
+Title: From Interaction to Capability: Task Advancement as State and Supervision for GUI Agents
+
+URL Source: https://arxiv.org/pdf/2610.37482v1
+
+Published Time: Wed, 28 Oct 2026 01:41:23 GMT
+
+Number of Pages: 31
+
+Markdown Content:
+# From Interaction to Capability: Task Advancement as State and Supervision for GUI Agents 
+
+Ziyang Chen 1 Qian Li 2 Chengwei Qin 1
+
+1The Hong Kong University of Science and Technology (Guangzhou) 
+
+2Joint SDU-NTU Centre for Artificial Intelligence Research (C-FAIR), Shandong University 
+
+Abstract 
+
+GUI memory should preserve the results of past actions and learn reusable operations. This is difficult in long-horizon workflows, where agents must use information across applica-tions and useful operations are interleaved with failed attempts. We introduce Task Advance-ment Memory (TAM), which defines task advancement as verified task progress, and supports ongoing task execution and learns reusable operations. During execution, Task Advancement State represents how verified task progress changes the remaining goals, allow-ing the agent to build on earlier achievements across applications. After each task, advance-ment supervision identifies and abstracts the in-teractions that produced a verified local result. The learned operations preserve the relation between required inputs, expected outcomes, and verification conditions. This retains locally successful operations from both successful and failed tasks. On MobileWorld GUI-only tasks, Advancement State alone raises success from 12.0% to 28.2%. Full TAM achieves a 17.6% relative gain in task success over the strongest evaluated baseline and reduces lifecycle tokens per solved task by 38.7%. On SPA-Bench, TAM achieves state-of-the-art task success in the single-app English Level 3 setting. 
+
+1 Introduction 
+
+GUI agents should complete workflows whose in-formation and effects are distributed across screens and applications. Long interaction histories mix completed work with attempts and productive ac-tions with detours, leaving the agent to reconstruct how far the task has advanced and what remains to be done. For example, after confirming a cal-endar event, an agent should proceed to notifying participants using the event details it has already read. Therefore, memory should represent how completed work changes the remaining task. (a)  Task information remains useful across screens     
+
+> Earlier acquire Later input
+> Meeting time: Nov 15 ·15:00
+> Same observed event → switch apps
+> (b) Action-only memory
+> Stored action log:
+> 1Opened Calendar
+> 2Tapped Save
+
+?       
+
+> Event
+> created?
+> Re-check / repeat
+> (c) TAM reduces the task
+> Task after progress:
+> Read details
+> Create event
+> Notify participants
+> Board Meeting
+> Nov 15 ·15:00
+> Next goal
+> (d) Partial success is reusable experience
+> Local success Task fails
+> Meeting details Create event Matching event Notify
+> TAM learns event creation
+> New details → new event
+> Success-only
+> selection
+> → Discard episode ×
+
+Figure 1: Task advancement connects execution and learning. (a) To create the calendar event, the agent must retain the meeting time after leaving the email. (b– c) Recording a save action leaves its outcome uncertain. TAM retains the confirmed event and its details, making participant notification the remaining goal. (d) Even if notification fails, the verified event-creation operation can be reused with new meeting details. 
+
+Recent methods improve the information avail-able to the agent through context management, program-guided execution, and verified task state (Yang et al., 2025; Tian et al., 2026; Liu et al., 2026a; Zheng et al., 2026; Wu et al., 2026; Liu et al., 2026b). Trajectory exemplars, induced workflows, and experience memories also trans-fer knowledge to later tasks (Zheng et al., 2024b; Wang et al., 2025b,a; Xiao et al., 2026; Ouyang et al., 2026). These approaches address how mem-ory can help an agent complete remaining goals and 1arXiv:2610.37482v1 [cs.AI] 27 Oct 2026 how successful interactions can become reusable operations. However, agents still struggle to ap-ply correctly acquired information to later goals across applications. Workflow memories tied to historical action sequences also leave the agent to adapt past routes when the interface changes. A task’s final outcome also gives incomplete feed-back about intermediate operations, a failed task can contain useful successes, while a successful task can include ineffective attempts. We propose Task Advancement Memory (TAM), a memory framework that uses task progress to guide execution and learning. A task advancement 
+
+occurs when GUI observations confirm that a pre-viously unresolved requirement is satisfied, either by obtaining required information or by achiev-ing a requested outcome. Each advancement re-duces what the agent still needs to determine or accomplish. We call this task reduction . For online execution, Task Advancement State makes earlier advancements usable by later goals. It shows what information is available for each remaining goal and which goals are ready to pursue. TAM uses each advancement to supervise the selection and abstraction of productive interactions. The learned operations specify the inputs needed at entry, the result to achieve, and how to verify it. This re-tains useful capabilities from productive portions of both successful and failed workflows. Figure 1 illustrates these two uses of task advancement. We evaluate TAM on the GUI-only subset of MobileWorld (Kong et al., 2026) and the Level-3 English subset of SPA-Bench (Chen et al., 2025). With Qwen3-VL-32B-Instruct used by every listed MobileWorld method, TAM improves success from 29.1% for the strongest evaluated memory baseline to 34.2%. With GPT-4o in the SPA-Bench English Level 3 setting, it reaches 57.0%, the high-est success rate in the reported comparison. Our contributions are as follows: • We introduce Task Advancement State within TAM to guide execution across applications. It represents the remaining task in terms of satisfied requirements, available inputs, and unresolved dependencies. This lets the agent build on earlier advancements when choosing its next action. • We propose advancement supervision , which converts partial task success into capabilities that can be reused in subsequent tasks. Each learned operation specifies what it needs, what it should achieve, and how to verify the outcome. • We show that TAM outperforms the evaluated memory baselines in task success on Mobile-World and SPA-Bench. Cross-benchmark com-parisons, component ablations, and cost analyses establish the value of task-state memory and the additional benefit of persistent operators. 
+
+2 Related Work 
+
+Task state and verified execution. Explicit task representations preserve information and unfin-ished work across interface changes. AgentProg represents task variables and control flow; ATMem maintains task-driving information and execution status; TSR separates durable task information from transient observations; and StructAgent com-bines requirements, values, evidence, and verified transitions (Tian et al., 2026; Liu et al., 2026a; Zheng et al., 2026; Wu et al., 2026). MGA also or-ganizes interaction around validated state changes (Cheng et al., 2025). These methods preserve ex-plicit task information and distinguish intended actions from observed outcomes. TAM links task results to the remaining requirements they support. These dependencies guide execution and define the inputs and outcomes of reusable operations. 
+
+Trajectory, workflow, and skill memory. Per-sistent experience can guide later tasks through demonstrations, trajectories, workflows, or skills. Synapse retrieves abstracted trajectories as in-context exemplars; AWM induces workflows from offline or online experience; and ReasoningBank distills reusable reasoning strategies (Zheng et al., 2024b; Wang et al., 2025b; Ouyang et al., 2026). Mobile-Agent-E stores tips and shortcuts, UI-Mem organizes workflows, subtask skills, and failure patterns, and SkillGen synthesizes and validates skills from successful and unsuccessful trajectories (Wang et al., 2025a; Xiao et al., 2026; Ma et al., 2026). These systems reuse experience at different granularities. They adopt different rules for locat-ing a reusable segment, assigning local credit, and verifying the result that the segment is expected to achieve. TAM selects interactions by the local re-quirement they satisfy and carries that requirement into the learned operation’s expected outcome and verification condition. 
+
+Exploration-built interface knowledge. An-other family constructs persistent knowledge through dedicated exploration. AppAgent builds application knowledge from exploration or demon-2Task advancement state   
+
+> Task: Find the driving duration from Orlando to Miami and text Susan the approximate arrival time.
+> Open Maps Search route Read drive time
+> Drive time found
+> 3 hr 18 min
+> Base GUI agent
+
+Task reduction   
+
+> Find drive duration Departure time: 5 PM
+> Duration: 3h18m
+> Arrival time: 8:18 PM
+> (5 PM + drive duration)
+> Text Susan arrival time
+> Update
+> Continue from progress
+
+Advancement supervision    
+
+> locally successful operations
+> Origin + destination Query drive time Drive time found Overall task failed
+
+Advancement operators 
+
+Find driving duration    
+
+> Given origin + destination
+> Obtain driving duration
+> Check transportation type
+> Recorded GUI route
+> Maps → route query → route result
+
+Reuse in later tasks   
+
+> Match needed result
+> Need: driving duration
+> Have: new origin + destination
+> Reuse goal + check
+> Add route when GUI-compatible
+> Learn Retrieved guidance
+
+Figure 2: Overview of TAM. Task Advancement State guides cross-application execution through task reduction. After the route query, the remaining task is to notify Susan, with the arrival time already specified. Advancement supervision learns a reusable operator from the successful query, even if the overall task fails. Later tasks reuse the operator’s goal and verification condition with new locations, adding a recorded GUI route when compatible. 
+
+strations; GUI-Xplore learns action-aware struc-ture from exploration videos; GUI-explorer gener-ates function-aware exploration goals and mines transition knowledge; ActionEngine builds state-machine memory with an offline crawler; and EAM constructs an executable GUI graph through state-aware exploration (Zhang et al., 2025; Sun et al., 2025; Xie et al., 2025; Zhong et al., 2026; Qin et al., 2026). This approach can provide broad interface coverage before downstream tasks are attempted. 
+
+3 Method 
+
+TAM uses task advancement in two ways. Task Advancement State represents what remains to be done using the information already obtained. Ad-vancement supervision learns reusable operations from interactions that satisfy a task requirement. These memories guide a fixed base policy, which chooses primitive actions from the live interface (Figure 2). Appendix A gives the execution proce-dure, update rules, and learning details. 
+
+3.1 Task Advancement as a Shared Memory Unit 
+
+At step t, a base policy πθ receives the instruction g,current GUI observation ot, bounded recent history 
+
+Ht, and TAM’s bounded memory context Ct. It emits a primitive action in the original environment action space. TAM changes the supplied memory, without retraining the policy. A separate episode record T retains evidence for task-end review. On-line state acceptance guides the current task, retro-spective review evaluates which interactions should enter persistent memory. At task initialization, an LLM-based task com-piler identifies the information to acquire and the outcomes to establish from the instruction. It repre-sents them in a graph Q = ( V, E Q), whose nodes 
+
+V are requirements and whose edges EQ encode their dependencies. For each requirement q, its de-pendencies Rq identify the requirements that sup-ply its inputs, and an evidence rule Vq specifies how its result is recognized. An optional branch condition γq specifies when the instruction requires 
+
+q. These dependencies concern task results rather than a prescribed sequence of GUI actions. The task-local state St records each requirement’s sta-tus, known values, and supporting evidence at step 
+
+t. Object bindings associate a value or outcome with its task entity, such as the event to which a meeting time belongs. A task advancement records progress on a re-quirement: GUI observations confirm that previ-ously missing information has been obtained or a 3Algorithm 1 Task Advancement Memory                                                                  
+
+> Require: instruction g, policy πθ, operator graph G
+> 1: Compile requirements Qfrom g
+> 2: Initialize state S, cache E, and history H
+> 3: Initialize trace Tand candidate segments B
+> 4: while the task is active do
+> 5: Observe o; update Sfrom supported facts
+> 6: Add new advancement segments to B
+> 7: Read inputs and remaining work from S
+> 8: retrieve relevant evidence and operators for
+> Frontier( S); assemble memory context C
+> 9: Assemble Cfrom Sand retrieved memory
+> 10: Sample a∼πθ(· | g, o, H, C )
+> 11: Execute a; observe o′
+> 12: Update Sfrom relevant effects in o′
+> 13: Add new advancement segments to B
+> 14: Append (o, a, o ′)to T; refresh H
+> 15: end while
+> 16: Review Busing T; retain supported operations
+> 17: Abstract entry inputs and outcomes
+> 18: Consolidate operators into G
+
+requested outcome has been achieved. Let S− and 
+
+S+ denote the task memory states before and after an evidence update. Write z± 
+
+> q
+
+= zS± (q) for the status of q, with U and E denoting UNRESOLVED 
+
+and ESTABLISHED . An advancement is 
+
+Adv( q) = 1(z− 
+
+> q
+
+, z + 
+
+> q
+
+) = (U , E)  Vq(ξ), (1) where ξ is the supporting observation and Vq(ξ) ∈{0, 1} indicates whether TAM accepts it as evi-dence that q is satisfied. Model-based extraction assesses the observed fact or effect; schema and evidence-reference checks associate it with the specified requirement. A single screen can estab-lish several requirements. Each advancement also identifies a candidate interaction segment for later review and learning. 
+
+3.2 Advancement as State: Online Task Reduction 
+
+Task Advancement State turns verified progress into an explicit representation of the remaining problem. Information already obtained is bound to the requirements that need it, and satisfied re-quirements are removed from the remaining work. We call this task reduction . We call the unfinished requirements with their available inputs the resid-ual task . Completed requirements leave this view, while their results remain in St for later use. For ex-ample, Figure 2 assumes a departure time of 5 PM. Reading a driving duration of 3 h 18 min supplies the missing value for calculating arrival at 8:18 PM. The remaining goal is to send Susan that time. TAM thus carries the result of the route query into the messaging goal across the application change. 
+
+Reason from the reduced task. Among the re-maining requirements, TAM identifies those whose inputs are already available and whose branch con-ditions hold. This set is the Advancement Fron-tier . Let Kt and Ut denote the established and unresolved requirements, treating an absent branch condition as true: 
+
+Ft = {q ∈ Ut : Rq ⊆ Kt, S t |= γq}. (2) TAM uses the frontier to select evidence and oper-ators relevant to this continuation. The actor uses the residual task and live screen to choose its next action, with earlier information already supplied to the requirements that need it. 
+
+Ground reductions in observed results. TAM updates source information from the current obser-vation and checks relevant action outcomes using the next observation: 
+
+¯St = Robs (St, o t),St+1 = Reff ( ¯St, o t+1 ; Vt). (3) The first update can establish visible information and object bindings. The second evaluates the set 
+
+Vt of outcome requirements implicated by the ac-tion or an explicit confirmation cue. Using the observation returned by the environment, TAM dis-tinguishes three cases: text entered into a form is a draft, clicking Save is an attempt, and an appro-priate confirmation supports a saved result. The ac-cepted result then becomes available to dependent requirements. This keeps progress tied to observed effects while leaving action selection with the base policy. 
+
+Retain visual evidence when text is insufficient. 
+
+A task-local Evidence Cache E stores source im-ages or crops linked to task information and its object bindings. When a requirement needs infor-mation whose source screen has left recent context, recalled evidence can restore its value or clarify which object it describes. Recalled images are identified as historical evidence. Current controls and coordinates come from the live screen. 
+
+3.3 Advancement as Supervision: Learning Reusable Operations 
+
+Advancement supervision learns reusable opera-tions from verified local results, including those 4within failed workflows. The challenge is both tem-poral and semantic: identify the productive interac-tion, then determine what it required and achieved. 
+
+Learning from local results. Each advancement identifies a local result and a candidate segment of preceding interactions. When terminal evalu-ation nominates an outcome, it enters the same retrospective review. At task termination, an LLM-based reviewer examines the result and recorded actions and observations, including later evidence of confirmation or contradiction. It retains sup-ported operations and selects the steps contributing to their navigation and information acquisition. Re-view evaluates each operation against the evidence for its local result, including when the larger task fails. TAM separates inputs needed before the re-tained interaction from information acquired within it. Only the former become the operation’s entry requirements. For example, a route query requires an origin and destination; the driving duration is acquired by the operation itself. This makes the learned query applicable to new routes whose dura-tion the agent still needs to find. 
+
+Abstract task values while preserving object identity. A supported segment yields an Advance-ment Operator 
+
+κ = ⟨Rκ, ∆κ, V κ, B κ, Γκ, Aκ⟩. (4) Its components are entry requirements Rκ, ex-pected advancement ∆κ, verification condition Vκ,object roles Bκ, optional applicability conditions 
+
+Γκ, and reviewed GUI realizations Aκ: recorded action sequences together with the interface condi-tions under which they were observed. Abstraction replaces instance-specific values with roles shared across the inputs, result, and verification target. For example, event details and the creation confirma-tion must refer to the same event. Concrete GUI entry conditions and action details belong to indi-vidual realizations. The persistent Advancement Operator Graph G links each operator to its ob-served GUI realizations. This lets TAM reuse the same operation while checking each route against the current interface. To consolidate a new sam-ple, TAM compares its input–result relation with the stored operators: compatible samples refine a shared description while retaining distinct GUI re-alizations. Otherwise, the sample forms a separate operator. 
+
+3.4 Operator Reuse: Task Meaning and GUI Realization 
+
+An operation can remain useful across changes in its GUI implementation. TAM separates two ques-tions: whether the operation supplies a needed re-sult from available inputs, and whether the current interface supports a recorded route. TAM retrieves operators whose expected results and input roles match a frontier requirement. Among supported candidates, it considers both coverage of remain-ing requirements and the applicability and relia-bility of the stored GUI route. Selection retains a bounded set of alternatives across these two criteria, favoring additional requirement coverage. Appen-dices A.6 and A.10 specify matching, compatibility checks, and selection rules. When the required in-puts are available and a stored GUI route passes the interface and reliability checks, the readout in-cludes that route. Otherwise, a supported operator can still supply its required inputs, expected result, and verification cue, with missing inputs explicitly marked. Task knowledge therefore remains useful when a stored route needs adaptation. The actor uses this guidance to choose primitive actions from the current interface. Historical success guides the attempt; current observations determine whether the expected advancement is accepted. If no opera-tor is relevant, ordinary execution continues with the task state and recent context. 
+
+4 Experiments 
+
+We evaluate task completion on two benchmarks and lifecycle cost on MobileWorld. Component ab-lations measure the contribution of online state and persistent operators. We also examine whether ear-lier results remain usable and whether local review produces reliable learning material. 
+
+4.1 Experimental Setup Benchmarks. MobileWorld GUI-only tests long-horizon tasks across a broad application suite, including workflows that span multiple apps (Kong et al., 2026). We use the GUI-only interaction set-ting with standard mobile actions. This setting stresses the preservation of information and re-sults across application boundaries. SPA-Bench English Level 3 evaluates multi-stage workflows within individual smartphone applications at the benchmark’s highest difficulty tier (Chen et al., 2025). Following GUI-explorer, we study the single-app English Level 3 setting with Set-of-5Method Success (%) ↑ Steps ↓ EQA@50 (%) ↑ LTS (M) ↓
+
+Qwen3-VL-32B-Instruct (Bai et al., 2025) 12.0 – – –AWM (Wang et al., 2025b) 13.7 25.3 11.9 0.720 
+
+Mobile-Agent-E (Wang et al., 2025a) 15.4 22.9 12.2 4.472 StructAgent (Wu et al., 2026) 24.8 27.8 19.1 ≥ 1.115 ∗
+
+GUI-explorer (Xie et al., 2025) 25.6 27.4 20.6 ≥ 1.478 ∗
+
+MemGUI-Agent (ConAct) (Liu et al., 2026b) 29.1 22.4 23.7 1.257 
+
+TAM (ours) 34.2 20.6 29.2 0.771 
+
+> ∗The archived StructAgent and GUI-explorer accounting omits autonomous exploration and knowledge-base construction, so their lifecycle cost is a lower bound.
+
+Table 1: Results on MobileWorld GUI-only tasks. All methods use Qwen3-VL-32B-Instruct and a limit of 50 controller rounds. EQA@50 jointly rewards success and earlier completion. LTS measures the total model-token expenditure required to obtain a solution.                                   
+
+> Method Input Base Model Success (%) ↑
+> CogAgent (Hong et al., 2024) screen CogAgent 0.0 DigiRL (Bai et al., 2024) screen DigiRL 0.0 AutoDroid (Wen et al., 2024) a11y tree GPT-4o 12.0 SeeAct (Zheng et al., 2024a) SoM GPT-4o 12.0 AppAgent (Zhang et al., 2025) SoM GPT-4o 14.0 Mobile-Agent-v2 (Wang et al., 2024) SoM GPT-4o 20.0 M3A (Rawles et al., 2025) SoM GPT-4o 42.0 MemGUI-Agent (ConAct) (Liu et al., 2026b) SoM GPT-4o 46.0 GUI-explorer (Xie et al., 2025) SoM GPT-4o 53.7
+> TAM (ours) SoM GPT-4o 57.0
+
+Table 2: Task success on SPA-Bench single-app English Level 3. Results for the first seven baselines and GUI-explorer are taken from Xie et al. (2025). 
+
+Mark (SoM) observations and GPT-4o (Xie et al., 2025; OpenAI, 2024). It complements Mobile-World by testing sustained interaction with real-world applications without requiring cross-app in-formation transfer. 
+
+Backbones and memory protocol. Every Mo-bileWorld method in Table 1 uses Qwen3-VL-32B-Instruct and the same limit of 50 controller rounds (Bai et al., 2025). TAM builds persistent memory from interactions in the evaluation task sequence, without a separate application-exploration stage. Task Advancement State and Evidence Cache reset between tasks, reviewed operators remain available to subsequent tasks. Component ablations preserve the base policy, action interface, and interaction budget. On SPA-Bench, we use a task-specific bud-get of 2gi + 1 rounds, where gi is the reference human action count. The official evaluator scores the recorded trajectory after termination; it supplies no intermediate success feedback to the policy. Ap-pendix B.3 specifies execution, memory, and the aggregation protocol. 
+
+Metrics. Success is acceptance by the bench-mark’s native evaluator and is reported for both benchmarks. We additionally report the following execution and cost metrics on MobileWorld. Steps 
+
+averages controller rounds over all runs, including failures, and is interpreted jointly with success. A controller round is one externally counted action decision. Efficiency–Quality Area at 50 rounds 
+
+(EQA@50) jointly rewards successful completion and fewer controller rounds, assigning zero credit to failures (Wang et al., 2026). Lifecycle Tokens per Solved Task (LTS) divides total model-token expenditure by solved tasks, including memory construction, execution, and failed attempts. 
+
+Baselines. Alongside the memory-free backbone, we compare workflow induction with AWM, tips and shortcuts with Mobile-Agent-E, exploration-built knowledge with GUI-explorer, verified task-state and procedural memory with StructAgent, and proactive context management with MemGUI-Agent (ConAct) (Wang et al., 2025b,a; Xie et al., 2025; Wu et al., 2026; Liu et al., 2026b). These comparisons cover both state-oriented and experience-oriented approaches. Table 2 combines our SPA-Bench evaluation of TAM and ConAct with published reference results from Xie et al. 6(2025), retaining the reported observation and back-bone for each method. 
+
+4.2 Main Results 
+
+On MobileWorld, TAM achieves 34.2% success, improving on the strongest evaluated baseline by 5.1 percentage points (Table 1). Relative to the memory-free backbone, the gain is 22.2 points. Across all three app-count groups, TAM outper-forms all four compared baselines (Table 3). Its ad-vantage over ConAct is larger on the 62 multi-app tasks, where success reaches 32.3% versus 24.2% (+8.1 points), than on single-app tasks (+1.8 points). The larger multi-app gain supports TAM’s focus on sustaining execution across application bound-aries. TAM also attains the highest EQA@50, 29.2%, and uses 20.6 controller rounds on aver-age, showing that the advantage also holds when successful completion is rewarded for taking fewer rounds. TAM uses 0.771M lifecycle tokens per solved task, 38.7% below ConAct’s 1.257M. AWM is slightly cheaper at 0.720M, but completes 13.7% of tasks versus TAM’s 34.2%. TAM offers the strongest completion rate in this comparison at a lifecycle cost close to the cheapest evaluated memory method. This supports the practical value of organizing memory around established task re-sults rather than increasing the interaction bud-get. On SPA-Bench English Level 3, TAM reaches 57.0% success, 3.3 percentage points above GUI-explorer’s reported 53.7% (Table 2). This is the highest result in the reported comparison. Together, the two benchmarks show that TAM’s benefits oc-cur both in cross-app workflows with an open-source backbone and in difficult single-app tasks with GPT-4o. 
+
+4.3 Component Ablations 
+
+Table 4 shows that Task Advancement State pro-vides the largest gain, raising success from 12.0% to 28.2%. This gain establishes the value of ad-vancement state for online execution before persis-tent experience is added. Adding the Advancement Operator Graph to State yields 32.5%, while aver-age steps fall from 23.4 to 20.9. With the Evidence Cache enabled, the Operator Graph adds 5.1 points (29.1% to 34.2%). The Operator Graph improves completion in both cache settings. Online state provides the main gain by making earlier results available to unfinished work, persistent operators add experience about how to obtain the next needed result. 
+
+4.4 Mechanism Analysis Identifying and using task information. To ex-amine whether acquired information remains us-able, we audit archived runs of tasks that require obtaining a value from the environment and using it in a later operation. The comparison covers the same 52 required values across 21 tasks for all five methods. Within each task, identification coverage 
+
+is the fraction of required values explicitly and cor-rectly stated in online outputs; target-use coverage 
+
+is the fraction correctly used in their intended fields or objects. Averaging these rates equally across tasks, TAM achieves the highest observed coverage for both identification and target use (Figure 3(a)). 
+
+State availability and use. We use a flat-state control to test the value of relating stored facts to pending requirements. The control retains fact stor-age and open requirements while removing prereq-uisite links and their action guidance. To compare the use of available information, we include all tar-get fields in the paired runs whose required source inputs were visible to both agents. The nine eligible fields from five tasks are each assessed under two paired implementation revisions, giving 18 field instances. Over these instances, state availability 
+
+measures the fraction with the correct value explic-itly recorded in the actor’s state. TAM achieves 77.8% versus 55.6% for flat state, while correct tar-get use reaches 77.8% versus 66.7% (Figure 3(b)). 
+
+Localizing supervision for operator learning. 
+
+For supported advancements written to operator memory, we compare candidate segments with the steps retained after retrospective review. Fig-ure 3(c) shows the 10th–90th percentile profiles, normalized by source-trajectory length. Review reduces the median retained segment length from 20% to 7.7% of the source trajectory. Therefore, the retained supervision is concentrated on local operations rather than the full interaction history. 
+
+4.5 Further Analyses 
+
+Beyond the main benchmark comparisons, the ap-pendix provides complementary evidence on in-formation retention, state organization, local learn-ing signals, experience reuse, and resource require-ments. Appendix D.1 classifies all 117 Mobile-World GUI-only tasks and identifies 52 that require transferring acquired values to later operations, es-tablishing the scope of our field-level diagnostics. Appendix D.2 shows that 95.1% of tracked values 7Method 1 app (55 tasks) 2 apps (48 tasks) 3 apps (14 tasks)                                  
+
+> Solved TAM Gain (pp) Solved TAM Gain (pp) Solved TAM Gain (pp)
+> ConAct 19 +1 .814 +6 .31+14 .3
+> GUI-explorer 16 +7 .313 +8 .31+14 .3
+> AWM 13 +12 .73+29 .20+21 .4
+> StructAgent 17 +5 .511 +12 .51+14 .3
+> TAM (ours) 20 –17 –3–
+
+Table 3: Completion by app count. Solved: completed tasks. TAM Gain: TAM’s absolute success-rate advantage over the method in that row (percentage points). All results use the MobileWorld GUI-only split.               
+
+> Configuration SR (%) ↑Steps ↓
+> Base agent 12.0 –Advancement State 28.2 23.4 State + Evidence Cache 29.1 25.6 State + Operator Graph 32.5 20.9
+> Full TAM 34.2 20.6
+
+Table 4: Memory-component ablation on MobileWorld GUI-only tasks with Qwen3-VL-32B-Instruct and a fixed base policy. 0 10 20 30 40 50          
+
+> Task-averaged coverage (%)
+> TAM
+> ConAct GUI-explorer StructAgent AWM
+> 42.9 39.7 30.2 41.3 13.5 40.5 38.1 19.0 26.2 0.0
+> Identified Used in target Value explicit in memory Correct use in target field 025 50 75 100
+> Reference fields (%)
+> 77.8 77.8 55.6 66.7 TAM Flat state 10 30 50 70 90
+> Task-balanced percentile
+> 020 40 60 80 100
+> Scope (% of trajectory)  Whole trajectory
+> Median scope 20.0% → 7.7%
+> Candidate Review-selected
+> (a) Information identification and use (b) State availability and use (c) Local credit scope
+
+Figure 3: Mechanism analysis. (a) Task-averaged information identification and target use over 52 values from 21 tasks. (b) State availability and target use on 18 field instances with source inputs observed in both conditions. (c) Candidate and retained step counts, normalized by source-trajectory length. 
+
+remain in state after ten decisions, compared with 57.6% in current XML or recent text, demonstrat-ing sustained access beyond the immediate con-text. Appendix D.3 finds that TAM assembles all audited inputs before entry in 80% of operations, versus 40% for flat state, when both agents have encountered the required source information. This supports organizing acquired facts around pend-ing operations. In matched tests of access to cap-tured facts, Appendix D.4 reports 96.2% readout accuracy versus 80.8% for ordinary notes at simi-lar input size. TAM also uses 37.3% fewer input tokens per readout than full textual history, com-bining accurate access with compact context. Ap-pendix D.5 shows that local selection retains 88.3% of correct material versus 64.3% for success-only filtering, with 93.8% correctness among retained values, expanding the pool of reliable learning ma-terial. Appendix D.6 shows that 74.8% of audited failed executions containing verified local results contribute retained learning material. Recorded traces connect this material to guidance for later tasks, demonstrating the learning value of partial progress. Appendix D.7 reports 83.3% correct-ness when binding changed task values and 79.3% correct destination use in the respective field au-dits, supporting the adaptation of stored experience to new tasks. Finally, Appendix D.8 documents a compact resource footprint across the archived runs, with median shares of 5.7% of actor text for state and guidance and 1.7% of recorded tokens for additional calls. 
+
+5 Conclusion 
+
+Task Advancement Memory makes established re-sults useful at two timescales. During execution, 
+
+task reduction supplies acquired information to pending requirements and removes completed re-quirements. During learning, the interactions yield reusable operations whose entry inputs, outcome, and verification target remain aligned after abstrac-tion. Across MobileWorld and SPA-Bench, TAM improves task completion, with ablations establish-ing the independent value of Advancement State and further gains from persistent operators. These findings support a task-centered foundation for GUI memory: accumulated progress makes the current problem more concrete, while productive interaction builds capabilities for future workflows. 8Limitations 
+
+TAM builds task state and reusable operators from observed results. The accuracy of this process de-pends on model-based interpretation of task re-quirements and GUI evidence, especially when outcome cues are ambiguous. Improving visual grounding and outcome verification can strengthen both online execution and experience learning. Our evaluation focuses on MobileWorld GUI-only tasks and the English Level 3 subset of SPA-Bench, covering cross-application workflows and difficult single-application tasks on mobile devices. Extending this evaluation to web and desktop work-flows would assess transfer across interface types. TAM’s persistent operators accumulate across the benchmark task sequences studied here. Longer task streams and repeated application updates intro-duce further requirements for maintaining relevant experience. The separation between an operation’s intended result and its GUI realizations provides a basis for studying adaptation as interfaces change. Future work can examine operator revision and retirement, together with their effects on retrieval quality and memory-maintenance cost. 
+
+References 
+
+AI Agents 2030. 2024. SPA-Bench. GitHub repository. English single-app task metadata: 
+
+data/single-app-ENG.csv . Accessed 12 October 2026. Hao Bai, Yifei Zhou, Mert Cemri, Jiayi Pan, Alane Suhr, Sergey Levine, and Aviral Kumar. 2024. DigiRL: Training in-the-wild device-control agents with au-tonomous reinforcement learning. In Advances in Neural Information Processing Systems , volume 37, pages 12461–12495. Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, Wenbin Ge, Zhi-fang Guo, Qidong Huang, Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhaohai Li, Mingsheng Li, and 45 others. 2025. Qwen3-VL technical report. 
+
+Preprint , arXiv:2511.21631. Jingxuan Chen, Derek Yuen, Bin Xie, Yuhao Yang, Gongwei Chen, Zhihao Wu, Yixing Li, Xurui Zhou, Weiwen Liu, Shuai Wang, Kaiwen Zhou, Rui Shao, Liqiang Nie, Yasheng Wang, Jianye Hao, Jun Wang, and Kun Shao. 2025. SPA-Bench: A comprehen-sive benchmark for smartphone agent evaluation. In 
+
+The Thirteenth International Conference on Learning Representations .Weihua Cheng, Junming Liu, Yifei Sun, Botian Shi, Yirong Chen, and Ding Wang. 2025. MGA: Memory-driven GUI agent for observation-centric interaction. 
+
+Preprint , arXiv:2510.24168. Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yuxiao Dong, Ming Ding, and Jie Tang. 2024. Co-gAgent: A visual language model for GUI agents. In 
+
+Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 14281–14290. Quyu Kong, Xu Zhang, Zhenyu Yang, Nolan Gao, Chen Liu, Panrong Tong, Chenglin Cai, Hanzhang Zhou, Jianan Zhang, Liangyu Chen, Zhidan Liu, Steven Hoi, and Yue Wang. 2026. MobileWorld: Benchmarking autonomous mobile agents in agent-user interactive and MCP-augmented environments. In Proceedings of the 64th Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) ,pages 6142–6167. Association for Computational Linguistics. Chen Liu, Ling Chen, Hanzhang Zhou, Xu Zhang, Quyu Kong, Panrong Tong, Wenhao Wang, Xin Yu, Steven Hoi, and Yue Wang. 2026a. What memory do GUI agents really need? From passive records to active task-driving states. Preprint , arXiv:2606.31612. Guangyi Liu, Gao Wu, Congxiao Liu, Pengxiang Zhao, Liang Liu, Mading Li, Qi Zhang, Mengyan Wang, Liang Guo, and Yong Liu. 2026b. MemGUI-Agent: An end-to-end long-horizon mobile GUI agent with proactive context management. Preprint ,arXiv:2606.19926. Yuchen Ma, Yue Huang, Han Bao, Haomin Zhuang, Swadheen Shukla, Michel Galley, Xiangliang Zhang, and Stefan Feuerriegel. 2026. SkillGen: Veri-fied inference-time agent skill synthesis. Preprint ,arXiv:2605.10999. OpenAI. 2024. GPT-4o system card. OpenAI Technical Report. Siru Ouyang, Jun Yan, I-Hung Hsu, Yanfei Chen, Ke Jiang, Zifeng Wang, Rujun Han, Long T. Le, Samira Daruki, Xiangru Tang, Vishy Tirumalashetty, George Lee, Mahsan Rofouei, Hangfei Lin, Jiawei Han, Chen-Yu Lee, and Tomas Pfister. 2026. Reason-ingBank: Scaling agent self-evolving with reasoning memory. In The Fourteenth International Confer-ence on Learning Representations .Zerui Qin, Sheng Yue, Xingyuan Hua, Yongjian Fu, and Ju Ren. 2026. Executable agentic memory for GUI agent. Preprint , arXiv:2605.12294. Christopher Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel Toyama, Robert Berry, Divya Tyam-agundlu, Timothy Lillicrap, and Oriana Riva. 2025. AndroidWorld: A dynamic benchmarking environ-ment for autonomous agents. In The Thirteenth Inter-national Conference on Learning Representations .
+
+9Yuchen Sun, Shanhui Zhao, Tao Yu, Hao Wen, Samith Va, Mengwei Xu, Yuanchun Li, and Chongyang Zhang. 2025. GUI-Xplore: Empowering general-izable GUI agents with one exploration. In Proceed-ings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition (CVPR) , pages 19477– 19486. Shizuo Tian, Hao Wen, Yuxuan Chen, Jiacheng Liu, Shanhui Zhao, Guohong Liu, Ju Ren, Yunxin Liu, and Yuanchun Li. 2026. AgentProg: Empowering long-horizon GUI agents with program-guided con-text management. In Proceedings of the 24th Annual International Conference on Mobile Systems, Appli-cations and Services , pages 883–910. Association for Computing Machinery. Tongyi-MAI. 2025. MobileWorld. Hugging Face dataset repository. Task metadata: task_info.csv .Accessed 12 October 2026. Junyang Wang, Haiyang Xu, Haitao Jia, Xi Zhang, Ming Yan, Weizhou Shen, Ji Zhang, Fei Huang, and Jitao Sang. 2024. Mobile-Agent-v2: Mobile device op-eration assistant with effective navigation via multi-agent collaboration. In Advances in Neural Infor-mation Processing Systems , volume 37, pages 2686– 2710. Xuehui Wang, Zhenyu Wu, JingJing Xie, Zichen Ding, Bowen Yang, Zehao Li, Zhaoyang Liu, Qingyun Li, Xuan Dong, Zhe Chen, Weiyun Wang, Xiangyu Zhao, Jixuan Chen, Haodong Duan, Tianbao Xie, Chenyu Yang, Shiqian Su, Yue Yu, Yanting Zhang, and 6 oth-ers. 2026. MMBench-GUI: A unified hierarchical evaluation framework for multi-platform GUI agents. In Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 6239–6248. Zhenhailong Wang, Haiyang Xu, Junyang Wang, Xi Zhang, Ming Yan, Ji Zhang, Fei Huang, and Heng Ji. 2025a. Mobile-Agent-E: Self-evolving mobile assistant for complex tasks. Preprint ,arXiv:2501.11733. Zora Zhiruo Wang, Jiayuan Mao, Daniel Fried, and Graham Neubig. 2025b. Agent workflow memory. In Proceedings of the 42nd International Conference on Machine Learning , volume 267 of Proceedings of Machine Learning Research , pages 63897–63911. PMLR. Hao Wen, Yuanchun Li, Guohong Liu, Shanhui Zhao, Tao Yu, Toby Jia-Jun Li, Shiqi Jiang, Yunhao Liu, Yaqin Zhang, and Yunxin Liu. 2024. AutoDroid: LLM-powered task automation in Android. In Pro-ceedings of the 30th Annual International Conference on Mobile Computing and Networking , pages 543– 557. Association for Computing Machinery. Wenyi Wu, Sibo Zhu, Kun Zhou, Aayush Salvi, Zixuan Song, and Biwei Huang. 2026. StructAgent: Har-ness long-horizon digital agents with unified causal structure. Preprint , arXiv:2607.11388. Han Xiao, Guozhi Wang, Hao Wang, Shilong Liu, Yux-iang Chai, Yue Pan, Yufeng Zhou, Xiaoxin Chen, Yafei Wen, and Hongsheng Li. 2026. UI-Mem: Self-evolving experience memory for online rein-forcement learning in mobile GUI agents. Preprint ,arXiv:2602.05832. Bin Xie, Rui Shao, Gongwei Chen, Kaiwen Zhou, Yinchuan Li, Jie Liu, Min Zhang, and Liqiang Nie. 2025. GUI-explorer: Autonomous exploration and mining of transition-aware knowledge for GUI agent. In Proceedings of the 63rd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 5650–5667. Association for Computational Linguistics. Ke Yang, Yao Liu, Sapana Chaudhary, Rasool Fakoor, Pratik A. Chaudhari, George Karypis, and Huzefa Rangwala. 2025. AgentOccam: A simple yet strong baseline for LLM-based web agents. In The Thir-teenth International Conference on Learning Repre-sentations .Chi Zhang, Zhao Yang, Jiaxuan Liu, Yanda Li, Yucheng Han, Xin Chen, Zebiao Huang, Bin Fu, and Gang Yu. 2025. AppAgent: Multimodal agents as smartphone users. In Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems , pages 1–20. Association for Computing Machinery. Article 70. Boyuan Zheng, Boyu Gou, Jihyung Kil, Huan Sun, and Yu Su. 2024a. GPT-4V(ision) is a generalist web agent, if grounded. In Proceedings of the 41st Inter-national Conference on Machine Learning , volume 235 of Proceedings of Machine Learning Research ,pages 61349–61385. PMLR. Longtao Zheng, Rundong Wang, Xinrun Wang, and Bo An. 2024b. Synapse: Trajectory-as-exemplar prompting with memory for computer control. In 
+
+The Twelfth International Conference on Learning Representations .Yujie Zheng, Zikang Liu, Xin Zhao, and Ji-Rong Wen. 2026. A task-state representation for long-horizon mobile GUI agents. Preprint , arXiv:2607.00502. Hongbin Zhong, Fazle Faisal, Luis França, Tanakorn Leesatapornwongsa, Adriana Szekeres, Kexin Rong, and Suman Nath. 2026. ActionEngine: From reac-tive to programmatic GUI agents via state machine memory. Preprint , arXiv:2602.20502v1. 
+
+A Method and Implementation Details 
+
+This appendix describes how TAM connects the requirements of a task to observed progress and reusable operations. We follow the execution order in Algorithm 1: compile the requirements, maintain task advancement state, retrieve relevant evidence and operators, and review supported local opera-tions for reuse. The same requirement and object identifiers connect these stages. 10 A.1 Requirements and memory records 
+
+A requirement in Q describes either information to acquire or an outcome to achieve. Its record contains a relation name, value type, object roles, prerequisite requirements Rq, and a verification condition Vq. Structured values also specify their required fields. An optional condition γq identi-fies the branch in which the requirement applies. For example, an event record can contain its title, date, and time, while a notification requirement depends on that record and the recipient’s contact information. Dependencies describe the informa-tion consumed by an operation; the GUI route is chosen during execution. The state St associates each requirement with its status, current bindings, and evidence references, as described in Section 3.1. Bindings preserve the relation between a value and its object: an event time belongs to the specified event, and an address belongs to the specified recipient. Evidence ref-erences identify the observation step and saved source artifact. The implementation also records artifact digests so that a reused image retains its original identity. The Evidence Cache E stores visual support for task-local facts. The persistent graph G stores op-erators and their GUI realizations. An operator records its entry inputs, expected advancement, ver-ification condition, object roles, and applicability conditions. Its realizations retain the corresponding action sequences and interface contexts. This sepa-rates the result an operation provides from the route used to obtain it. Task state and cached evidence re-set at the task boundary; reviewed operators remain available to subsequent tasks. 
+
+A.2 Compiling the task requirements 
+
+At task start, the LLM-based compiler receives the natural-language instruction and proposes informa-tion and outcome requirements in JSON. It assigns types, names the necessary fields, and specifies which requirements supply inputs to each outcome. For a conditional request, it also represents the condition and its dependent requirement. Compila-tion operates on the instruction; it does not require advance access to the applications or their task-specific contents. The implementation combines the proposal with schema normalization. This resolves requirement references, checks field types, and preserves pre-requisite relations when bounding the graph size. The default target is 12 requirements; dependen-cies needed by a retained requirement are preserved. Explicit instruction values, such as a requested re-cipient, subject, or message, are kept as constraints on the corresponding outcome. They specify what the agent must achieve and are kept separate from observations of what it has achieved. Consider the request to read an event’s details and notify a contact. The compiler separates the event information, the contact endpoint, and the notification outcome. If the task also asks for an independent numerical answer, that calculation is connected only to the outputs that use it. The result-ing graph therefore preserves independent branches of the request instead of requiring every intermedi-ate result before any outcome can be pursued. 
+
+A.3 Updating and reading task advancement state 
+
+The actor reports task-relevant observations along-side its action. Each observation update identifies a requirement, a value or structured fields, and the evidence that supports it. The update format distin-guishes source information, derived values, visible drafts, collection coverage, and observed effects. These roles retain the difference between reading an event’s time, entering that time into a form, and observing a saved event. The runtime associates the proposed update with its requirement and source observation, checks the field structure, and updates the corresponding binding. Model-based extrac-tion interprets the observed content; reference and schema checks preserve its association with the task and artifact. Source information can be established from the current observation. Relevant outcomes are as-sessed from the observation returned after an ac-tion, using the requirement’s verification condition. For instance, text visible in a message composer describes a draft; the sent-message view provides evidence about the resulting message. Both the content and its recipient matter when the task spec-ifies them. The two updates in Eq. 3 thus use the observations already produced by the interaction loop. Structured requirements retain missing fields until they are supplied. Collections preserve ob-served members separately from evidence that the requested scope has been covered. Similarly, an ab-sence claim refers to a particular source and search scope. Contradictory observations leave the af-fected requirement conflicted until further evidence 11 resolves it. This keeps later inputs tied to the infor-mation that has been established. 
+
+Presenting the remaining work. The actor re-ceives the established bindings and a requirement readout that distinguishes available inputs from missing inputs. An input shared by several require-ments is referenced from the same state record. This is the implementation of the residual-task rep-resentation described in Section 3.2: completed requirements no longer constitute pending work, while their values remain available to their con-sumers. The frontier Ft identifies unresolved re-quirements whose dependencies and branch condi-tions are satisfied. In the event example, reading the event details supplies the notification’s content. After the con-tact endpoint is established, the notification has its required inputs. The actor can proceed using those values even after leaving the source applications. The readout organizes the next decision; it does not issue an action or replace the original task in-struction. TAM’s full-method configuration leaves primitive action selection to the base policy. 
+
+A.4 Recalling visual evidence 
+
+A cache entry links a saved screenshot or crop to the accepted relation, object binding, and source step. The cache is queried when a current require-ment needs information whose source is no longer represented in the actor’s recent visual context. Se-lection follows the requirement’s input dependen-cies and matches the corresponding bindings. If several facts come from the same image, that image is attached once. The implementation forms a packet covering the required source evidence within a limit of three recalled images. Evidence already present in the actor context contributes to that coverage. Each recalled image is marked as a past observation and supplied with a reference identifier. When the ac-tor reads a value from it, the observation update cites that identifier. The resulting value follows the ordinary state-update path. Current control lo-cations and coordinates are grounded in the live observation. Cache selection does not invoke another model. The selected images enter the ordinary actor call, where their visual tokens are included in the cost. If no matching packet is available, execution proceeds with the current observation, recent history, and task state. 
+
+A.5 Reviewing local operations and abstracting their inputs 
+
+An accepted advancement records the affected re-quirement, its bindings, supporting evidence, and the preceding interaction segment. This initial seg-ment retains context before the use of relevant in-puts. It is a candidate for review: some of its in-teractions may be navigation, repeated attempts, or work unrelated to the established result. At task end, the reviewer receives the candidates, their recorded actions, the result observations, and available later evidence. It decides whether each local result is supported, selects the steps to retain, and cites the supporting artifacts. Later observa-tions can confirm the result or reveal a reversal or object mismatch. Terminal success can nomi-nate an outcome candidate for review, it does not replace the local evidence judgment. The indepen-dent outcome-quality audit excludes such evaluator-nominated candidates (Appendix D.5). Correctly reading an event remains a useful operation when a later notification fails; a successful task can like-wise contain unproductive attempts that need not enter its reusable operation. 
+
+Identifying the entry inputs. TAM saves the ac-cepted task facts available before each step. Once the reviewer selects a segment, the snapshot at its retained start identifies which inputs were already available. Changes within the segment identify in-formation acquired by the operation itself. This distinction determines Rκ: a value first obtained in-side the retained segment is an internal result, rather than an input required before the operation starts. If review chooses a later start, the corresponding later snapshot supplies its entry state. The implemen-tation preserves the navigation and information-acquisition steps needed to support the selected local result. For example, a segment that opens a calendar and reads an event can learn an operation for ac-quiring event details. A subsequent segment that starts with those details and sends a notification can learn an operation that consumes them. The second operation’s inputs should not be assigned to the first merely because both appear in the same com-pleted workflow. Conversely, reviewing a segment from a later starting point must use the information available at that point, rather than the task’s final state. 12 Consolidating an operation. For a supported segment, the reviewer provides a short descrip-tion of the entry inputs, local result, and reusable method. It replaces task-specific values with ob-ject roles and compares the input–result relation with nearby stored operators. Compatible samples refine one operator while preserving their individ-ual GUI realizations. Materially different inputs or outcomes produce separate operators. Differ-ent names, dates, or layouts alone do not require a separate semantic operation. For the route query in Figure 2, the entry snap-shot contains Orlando and Miami as the origin and destination. The driving duration is absent at en-try and is obtained from the route-result screen. Abstraction replaces the two locations with origin and destination roles. The operator requires those roles, returns their driving duration, and checks that the displayed route uses the requested trans-portation type. Its recorded realization is Maps 
+
+→ route query → route result. The duration re-mains the result to obtain in a new task, rather than a prerequisite copied from the completed source trajectory. The stored record links this description to the re-tained steps and evidence. The expected result and verification condition refer to the same object roles as the inputs. The graph can therefore preserve an operation such as creating an event from given details while retaining different observed routes through the calendar interface. New evidence re-fines the shared description while preserving each observed route. 
+
+A.6 Retrieval and actor readout 
+
+Retrieval begins with the remaining requirements and their available inputs. TAM compares candi-date operators with the needed result and checks whether their input roles and applicability condi-tions fit the current task. It then assesses each stored realization against the current application and interface context. These are the task-relevance and GUI-compatibility questions introduced in Sec-tion 3.4. The readout includes the operation’s required inputs, expected advancement, and verification cue. When a realization fits the live interface, it also includes the corresponding route. Otherwise, the semantic operation still describes a useful result and how to recognize it, while the actor chooses a route from the current screen. Candidate selection retains a bounded set of relevant operations and     
+
+> Call Inputs Outputs Compiler Instruction and requirement schema Requirements, types, dependencies, and conditions Actor Instruction, live observation, recent context, and TAM readout Observation updates, execution summary, and one primitive action Outcome extraction Relevant unresolved outcome and observed action result Proposed relation, bound values, and supporting evidence Task-end review Candidate segments, entry snapshots, result evidence, and nearby operators Local support judgment, retained steps, citations, and operator description
+> Table 5: Inputs and outputs of TAM’s model calls. Out-come extraction is triggered for relevant unresolved out-comes; task-end review processes recorded candidates.
+
+avoids filling the context with equivalent routes. The retrieved-memory budget applies to this opera-tor readout; task state and recent observations have their own context limits. Applying an operator uses the current task’s bindings. Historical task values remain part of the source record, while the actor grounds the present action on the live interface. The expected advance-ment becomes an established requirement only when current observations support it. The same state-update process therefore connects learning from one task with verification in the next. 
+
+A.7 Model interfaces and call accounting 
+
+Table 5 summarizes the inputs and outputs of the implementation’s model calls. Requirements, ob-servation references, and retained step identifiers provide the common structure across calls. The actor also maintains a concise execution summary containing findings, attempted routes, and remain-ing work alongside the structured task state. Task compilation occurs at initialization, acting follows the environment’s decision loop, and retro-spective review occurs after termination. The cache and the organization of available and missing in-puts introduce no separate model calls. Model-cost accounting includes compilation, acting, triggered extraction, format repair, and retrospective review, together with the input tokens of recalled images. The benchmark settings and context budgets are re-ported in Appendix B; Appendix D.8 analyzes the observed allocation of inference and actor context. 13 A.8 Structured interfaces and representative prompts 
+
+The compiler returns a JSON object with a
+
+goal_slots list. Each requirement has a sta-ble schema name and a goal_kind : resource 
+
+denotes information to obtain, and done de-notes an observable GUI effect. The optional 
+
+type and required_fields specify its value structure; requires names prerequisite require-ments. consumption_role distinguishes a tar-get endpoint, rendered content, decision input, lookup key, attachment, or verification target. 
+
+entity_pattern and retrieval_cues describe the object and where to seek it. A conditional requirement names its branch_predicate ; al-ternative decision requirements can also name one another through alternative_to and spec-ify condition_polarity . effect_constraints 
+
+preserves the task’s required recipient, content, at-tachments, and fields to be checked at completion. For example, the compiler prompt contains the following complete small output example. The date requirement provides content to the message effect; a concrete task can add its recipient and other required inputs. 
+
+> {"goal_slots": [ {"schema": "arrival_date", "goal_kind": "resource", "type": "date"}, {"schema": "sms_sent", "goal_kind": "done", "type": "done", "requires": ["arrival_date"], "effect_constraints": { "expected_render_schemas": ["arrival_date"]}} ]}
+
+A stored binding records schema , type ,
+
+value_norm , and state ; entity_key identifies its object, while evidence_ref and source_step_id 
+
+retain the supporting artifact and source step. Each update names an op , the displayed 
+
+schema , a scalar value or structured fields , an 
+
+evidence_role , and a short evidence_text . The roles are source , derived , draft , coverage , and 
+
+effect . A recalled-image update additionally cites the displayed reference_evidence_id . These are proposals: the runtime associates them with the task requirement and recorded observation. An outcome-extraction call returns an observations 
+
+list with schema , evidence_ref , evidence , and 
+
+fields . Its parser admits only listed requirement names, the current post-action reference, and a nonempty visible witness. The following excerpts are taken verbatim from the prompts used in our implementation; the task-specific JSON packet and images follow the in-structions. 
+
+Task compilation. 
+
+> “Infer the smallest set of goal slots required to de-termine task completion.” “Use requires only for other goal-slot schemas that are semantic prereq-uisites for this claim; do not include app names, actions, or concrete values.”
+
+Outcome extraction.  
+
+> “Report only the listed outcomes whose verifica-tion conditions are visibly satisfied for the correct object and values. A draft, an attempt, or dis-appearance of a form alone is not confirmation.” “Use observations: [] when nothing is confirmed.”
+
+Retrospective review and abstraction.  
+
+> “Task success is not a local-evidence label. Keep supplied anchor/effect/step/evidence IDs.” “Use inputs available at the retained start. Informa-tion acquired inside the trace is internal work, not a prerequisite.” “Compare that local input-to-outcome relation with nearby_operators.” “Use task roles, not instance values. The host retains each real route; do not average routes.”
+
+The reviewer returns one decision per candidate, containing its anchor_id , effect_schema ,
+
+source_validity (supported, ambigu-ous, or contradicted), retained_step_ids ,
+
+cited_evidence_ids , and rationale. For asupported result, an optional operator_update 
+
+contains same_operator_id and short descrip-tions of its inputs , outcome , and method .
+
+A.9 Candidate boundaries and retained interactions 
+
+An accepted local result supplies the candidate end-point e. For resource alignment, the implementa-tion ranks recorded transitions up to the detected endpoint by Hi = 4 xi + 3 ni + 2 max(0 , z i − yi).Here xi, y i, z i are the fractions of claim tokens ap-pearing in the action target, pre-action UI, and post-action UI, respectively; ni is the fraction newly visible after the action. Claim tokens come from the proposed values, fields, and evidence text, with generic stop words removed. The highest-scoring transition is used, with later steps breaking ties, only if Hi ≥ 0.35 ; backdating additionally requires an exact claimed value in that transition’s visible post-action UI. Otherwise the detected endpoint is retained. Let r be the earliest recorded availabil-ity step, before e, among the candidate’s required 14 inputs, and let p be the previous captured advance-ment step strictly before e. If a backdated endpoint is at or before the most recent advancement, that advancement does not constrain the start. The ini-tial start is max( r, p +1) when both exist, r or p+1 
+
+when only one exists, and the episode start other-wise. The candidate contains the bounded suffix of this interval through e; the default setting retains at most eight steps. An empty recorded slice falls back to the detected transition as a single-step can-didate. Thus the reviewer receives a local candidate rather than choosing an unrestricted interval from the full episode. The reviewer chooses a nonempty subset of sup-plied step identifiers that includes e, and cites ev-idence identifiers from the supplied packet. The host validates both sets. It then closes the selection over observed input support: input-entry steps not marked as making no progress, or selections of a result or recipient bound to a required input, iden-tify the earliest supporting step. The retained route includes the nonempty, non-wait actions from there through e. For acquisition without entry inputs, it also retains the navigation/read prefix from the lat-est recorded app opening, or the bounded prefix if no app opening is present. If required inputs have no identified support step, the validated reviewer selection is retained. Entry inputs are determined after this closure. The snapshot immediately before the retained start supplies the available facts; subsequent snapshots through the endpoint identify acquired or updated facts. An input requirement is removed only if it was first acquired inside the retained interaction and was absent at entry. A later retained start there-fore uses its own earlier-state snapshot. Missing history remains unknown. When its application and activity are recorded, the GUI realization’s entry condition is taken from the first retained step’s ob-served pre-state; otherwise the original entry scope is retained. 
+
+A.10 Operator identity, matching, and GUI readout 
+
+Retrieval compares operators learned from re-viewed interactions with requirements compiled from the current instruction. It checks the required result and input roles before considering a recorded GUI route. Our MobileWorld and SPA-Bench con-figurations share the reference settings specified below. Task bindings and GUI context are recom-puted for each retrieval; execution evidence updates the reliability of each operation and route. The stored semantic record names its 
+
+operator_kind and operator_family , en-try requires , expected effects , and verifies .Its input profiles bind requirement schemas to parameter roles; guard variants preserve optional conditions. The verification_contract names the result schema, the required result fields, and the evidence relation. Separate GUI records link to this semantic identifier and retain the entry context, typed route, retained source steps, required/capability roles, and evidence provenance. 
+
+Consolidation. The reviewer compares the re-tained operation’s input-to-result relation with the supplied nearby operators. It proposes an existing identifier only when that relation is compatible; oth-erwise it returns null. The host accepts a proposed merge only if the identifier occurs among the sup-plied operators, the description is nonempty, and the result’s canonical family matches. Otherwise it stores the supported sample separately. A merge updates the description and retains observed input profiles, guards, and individual GUI realizations. The host does not average their action sequences. 
+
+Schema canonicalization. Compiler names are lowercased and normalized with underscores. Marker-based alias maps assign canonical result families and input roles. Effect families en-code domain and operation; resource families re-tain recognized role/domain and positional qual-ifiers. Thus SMS-Sent and text_message_sent 
+
+map to text_send , while meeting_time and 
+
+event_time map to resource:event_time . In-put profiles additionally normalize declared roles, such as render to content . Unrecognized ef-fects use predicate:<schema> ; resources lack-ing a recognized role retain resource:<schema> .In fallback schema comparison, qualifier conflicts mean opposing marker groups (e.g., start/end, source/destination, departure/arrival) or aggregate versus nonaggregate markers; these receive zero similarity. 
+
+Semantic matching. Semantic matching tests whether an operator can supply the result of a pend-ing requirement. Result types and input roles con-strain eligibility; normalized schema comparison supports records with incomplete type metadata. An explicitly typed source must match the target’s resource-acquisition or effect-realization kind and canonical result family. For records without an ex-15 plicit family, TAM first derives a canonical family from the schema name. Agreement with the target family gives a match score of 1. Otherwise, nor-malized schema comparison checks exact identity, qualifier conflicts, effect-family or resource-role agreement, and finally substring or token overlap. The corresponding reference scores are 1 for exact identity, 0 for qualifier conflicts, 0.94 for a shared effect family, 0.86 for a shared resource role, 0.82 
+
+for a substring match, and token Jaccard otherwise. The reference fallback threshold is τm, 0 = 0 .80 . In-compatible effect families and effect–resource pairs are capped at 0.59 and excluded from feedback-calibrated matching, so name overlap cannot over-ride a type conflict. Compatible input profiles must agree on whether the operation consumes inputs. When both profiles have role metadata, the source profile must cover the target’s required roles. The matched operation is rebound to the current require-ment and its inputs. Reuse preserves the input– result relation while substituting the new task val-ues; historical values remain provenance. Profiles lacking role metadata retain the coarser check on whether inputs are consumed. 
+
+GUI compatibility and reliability. GUI compat-ibility tests a recorded route against the live inter-face. Each realization retains its own entry condi-tions, so a shared semantic operation can support different interface-specific routes. A route needs a supported semantic source, an eligible stored life-cycle, a valid typed route identity, available target inputs, and the capability roles required by those in-puts. Typed actions must specify meaningful roles: typing requires both target and value roles, open-ing an app a value role, and clicking a target role. Known application or page-role conflicts reject a route. An activity conflict also rejects it unless the page role agrees. Otherwise applicability uses application/activity agreement and token overlap with the entry context; matching layout fingerprints provide additional support. The GUI context records the application, activity, page role, and a layout fingerprint. The fingerprint hashes the UI tree after masking displayed text, content descriptions, and digits; without a UI tree, it hashes the application, activity, and orientation. The first 16 hexadecimal characters of SHA-256 identify the normalized layout. After the conflict checks, the reference implementation scores the available entry-context evidence: 
+
+a = min  amax , b + wJ J + wAA
+
++wV V + whh.
+
+Here J is token Jaccard between live and stored en-try descriptions; A, V ∈ { 0, 1} indicate application and activity compatibility; and h counts matching known page-role and layout features. The refer-ence settings use b = 0 .08 , (wJ , w A, w V , w h) = (0 .42 , 0.28 , 0.18 , 0.08) , and amax = 0 .72 . Appli-cation and activity compatibility test normalized name equality or containment, followed by overlap or shared prefixes among informative name tokens. Missing both an informative entry description and an application pair gives a = 0 .TAM maintains semantic and route reliability separately. Reuse trials are assessed during exe-cution, and reviewed outcomes update persistent counts at task end. An observed target advance-ment supports the semantic operation, including when the actor adapts its actions. Route success additionally requires following and completing the stored route and reaching its destination. Re-viewed counterexamples update the corresponding semantic or route failure count. Ambiguous or unattributed outcomes are censored; repeated ob-servation identifiers are counted once. For count-backed records, both estimates use additive smooth-ing: 
+
+rj = sj + αj
+
+sj + fj + αj + βj
+
+, j ∈ { sem , gui }.
+
+Here sj , f j are the corresponding positive and neg-ative evidence counts. The constants αj , β j are smoothing pseudocounts that stabilize estimates from sparse observations. Their reference val-ues are (αsem , β sem ) = (2 , 1) and (αgui , β gui ) = (1 , 1) .A semantic source must pass its reliability gate. Recorded-route guidance additionally requires suf-ficient route reliability and GUI applicability, to-gether with the compatibility checks above. The reference thresholds are τsem ,0 = 0 .55 , τgui ,0 =0.45 , and τa, 0 = 0 .38 . As observations accumu-late, changes in reliability can enable or suppress route guidance. This adapts reuse to experience with each stored operation and route. For feedback-calibrated retrieval, the four ad-mission thresholds use the reviewed local reuse outcomes accumulated within the same memory sequence. Between tasks, each threshold is set to 16 the midpoint of the positive and negative mean pre-execution scores, with its reference value contribut-ing one fixed pseudo-observation to each mean. Se-mantic outcomes calibrate the matching and seman-tic gates; outcomes of attempted routes calibrate the route and applicability gates. The reference value is used when either outcome class is absent or the positive mean is not higher. Type, input-role, and interface conflicts remain hard rejections. If no route passes, a supported semantic opera-tion can still provide its inputs, result, and verifi-cation cue, with missing inputs marked explicitly. This preserves task-level guidance when a recorded GUI implementation is unsuitable. Scoped nega-tive evidence remains a rejection in either mode. Eligible alternatives undergo two-axis ϵ-Pareto selection, followed by a bound that first favors new requirement coverage and then distinct route fam-ilies. For persistent graph retrieval, the two axes measure requirement coverage and execution sup-port: 
+
+C = λ X
+
+> q∈Ut
+
+mq1[mq ≥ τC ],E = ηa + (1 − η)rgui .
+
+Here Ut contains the remaining requirements, and 
+
+mq is the largest schema-match score between q
+
+and the candidate’s target-bound results. The refer-ence settings use λ = 1 .25 , τC = 0 .66 , η = 0 .62 ,and ϵ = 0 .05 , retaining at most two alternatives. The result and verification sets coincide on this path. Semantic-only advice has E = 0 ; a persis-tent candidate without typed requirement coverage is rejected. A candidate is removed when another is at least as good minus ϵ on both axes and better by more than ϵ on either. 
+
+Conflicting upstream evidence. The readout ex-cludes unresolved or conflicted facts from avail-able inputs, so dependent requirements identify those inputs as missing. In the typed state kernel, a pending effect whose inputs cease to be estab-lished becomes unprepared; an attempted effect with a newly conflicted input becomes ambiguous and calls for further evidence. A separately con-firmed effect retains its own observation-backed status when an upstream input becomes conflicted. 
+
+A.11 A complete illustrative operator for Figure 2 
+
+The following instantiates every component of the route-query operator in Figure 2. Its role names and route description are schematic, not an addi-tional measured trajectory. Let o and d denote the origin and destination and τ the observed driving duration. 
+
+Entry requirements Rκ. Origin and destination are available as the two route endpoints. The driving duration is not an entry input. 
+
+Expected advancement ∆κ. Acquire 
+
+driving _duration( o, d ) = τ for the specified route. 
+
+Verification Vκ. A route-result observation shows driving mode, the bound origin and destina-tion, and the reported duration for that route. 
+
+Object roles Bκ. The query’s origin and destina-tion and the verified route’s endpoints share the bindings o, d ; the result binds τ .
+
+Applicability Γκ. The requested result is adriving-route duration. This example has no additional task branch guard; application and page conditions belong to each realization. 
+
+GUI realizations Aκ. Each realization records its observed entry application/page, retained in-teraction steps, and cited route-result evidence. A schematic route opens the route query, en-ters o, d , selects driving mode, and inspects the result. Different observed routes remain separate records. The arrival-time calculation consumes the acquired duration and the departure time; notifying Susan consumes that calculated time and the recipient binding. These later results are outside the route-query operator. On reuse, new endpoints replace 
+
+o, d , and a new observation must establish the new duration before it enters task state. 
+
+B Experimental Setup 
+
+B.1 Benchmarks and Observations MobileWorld. We evaluate the GUI-only parti-tion of MobileWorld (Kong et al., 2026). Based on the released task metadata (Tongyi-MAI, 2025), this partition contains 117 tasks across 15 GUI ap-plications, with 105 English and 12 Chinese instruc-tions. The application counts in the task metadata divide these tasks into 55 single-app, 48 two-app, and 14 three-app workflows. Tasks include com-munication, scheduling, document handling, file management, and shopping. The GUI-only setting 17 uses touch, text entry, scrolling, navigation, appli-cation launch, waiting, and termination. It excludes MCP tools and simulated-user clarification. The observation interface supplies the current screenshot and the available Android UI tree. Each method constructs its own history and memory con-text from these observations. MobileWorld ini-tializes the device and application data for each task. Its native evaluators check the requested re-sult through task-specific answer checks, backend state, device-local files, or application callbacks. Evaluation data are kept separate from actor obser-vations. 
+
+SPA-Bench. We use the English single-app Level 3 setting of SPA-Bench (Chen et al., 2025). Based on the released task metadata (AI Agents 2030, 2024), this split contains 50 tasks across 36 applications, with reference human trajecto-ries comprising 9–18 annotated actions. These multi-stage single-app workflows complement the cross-app demands of MobileWorld. The split is identified by the English single-app task file and its Level 3 difficulty annotations; task instructions are used as released. As specified in Section 4.1, TAM uses GPT-4o with Set-of-Mark observations. Appendix B.3 describes initialization, action exe-cution, final evaluation, and memory continuity for this setting. 
+
+B.2 MobileWorld Implementation and Evaluation Interaction budget. All MobileWorld methods use Qwen3-VL-32B-Instruct and a budget of 50 controller rounds. A round is an externally counted action decision, including a wait or context-management action. Some baseline decisions ex-pand into several primitive actions; these actions are recorded separately while the decision con-tributes one controller round. Internal memory operations that make no environment action do not consume a round. Their model calls contribute to token expenditure. All MobileWorld methods follow the same eval-uation and stopping protocol. The native evaluator checks the task after each executed GUI action, and execution stops immediately when it confirms success. For decisions containing multiple primi-tive actions, this check occurs after each primitive action. Otherwise, execution ends when the agent terminates or reaches the 50-round budget, and the final state is evaluated. Any terminal answer is sub-            
+
+> Setting MobileWorld SPA-Bench Temperature 00Actor output limit (tokens) 8,192 1,024 Recent action records 65Operator context (tokens) 900 900 Persistent operator capacity 512 512
+> Table 6: TAM reference implementation defaults. Base-line controllers retain their own history management and role-specific output limits.
+
+mitted before evaluation. The evaluator’s reference answers and internal state are not supplied to the actor. SPA-Bench uses its own task-specific budget and post-execution evaluation procedure, detailed in Appendix B.3. 
+
+Model and context settings. TAM uses temper-ature zero. Table 6 records the reference imple-mentation’s actor settings for both benchmarks. The actor receives the live screenshot, task state, and recent action history. The Evidence Cache can additionally supply the source images selected for a current requirement, as described in Ap-pendix A.4. Task compilation and operator re-view use the model interfaces summarized in Ap-pendix A.7. 
+
+Persistent memory. The following memory life-cycle applies to both benchmarks. TAM builds its operator library from the task sequence with-out a separate application-exploration stage. Task Advancement State and the Evidence Cache are cleared at every task boundary. Reviewed oper-ators persist within the evaluation sequence and become available after the source task ends. Thus a task uses the library available at its start; its own retrospective review contributes to later tasks. The task manifest fixes the sequence, and the library is maintained across execution batches. Memory stores are separate for different methods and abla-tion configurations. Methods with a preconstructed knowledge bank load that bank before execution and retain their own retrieval mechanism. 
+
+Task outcomes and retries. Native evaluation determines task success: MobileWorld uses the per-action and final checks described above, whereas SPA-Bench scores the recorded trajectory after exe-cution. A transport retry resends the model request within the same decision and does not add a GUI action. Interrupted attempts caused by unavailable services or an invalid environment initialization are retained separately from completed task outcomes. 18 A task is retried only when its initial conditions and memory boundary can be restored without du-plicating side effects or committed memory. The experiment ledger preserves the original attempt, reported model usage, and reason for retry. Ordi-nary task failures are not rerun to select a better outcome. 
+
+B.3 SPA-Bench Implementation and Evaluation Environment and action interface. SPA-Bench tasks run in an Android emulator controlled through Android Debug Bridge (ADB). Before each task, the adapter restores the device snapshot, performs the benchmark’s task initialization, and captures a fresh observation of the target applica-tion. Device and capture-service preparation occurs before policy execution. Snapshot restoration re-sets device-local state, external account state is a separate task prerequisite. The adapter supports touch, long press, dragging, text entry, scrolling, navigation, application launch, waiting, and ter-mination. These operations act on the live inter-face. The actor receives the released instruction, current SoM observation, and its method’s history and memory, without access to reference trajecto-ries or evaluator key components. 
+
+Interaction budget and stopping. Following the released runner’s default convention (AI Agents 2030, 2024), task i has a budget of Bi = 2 gi + 1 
+
+rounds, where gi is its annotated human action count. Our controller reserves the final round for termination, allowing at most 2gi GUI interactions. Waiting and context-management decisions that issue an environment action consume a round; in-ternal memory computations and request retries do not create additional GUI interactions. Execution ends when the policy terminates or the budget is ex-hausted. An agent’s completion declaration closes the trajectory but does not establish benchmark success. 
+
+Official evaluation. We use SPA-Bench’s single-app evaluator with its result_only reasoning mode and with_action trajectory representation (AI Agents 2030, 2024). The evaluator first searches the recorded screenshots for the task’s textual key components using OCR. If this screen-ing stage passes, GPT-4o assesses the instruction and screenshot trajectory with action annotations. The resulting official success decision determines the binary task outcome. Evaluation is performed after execution rather than after each action, and its annotations and judgments are not fed back into online action selection. 
+
+Memory across tasks. The persistent-memory protocol in Appendix B.2 also applies to SPA-Bench: TAM begins with an empty operator li-brary and retains reviewed operators in task order across execution batches. Learning uses observed local results and retrospective review, without using official evaluator annotations as memory content. For the SPA-Bench ConAct baseline, we carry its model-maintained explicit UI-memory dictionary across tasks as a declared lifecycle extension to the released controller. Native memory add, update, and delete operations are preserved, while folded action history and step indices reset for each task. This extension adds no separate summarization, re-trieval, or learning call. Each method maintains its own store over the declared sequence. 
+
+Comparison protocol. Our TAM and ConAct evaluations use the same GPT-4o backbone, task in-structions, observation interface, initialization pro-cedure, and task-specific interaction budgets. Each method retains its own memory representation and context management. Table 2 also includes the first seven baselines and GUI-explorer as published reference results from Xie et al. (2025). Their reported inputs and backbones are retained; the shared execution protocol applies to our implemen-tations rather than retroactively to those published runs. The MobileWorld baseline adaptations in Appendix C concern Table 1. 
+
+Evaluation sequences and aggregation. The de-sign uses all 50 official English single-app Level 3 tasks in two complete evaluation sequences. Each task receives one scored attempt per sequence. TAM and ConAct share the task orders, generated from the lexicographically sorted task identifiers with order seeds 0 and 1. These seeds determine task order, they do not control model sampling. Each method starts each sequence with an empty persistent store. Task-local state and the environ-ment reset between tasks, while persistent memory accumulates within the sequence. For method m,let ymri ∈ { 0, 1} be the official outcome for task i
+
+19 in sequence r. The reporting rule is 
+
+Smr = 100 50 
+
+> 50
+
+X
+
+> i=1
+
+ymri ,
+
+¯Sm = 12
+
+> 2
+
+X
+
+> r=1
+
+Smr ,sm =
+
+vuut 12
+
+> 2
+
+X
+
+> r=1
+
+(Smr − ¯Sm)2.
+
+(5) Each of TAM and ConAct contributes 100 scored task episodes (50 tasks in each of two complete sequences), giving 200 scored episodes across the two methods. All tasks have equal weight, and percentages are rounded only after aggregation. Variation across the two sequences describes the combined effects of task order and execution vari-ability. 
+
+Memory updates and interrupted attempts. 
+
+Under this design, task-end learning runs after ev-ery valid episode, including failures, using the re-view and storage rules in Section 3.3. The terminal binary verdict can participate in the disclosed task-end review, hidden reference answers and evaluator annotations are not stored as task knowledge. Op-erators become available after the source task ends. Task failures, premature termination, and exhausted action budgets count as zero and retain their place in the sequence. Only external infrastructure faults that prevent valid execution or scoring permit a replacement attempt. If that state cannot be re-stored, the sequence restarts from empty memory in the same order. Persistent infrastructure failure is reported as an incomplete sequence rather than a reduced task denominator. 
+
+B.4 Component Ablations 
+
+The component study in Table 4 varies the enabled memory components while retaining the base pol-icy, decoding settings, observation adapter, action interface, recent-history window, and interaction budget. All configurations with Task Advancement State use the same task compiler and state-update procedure. Table 7 specifies the interventions. Disabling the Evidence Cache removes recalled source images while retaining established bindings and ordinary history. Disabling the Advancement Operator Graph removes persistent retrieval and task-end operator learning while retaining online state updates. Each configuration maintains a sep-arate library over the same task sequence. The                   
+
+> Configuration State Cache Graph Base agent –––Advancement State ✓––State + Evidence Cache ✓✓–State + Operator Graph ✓–✓
+> Full TAM ✓✓✓
+> Table 7: Component ablations. State includes task com-pilation and advancement updates. Graph includes both retrieval and task-end learning.
+
+flat-state comparison in Appendix D.3 is a sepa-rate intervention on the organization of task-local information. 
+
+B.5 Metric Definitions 
+
+Let N be the number of evaluated task instances, 
+
+si ∈ { 0, 1} the native-evaluator outcome, and ai
+
+the number of controller rounds up to the stopping point. Under the common MobileWorld protocol, a successful trajectory ends at the first evaluator-confirmed success; an unsuccessful trajectory ends at agent termination or the round budget. We report 
+
+Success = 100 
+
+N
+
+> N
+
+X
+
+> i=1
+
+si,
+
+Steps = 1
+
+N
+
+> N
+
+X
+
+> i=1
+
+ai.
+
+(6) Steps includes both successful and unsuccessful tasks and is read alongside Success. 
+
+Efficiency–Quality Area. Following the fixed-budget formulation of MMBench-GUI (Wang et al., 2026), we compute 
+
+EQA@ B = 100 
+
+N
+
+> N
+
+X
+
+> i=1
+
+si max 
+
+
+
+0, 1 − ai
+
+B
+
+
+
+, (7) with B = 50 for MobileWorld. EQA@50 uses the same stopping point as Steps. Each success-ful trajectory contributes according to its comple-tion length; a failed trajectory contributes zero. EQA@50 therefore rewards success achieved with fewer decisions. 
+
+Lifecycle Tokens per Solved Task. Let Tbuild 
+
+be the model-token expenditure for constructing memory before evaluation, and Tonline the expen-diture during the task sequence, including actor, state-update, retrieval, reflection, review, and repair calls. Then 
+
+LTS = Tbuild + Tonline 
+
+P 
+
+> i
+
+si
+
+. (8) 20 The numerator includes input and output tokens from successful and failed attempts. Execution calls are counted through the stopping point. Sub-sequent task-end reflection, review, and memory updates are also included. Vision and cached-input tokens follow the provider’s reported usage. Con-struction shared across tasks is counted once in the numerator and amortized over the solved tasks. We report LTS in millions of tokens. As indicated in Table 1, StructAgent and GUI-explorer have lower-bound LTS values because the available ledgers exclude their original knowledge-bank construc-tion. The mechanism analyses use the task, field, op-eration, or episode units defined in the Analysis Protocols and Sample Definitions in Appendix D. Those diagnostic populations are separate from the benchmark-level denominators above. 
+
+C Baseline Adaptations 
+
+All MobileWorld methods use the evaluation and stopping protocol in Appendix B.2. The inte-grations retain each method’s memory represen-tation, update procedure, and internal model roles. Adapters translate their actions to the common mobile interface and expose the current screen-shot, available UI-tree information, and application-launch operation. Internal calls contribute to the lifecycle accounting in Appendix B.5. 
+
+AWM (Wang et al., 2025b). AWM induces workflow descriptions from successful trajectories and replaces task-specific arguments with variables. The online adapter updates the workflow library at task boundaries and includes its text in the actor prompt in source order, up to 12,000 characters. Induction requires at least two actionable steps and has a 2,048-token output limit. The actor retains the task’s previous action history and uses a 1,024-token output limit. Workflow descriptions preserve application and affordance names while abstracting instance values and omitting absolute coordinates. 
+
+Mobile-Agent-E (Wang et al., 2025a). The in-tegration retains the Manager, Operator, Action Reflector, Notetaker, and the experience reflectors for tips and shortcuts. Its perception pipeline com-bines OCR and icon descriptions with available UI-tree controls. After an action, the agent ob-serves the result, reflects on the action, and updates its notes. In the evolution setting, tips and shortcuts persist across tasks, while working notes reset. The optional experience selector is disabled, so avail-able tips and shortcuts are supplied directly. Role responses have a 2,048-token limit. Shortcut ex-pansion is preserved, with its atomic actions logged separately from the controller decision. 
+
+StructAgent (Wu et al., 2026). The adapter re-tains structured task state, planning, perception, milestone verification, completion auditing, and recovery. It uses the released fixed experience bank with up to ten retrieved items and at most five plan-ner images. The action adapter translates supported operations to Android interactions; desktop shell, browser-control, and office tools are unavailable in the GUI-only environment. The default role output limit is 1,500 tokens, with role-specific requests capped at 8,192. The original experience bank re-mains fixed during the task sequence. 
+
+GUI-explorer (Xie et al., 2025). The adapter preserves exploration-derived knowledge, multi-modal retrieval, model-based ranking, action se-lection, and step summarization. The live screen queries the knowledge base through its embedding and FAISS pipeline. Retrieval requests one candi-date per image query at a similarity threshold of 0.9. The ranker selects knowledge relevant to the current instruction, and step summaries retain exe-cution history. Action selection and summarization use a 1,000-token response limit. The Device inter-face maps selected actions to MobileWorld while retaining this retrieval and execution loop. 
+
+MemGUI-Agent (ConAct) (Liu et al., 2026b). 
+
+We adapt the MemGUI-Agent implementation re-leased with MobileWorld. It retains the five-part tagged response format, structured context, history folding, and explicit context-management opera-tions. The actor receives one current screenshot with the shared UI-tree and application-launch ex-tensions; its own context operations manage earlier information. A context-management operation ex-ecutes a wait and consumes one controller round. Context resets at each task boundary. The response limit is 8,192 tokens to accommodate the tagged sections and rewritten context. Parsing permits up to three attempts on unchanged messages; these attempts are distinct from transport retries and do not introduce extra environment actions. 
+
+D Additional Results and Analysis 
+
+The following analyses examine information reten-tion, input preparation, operator learning and reuse, 21 and resource allocation. They draw on benchmark metadata, historical execution archives, paired state controls, and readout tests at fixed checkpoints. The benchmark comparisons measure end-to-end completion, these diagnostics examine the specific behaviors that task advancement is designed to sup-port. 
+
+D.1 Benchmark Coverage of the Diagnostics 
+
+Field-level diagnostics require both an acquired value and an identifiable destination for its later use. We classify all 117 MobileWorld GUI-only tasks by the principal information requirement in their instructions and official definitions (Figure 4). The classification identifies which tasks support this diagnostic. The census identifies 52 tasks whose principal requirement is to transfer acquired text or numer-ical content to a later GUI operation, comprising 47 multi-app tasks and five single-app tasks. Tasks involving final answers, decisions based on source information, file transfers, or navigation require dif-ferent evaluation criteria. A source-to-target field test therefore applies to a particular information requirement, rather than to every multi-app task. These 52 tasks define the benchmark scope of source-to-target field scoring. The main-text audit uses a reference catalogue covering 21 of them, comprising 14 fixed-role and seven collection tasks. Its 52 shared values provide identical field refer-ences across the five methods. The catalogue cov-ers a subset of the applicable tasks. 
+
+D.2 Preserving Information beyond Its Source 
+
+We measure retention after information has entered state. This requires an identifiable acquisition fol-lowed by an opportunity to retain the value. We therefore track values that match both their cited read-only UI source and the state supplied to the ac-tor. Instruction constants and echoes of the agent’s own input are excluded. This defines a diagnostic of acquired information with a verifiable textual source. Scanning all 756 valid archived TAM-family episodes yields 202 bindings across 32 tasks, where a binding associates a task role with a value. These 32 tasks contribute every acquisition satisfying the above rule. The 198 bindings with subsequent de-cisions yield 3,751 value–decision pairs. Every later decision is scored, including those where the value has disappeared, regardless of episode suc-cess. Availability is the fraction of these pairs in which the value remains in state, averaged equally across tasks. It reaches 92.3% overall, 93.1% in an application different from the source, and 89.6% when the value is absent from both current XML and recent text (Figure 5). For the temporal comparison, we require ten subsequent recorded decisions per binding so that every point follows the same values. Otherwise, episodes ending earlier would change the compo-sition of the curve. All 106 bindings meeting this duration requirement enter the analysis, covering 24 tasks. Values remain in the denominator even when they disappear. After ten steps, 95.1% remain in state, compared with 57.6% present in current XML or recent text (Figure 6). These results show that TAM preserves acquired information across application changes and extended action sequences. Advancement State keeps earlier results available to later decisions even when they are absent from the current XML and recent text. Scores measure literal retention in primary state, excluding quoted evidence. Observation ends with the episode. A value may disappear after replace-ment or completed work. The shared protocol spec-ifies matching rules and longer follow-up windows. 
+
+D.3 Preparing Inputs for an Operation 
+
+We test whether state organization brings an opera-tion’s source-derived inputs together before entry. The ten-task panel was chosen by task structure to cover cross-application dependencies, one-to-many coordination, document grounding, and terminal effects. Flat state retains facts and unfinished re-quirements while removing prerequisite links and associated action guidance. Both conditions dis-able persistent retrieval and learning. We examine all catalogued destination operations in this panel. Nine tasks contribute 23 fields grouped into ten operations. The remaining task requires a decision without field entry. Two saved revisions provide 20 operation instances. An operation is prepared when all its audited, environment-derived target values appear together in state before the first entry attempt. TAM pre-pares 40% of operations versus 20% for flat state. Correct first entry requires all audited fields to be correct on their initial entry. Final accuracy allows repairs, reaching 40% and 35%, respectively (Fig-ure 7(a)). The shared-source comparison examines input organization in workflows where both agents en-counter the required source information. All opera-22 0% 20% 40% 
+
+> Share within app group Fixed-role value transfer Collection or passage transfer Source-conditioned action Terminal information readout File or image transfer Record selection and edits Instruction-specified operation
+> 2329712 20
+
+(a) Single app ( n = 55 )  
+
+> 0% 20% 40%
+> Share within app group
+> 30 17 26700
+
+(b) Multiple apps ( n = 62 )Figure 4: Information requirements in the MobileWorld GUI-only inventory. Bars show within-group percentages and labels give task counts. Categories describe each task’s principal requirement. Application counts follow benchmark metadata. All later decisions Different application Outside XML and recent text 0% 25% 50% 75% 100%  
+
+> Value availability within a task  Task Mean
+
+Figure 5: Availability after acquisition. Tasks contribute when they have qualifying later decisions: 32 overall, 24 in a different application from the source, and 22 outside current XML and recent text. Points show task rates and diamonds their means. Horizontal jitter separates overlapping points. 
+
+tions meeting this condition are included, yielding ten instances from five tasks across the two revi-sions, including invoice cases that both agents fail. TAM prepares 80% versus 40% for flat state and achieves correct first entry for 80% versus 50% (Figure 7(b)). These ten instances contain the 18 field instances in the main-text paired analysis. Using the first entry after complete source exposure as the check-point gives the same results. Across the six multi-input instances, TAM prepares 66.7% versus 33.3% for flat state, while final correctness is 66.7% for both. The paired comparisons show the value of 1 3 5 7 10 
+
+> Steps since acquisition 025 50 75 100 Values present (%)
+> 95.1% 57.6% Advancement State Current XML or recent text
+
+Figure 6: Ten-decision follow-up of every binding with a complete observation window, yielding 106 bindings from 24 tasks. Both curves use these same values throughout, with equal task weights, and compare text locations within TAM executions. 
+
+organizing facts around the operations that need them. TAM more often assembles inputs before entry and achieves more correct first attempts when both agents have encountered the source informa-tion. 
+
+D.4 Access to Captured Cross-Application Information 
+
+We test access to information already recorded in TAM’s state after an application change. The same questions compare reading this information from memory with recovering it from the interaction history. A readout question requires a source-linked fact in state at a checkpoint in a different application 23 0% 25% 50% 75% 100%            
+
+> All inputs in state Correct first entry Correct final values
+> 20 40 30 40 35 40
+> (a) Complete catalogue
+> 0% 25% 50% 75% 100% 40 80 50 80 60 80
+> (b) Shared source exposure Operations satisfying each criterion
+> TAM Flat state
+
+Figure 7: Operation preparation and use in (a) the full diagnostic panel and (b) the shared-source subset of ten instances. The 20 full-panel instances comprise ten operations evaluated in two saved revisions. Each line joins TAM and flat-state percentages on the same set of operations. A criterion requires every audited parameter to satisfy it. 
+
+from its source. This tests access to captured infor-mation after a context change. The archive yields 26 distinct eligible claims. A fixed-seed selector retains at most two per task to limit repeated con-tributions from one workflow, yielding 23 claims. We score all 20 with resolvable source references, spanning 13 tasks and 14 checkpoints, including an incorrect stored value. The claim selector does not inspect episode success or probe answers. Three claims have unresolved object, quantity, or tem-poral references. The shared protocol details the selection. In each readout test, the same model answers the same question from the same current obser-vation under five context conditions: TAM state, ordinary notes, full XML/action history, history with sampled images, and recent context. Notes are generated from the interaction prefix before the query is supplied, without access to TAM state or the reference answer. A query is correct only when every requested field matches its source-checked reference after format normalization. We average queries within each task before averaging across tasks, and also report the query mean.                   
+
+> Context Task mean Query mean Tokens TAM state 96.2 95.0 4,040 Ordinary notes 80.8 80.0 4,003 Full XML/actions 92.3 90.0 6,439 XML + sampled images 88.5 85.0 19,347 Recent context 26.9 25.0 3,883
+
+Table 8: Readout accuracy (%) on the same 20 queries and mean input tokens per readout. Task means give equal weight to each of the 13 tasks. Query means give equal weight to each query. 0 25 50 75 100 
+
+> Context accuracy (%)
+> 025 50 75 100
+> TAM accuracy (%)
+> Equal accuracy
+> TAM higher
+> Context higher
+> TAM 96.2%
+> Ordinary notes Full XML/actions XML + images Recent context
+
+Figure 8: Readout accuracy by context. Each point compares an alternative context with the same TAM state condition. Axes give task-averaged accuracy on identical questions. Points above the dashed diagonal favor TAM. 
+
+TAM achieves the highest observed accuracy under both weightings (Table 8), with input size close to ordinary notes and 37.3% fewer input to-kens than full textual history. Under the same task weighting, TAM state reduces readout error by 80.0% relative to notes, 50.0% relative to full textual history, and 66.7% relative to visual history. These are relative error reductions. TAM’s accu-racy advantage is largest over recent context and ordinary notes (Figure 8). The field-level breakdown distinguishes incom-plete answers from incorrect derived values (Ta-24 Context Incomplete Time Amount TAM state 0 0 1Ordinary notes 3 1 1Full XML/actions 0 1 1XML + sampled images 0 2 1Recent context 22 0 1                 
+
+> Table 9: Errors among the same 28 requested fields per context. Incomplete fields contain missing or partial an-swers. Time and amount errors concern derived values. All observed field errors are included.
+> Weighting Selection Correctness Coverage Task All 88.0 100.0 Success-only 99.4 64.3 TAM storage 93.8 88.3 Reference All 84.2 100.0 Success-only 99.0 63.6 TAM storage 92.3 81.6
+> Table 10: Correctness and coverage (%) under fixed weights on the same 234 complete fields. Weights are the inverse of each group’s size in the full candidate pool. Supported values remain in the coverage denominator when their group retains none.
+
+ble 9). TAM, full textual history, and visual history achieve 100% field accuracy on multi-field queries, compared with 76.9% for notes. The additional errors under full and visual history concern derived times. All five contexts repeat one incorrect amount already present in the interaction prefix. TAM combines accurate access to captured in-formation with compact context. Its state supports more reliable cross-application readout than ordi-nary notes at a similar input size, while using sub-stantially fewer input tokens than full textual his-tory. 
+
+D.5 Quality of Local Learning Signals 
+
+We apply three policies to the same recorded candi-date pools, retaining all candidates, retaining only candidates from successful episodes, or follow-ing TAM’s storage decisions. A candidate pairs a claimed local result with its interaction evidence. Tasks contribute through the learning candidates they produce. Each test includes all candidates meeting its reference conditions below. Correct-ness measures the quality of retained material, while coverage measures how much correct ma-terial is retained. 
+
+Local outcomes. To assess local outcome judg-ments independently of terminal success, we in-clude all 20 admitted proposals made without ter-minal evaluator feedback. Proposals nominated by the evaluator already use the terminal signal being compared and are accounted for separately. TAM’s retained outcomes are 100% supported and cover 83.3% of the supported pool (Figure 9(a)). Success-only selection gives 85.7% correctness. It admits premature completion claims from a workflow that succeeds later. TAM excludes these contradicted claims. Missing supported outcomes result from review-output processing failures, which remain included in the coverage calculation. Local veri-fication thus improves the reliability of outcome evidence selected for operator learning. 
+
+Acquired values. Value-level scoring compares a specified resource field with an external refer-ence. Within the source-reference catalogue, we include every admitted field with a complete, un-ambiguous value claim and a determinate reference in benchmark fixtures, injected messages, or source documents. This yields 234 fields across 20 tasks, including correct and incorrect values. Incomplete claims and roles without resolved references re-main in the full candidate accounting (Table 13). To prevent candidate-rich tasks from dominating the comparison, we fix weights before selection so that each task contributes equally to the com-mon pool. TAM retains 88.3% of correct material, compared with 64.3% for success-only selection. Correctness among retained values is 93.8% and 99.4%, respectively (Figure 9(b)). TAM combines higher retained-value correctness than keeping all candidates with broader coverage of correct mate-rial than success-only selection. This expands the evidence available for operator learning, including supported progress from unsuccessful workflows. 
+
+Sensitivity to repeated values. Table 10 also gives equal weight to reference groups defined by task, resource role, and reference value. Correct-ness and coverage are ratios of weighted counts. Supported values remain in the coverage denomi-nator even when their group retains none. TAM’s coverage advantage persists under both weightings, showing that the gain holds when either tasks or repeated source values receive equal weight. The shared protocol also reports the unweighted com-parison. 
+
+D.6 Learning from Incomplete Workflows 
+
+We examine when correct local information first appears in workflows that ultimately fail. This tim-ing question requires at least one source-checked 25 All candidates Success-only TAM  
+
+> 0% 25% 50% 75% 100%
+> Rate (%)
+> 60.0 100.0 85.7 100.0 100.0 83.3
+
+(a) Local outcomes    
+
+> All candidates Success-only TAM
+> 88.0 100.0 99.4 64.3 93.8 88.3
+
+(b) Acquired values  
+
+> Correctness Coverage
+
+Figure 9: Correctness and coverage of retained learning material. Correctness is the supported fraction of retained items. Coverage is the retained fraction of all supported items. Policies share the same pool within each panel. Source-value weights give tasks equal representation before selection. 
+
+correct record. We include every failed execution meeting this condition in the source-value audit, yielding 29 executions across 16 tasks. Records contribute whether or not they are retained for learn-ing. Positions are normalized by the number of executed decisions, and tasks receive equal weight. The median first-record position is 28.6% of ex-ecution, and 72.9% of audited executions contain a correct record by their midpoint (Figure 10). Cor-rect material from 74.8% of these executions is eventually retained for learning. The dashed curve locates those retained records within their source workflows. The timing results show that useful learning material can arise early in a workflow that ultimately fails. TAM retains this partial progress for operator learning, extending the value of an execution beyond its terminal outcome. Table 11 breaks down retention and timing by information type. Operators linked to 15 retained candidates subse-quently appear in other tasks’ actor prompts. Their recorded lineage connects these deliveries to ten correct destination uses. The shared protocol ac-counts for all delivered cases. These traces docu-ment delivery and subsequent behavior, while the main-paper ablation evaluates persistent operators as a whole. Figure 11 illustrates one such chain. The source correctly reads a sender’s number from a lunch in-vitation but fails to create the calendar event. Its op-erator is recalled for an interview invitation, where the actor reads a different number from a resume, enters it as the recipient, and completes the task. 0 25 50 75 100 
+
+> Execution progress (%)
+> 025 50 75 100
+> Audited executions (%)
+> Median 28.6%
+> 74.8%
+> Correct information recorded Records later retained
+
+Figure 10: Timing within failed workflows containing a source-checked correct candidate, with tasks weighted equally. Both curves use the original recording time. The dashed curve tracks records subsequently retained for learning, with the same execution denominator. 
+
+This chain demonstrates how supported progress from an incomplete workflow enters memory and becomes guidance for a different task. 
+
+D.7 Using Recalled Experience with New Inputs 
+
+We examine how recalled acquisition experience is used in a later task. A reuse opportunity be-gins when an operator reaches the actor. Scanning all 756 archived executions yields 206 such cases across 60 tasks, counting each operator once per execution. Of these, 165 concern information ac-quisition. We follow the first subsequent binding 26 Information type Correct material retained Executions yielding retained material Correct record by midpoint Median first-record position Amounts and quantities 100.0 100.0 50.0 34.6 Contact and address details 66.7 66.7 62.5 33.3 Dates and times 79.4 77.9 87.5 20.0 All (deduplicated) 74.7 74.8 72.9 28.6 
+
+Table 11: Retention and timing in failed workflows containing correct candidates (%). Rates give equal weight to tasks within each information type. Positions are fractions of executed decisions, and the median uses the task-weighted timing distribution. Types may share executions, and the overall row uses their deduplicated union. (a) Failed source task  
+
+> Lunch invitation in Messages
+> (505) 123-4567 (b) New task input
+> Phone number in a resume
+> +1 (555) 123-4567 (c) Target recipient
+> New number in the SMS field
+> +1 (555) 123-4567
+> Contact-acquisition operator recalled in the new task
+> Line 1 Line 2 Enlarged phone details
+
+Figure 11: A recorded source-to-target chain. The failed source workflow correctly obtains a phone number. Its contact-acquisition operator is later recalled without the old number or GUI route. The target actor reads a different number from a resume and enters it as the SMS recipient. Panels use cropped recorded screenshots. Enlarged details in (b) show the phone number wrapped across two lines. 
+
+for the recalled resource, including incorrect and unresolved values. All 66 deliveries with such a binding enter the value audit, yielding 86 fields across 21 tasks. The other 99 deliveries remain in the coverage account. Task references support 65 of the 86 fields, contradict two, and leave 19 unresolved. 
+
+Adapting to changed values. We test inputs that the target task requires the agent to obtain from the environment. Source and target must refer to the same information requirement and semantic field, with comparable value types. For example, a phone number is compared with a phone num-ber, and an event’s start time with another start time. A changed reference distinguishes adaptation to the target task from repeating a source value. We include every field whose target reference dif-fers from all comparable source values. Of the 24 qualifying fields, 20 match the new reference, one is incorrect, and three remain unresolved (Fig-ure 12(a)). 
+
+From a binding to a destination. Literal text entry links a recorded value to a destination con-trol. We inspect every bound value matched to an executed text-entry action and check its desti-nation in subsequent XML or screenshots. Of 29 matched fields, 23 (79.3%) reach the intended des-tination with the correct value (Figure 12(b)). One enters an incorrect value, one occurs only in an unrelated message-search field, and four lack a re-solved reference. The correct uses span 22 actions in 22 episodes across seven tasks. Of the 23 correct field uses, 21 follow semantic guidance without an executable GUI route. The other 57 fields have no matching text-entry action and are outside this destination test, which does not cover other input modes such as time pickers. The two tests exam-ine overlapping subsets of the same 86 fields. To-gether, the tests show that TAM combines reusable acquisition guidance with information obtained for the current task. The transfer traces demonstrate correct binding and destination use with new task values, supporting the reuse of experience across changing inputs. 
+
+D.8 Inference and Context Allocation 
+
+We examine how recorded inference is divided be-tween the actor and additional model calls, and how much actor text is devoted to state and opera-27 20 / 24 
+
+> correct values
+> 31
+> (a) Changed inputs in matched fields
+
+## 23 / 29   
+
+> correct target use
+> 42
+> (b) Values matched to text entry
+> Correct Unresolved Incorrect value or field
+
+Figure 12: Two diagnostic subsets of the full 86-field target audit. (a) The 24 newly acquired inputs with a changed reference and comparable source and target fields. (b) The 29 fields matched to executed text entry. The two orange cases in (b) comprise one incorrect value and one correct value entered only in an unrelated field. Unresolved cases remain visible. 
+
+tor guidance. A shared actor prompt format gives the state-and-guidance block consistent boundaries, making its text share comparable across executions. We include every valid archived execution using this format, yielding 250 episodes across 96 tasks. Repeated executions are averaged within each task. The records include five archived memory settings, detailed in the shared protocol. For each task, we average the fraction of recorded tokens used by additional model calls across its executions. Across tasks, the median is 1.7% (interquartile range 0.4–6.8%). For actor con-text, we first take the median fraction of prompt characters devoted to state and operator guidance within each execution, then average these episode medians within each task. The median across tasks is 5.7% (4.3–7.8%), as shown in Figure 13. This measure covers 7,107 saved actor prompts. Across configurations, the median token share of additional model calls ranges from 0.5% to 13.4%, and the median text share from 4.1% to 6.3%. These profiles show that TAM provides explicit task state and reusable guidance through a compact addition to actor context. The small median share of tokens used by additional calls complements this representation, supporting the practicality of integrating memory into ongoing execution. 
+
+Analysis Protocols and Sample Definitions Sources and links to the main results. The source labels in Table 12 distinguish benchmark metadata (B), historical executions (H), paired state controls (P), and fixed-checkpoint readout tests Additional calls (token share) State + guidance (text share) 0% 5% 10% 15% 20% 25% 30% 
+
+> Task-level resource share
+
+Figure 13: Resource allocation for all 96 tasks with valid archived executions using the shared actor prompt format. Shares refer to tokens used by additional calls and actor text devoted to state and operator guidance. All task values are shown. Boxes span the interquartile range, orange lines mark medians, and whiskers extend to observations within 1.5 interquartile ranges of the box. 
+
+(Q). Historical executions cover multiple prompt and memory configurations. They document ob-served behavior under the recorded configuration of each episode. The paired state study holds its two arms within each saved revision, with persis-tent retrieval and learning disabled. The readout study holds questions and checkpoints fixed while varying the supplied context. Baselines use their fixed recorded trajectories. This panel measures attained information identification and use on com-mon field references. These records are separate 28 from the benchmark-level aggregation protocol. 
+
+Benchmark result identities. The MobileWorld app-count table is a grouped view of the main-result register, and the Full TAM row in the ablation ta-ble uses the same Full TAM register. Diagnostic records retain their own source identities. Links to the main registers are made by exact episode identity, not merely by shared task identifiers. This structure connects the reported comparisons with-out conflating historical configurations. 
+
+References and units. Field judgments combine benchmark definitions, source observations, exe-cuted actions, and destination observations. Audits are model-assisted and accompanied by their ev-idence. Unresolved judgments remain separate. Table 12 distinguishes tasks, episodes, operations, fields, and repeated observations within tasks. 
+
+Persistence and controlled state execution. The fixed archive contains 756 valid full-memory exe-cutions across 115 tasks. Inclusion requires a value in its cited read-only UI source and in the actual actor state. This defines the 32-task acquisition cohort. Instruction constants and echoes of the agent’s own input are excluded. Typed matching covers email addresses, URLs, dates, times, phone numbers, and identifiers with at least seven dig-its. Other text requires eight alphanumeric charac-ters. Every later prompt enters the score, including those missing the value. Cross-app decisions yield 2,509 pairs from 24 tasks. Absence from current XML and recent text yields 1,024 pairs from 22 tasks. Each condition includes all matching de-cisions. These are literal-presence measurements. Images and other prompt blocks are outside the immediate-text comparison. The temporal plot in-stead requires ten complete subsequent decisions per binding, yielding 106 bindings across 24 tasks. This duration criterion keeps the same values at every step and uses neither episode success nor sub-sequent retention. Longer follow-up requirements define separate cohorts. At 15 decisions, state and current XML/recent text contain 98.8% and 34.3% of tracked values (88 bindings, 20 tasks). At 20 decisions, the corresponding figures are 81.5% and 60.6% (67 bindings, 18 tasks). These endpoints use equal task weights within each cohort. The paired state panel uses Qwen3-VL-32B-Instruct, temperature 0, and a 50-action limit. Both saved revisions use seed 7. The flat-state interven-tion includes associated guidance and output exam-ples. Both arms disable persistent retrieval, writes, and learning. Section D.3 extends the main-text paired runs. Shared source exposure is determined after execution. Full-panel results accompany this conditional comparison. 
+
+Readout selection and inputs. The selector scans 117 historical task records. The 53 first oc-currences of a stored claim in a later application yield 32 occurrences with valid source and des-tination apps in declared multi-app tasks, or 26 distinct claims across tasks. Seed 20261003 and a cap of two claims per task select 23. Source review resolves 20, including one incorrect stored claim. Three have unresolved source-object, quantity, or temporal references. Thus the test concerns access to facts previously captured in TAM state. All conditions use Qwen3-VL-32B-Instruct at temperature 0. They share the current screenshot, XML, recent actions, task, and environment policy. An initial probe omitted the environment policy, including the device date. Corrected inputs were then applied to every condition with questions, ref-erences, and checkpoints unchanged. Only cor-rected responses enter this exploratory comparison. Visual history adds up to seven earlier screenshots. Query-blind notes use the full prefix and the same image sample, with a 128-word target. Reported tokens cover readout, excluding memory and note construction. Source-to-query gaps range from one to 11 steps, with median two. Omitting each task in turn leaves an 8.3–16.7 percentage-point TAM advantage over notes and a 0–4.2 point difference from full history. These ranges measure sensitivity, not confidence intervals. Paired and field-error analyses reuse all 100 re-sponses. The 28 requested fields are nested within 20 queries. The five multi-field queries contain 13 requested fields. Error categories describe returned values, not internal causes. For context c, relative error reduction is 100( Ec − ETAM )/E c, where E
+
+averages query errors within tasks and then equally across tasks. All contexts use the same questions and fixed weights. Error rates are 3.85% for TAM, 19.23% for notes, 7.69% for full history, 11.54% for visual history, and 73.08% for recent context. Relative reductions differ from percentage-point accuracy gains. 
+
+Candidate census and source references. Of 756 valid executions, 751 match a retrospective review record by namespace and episode identifier. The 430 executions without candidates remain in 29 Analysis Source Inclusion rule and purpose Evaluated units Diagnostic scope B Every official GUI-only task. Task definitions identify the acquired-content transfers to which field scoring applies. 117 tasks; 52 transfer tasks Information use H Common references with a source and a downstream destination. The same fields are scored for all five methods. 21 tasks; 52 values Value persistence H Source-verifiable acquisitions followed at every later decision. The temporal comparison requires ten subsequent decisions to keep the same values throughout. 202 bindings in 32 tasks; ten-step subset: 106 in 24 tasks Operation preparation P Structurally selected diagnostic tasks. All catalogued operations enter the full panel. Shared-source cases test organization when both runs encounter the required inputs. 20 operation instances; 10 shared-source instances containing 18 fields Readout Q Cross-app access to captured facts, with at most two claims per task, then all source-resolvable queries across the same five contexts. 20 queries; 13 tasks; 100 responses Supervision scope H Supported candidates with confirmed persistent writes, paired before and after review; equal task weights. 335 segments; 215 episodes; 36 tasks Learning material H Outcome candidates not nominated by terminal evaluator success. Complete source-value claims with external references support value-level scoring. 20 outcomes; 372 resource candidates; 234 complete values Partial-result timing H Every failed execution with a source-checked correct candidate, providing an observed onset for timing. 29 executions; 16 tasks; 41 candidates New-input use H Actual deliveries define reuse opportunities. First subsequent bindings and traceable text entries define the value and destination tests. 206 deliveries; 86 binding fields; 29 text-entry fields Computation H Every valid archived execution using a shared prompt format, so the measured context block has consistent boundaries. 250 episodes; 96 tasks; 7,107 actor prompts 
+
+Table 12: Sources and statistical units of the diagnostic analyses. B: benchmark metadata; H: historical executions; P: paired state control; Q: fixed-checkpoint readout. 
+
+the inventory. The other 321 produce 582 proposals across 48 tasks, including 120 outcomes and 462 resources. Of 105 admitted outcomes, 85 nominated by native evaluation are excluded from the indepen-dent outcome test. All 20 remaining proposals are included. Two supported proposals fail source-validity normalization and three unresolved propos-als have malformed review JSON. Among the 15 with usable review decisions, TAM stores ten sup-ported outcomes and none of the five contradicted outcomes. All 372 admitted resource candidates enter Ta-ble 13. Official task roles define 297 reference slots in 266 candidates. The 234 complete slots span 210 candidates and 146 executions. The 63 unre-solved slots include missing dates, partial claims, and ambiguous source roles. Another 106 candi-dates lack static acquired-value references or con-cern instruction-given content. Unassessed items receive no correctness label. Field judgments as-sess recorded values, not every statement in an operator. The local-outcome panel uses all 20 eli-gible proposals. Unresolved retained items remain in its correctness denominator, and processing fail-ures do not remove supported items from cover-age. The source-value panel uses all 234 complete fields across 20 tasks. A field from task t receives weight 1/n t, with nt fixed from that task’s com-plete fields before selection. Correctness divides retained supported weight by all retained weight. Coverage divides retained supported weight by all supported weight in the pool. Without weighting, TAM has 94.9% correctness and 78.2% coverage, versus 98.8% and 76.4% for success-only selection.             
+
+> Selection Supported Contradicted Unassessed All admitted 189 16 167 Success-only 148 287 TAM storage 150 7108
+
+Table 13: Accounting for all 372 admitted resource can-didates. A candidate is supported when all its specified reference slots agree, contradicted when any disagrees, and otherwise unassessed. This candidate-level table complements the value-level quality comparison. 
+
+Timing and reuse of partial results. All 41 reference-correct failed-source candidates have original proposal indices and complete logs, cov-ering 29 executions across 16 tasks. Each task receives weight 1/16 , divided equally among its qualifying executions. Execution progress is the one-based record position divided by the number of logged decisions. The median is the smallest 30 observed fraction whose cumulative task weight reaches 50%. Final-decision records remain in-cluded. Both curves use the same execution weights. The second curve uses the first correct record that is eventually retained, located at its original record-ing position. Executions without retained records contribute zero throughout. This curve describes the origin of retained material rather than the time of retrospective storage. Local correctness covers specified source values, not every claim in a learned operator. Table 11 uses equal task weights within each information type. Material retention averages each task’s retained fraction of correct records. Exe-cution retention and midpoint coverage average within-task execution fractions. Timing uses each execution’s first record of the relevant type. The overall row deduplicates executions. All eligibility rules are unchanged from the original source-value audit. Of the 29 stored failed-source candidates, opera-tors linked to 15 appear in 56 later episode–operator pairs across 26 tasks. Twenty pairs have a sub-sequent new binding, yielding 25 fields with 18 correct, two incorrect, and five unresolved values. Ten correct destination uses occur in ten executions. Each target unit is counted once despite multiple source contributions. This accounting connects checked source values, operator delivery, and sub-sequent behavior. 
+
+Reuse and computation. Chronological reuse is checked within namespaces by matching retrieved operator identifiers to saved actor prompts. Across all 756 valid runs, 206 first episode–operator deliv-eries occur in 168 executions across 60 tasks. They comprise 165 acquisitions, 34 interface outcomes, and seven unresolved types. The first subsequent binding is fixed before scoring, preventing later repairs from replacing an incorrect initial value. Changed-input eligibility uses target references, independently of target correctness. Comparisons require the same schema, semantic field, and value type. Compound source records are resolved to the matching field. The 86 target fields include 24 changed inputs, eight unchanged references, six inputs not newly acquired, and 48 without deter-minate comparisons. Destination scoring checks every literal-entry match against subsequent obser-vations and permits repairs. The 57 unmatched fields receive no destination judgment. Other GUI input modes lie outside this test. Delivery and sub-sequent behavior are observed. Establishing the incremental benefit of a particular source contri-bution requires controlled memory-bank compar-isons. Of 784 valid archived executions, 250 from 96 tasks share the actor prompt format. All qualify-ing episodes contribute within-task averages. To-ken shares include repair calls. Character shares cover the state-and-guidance block, excluding ear-lier execution recall. The ledger also retains 214 infrastructure-invalid attempts and covers all 117 task identifiers. 31

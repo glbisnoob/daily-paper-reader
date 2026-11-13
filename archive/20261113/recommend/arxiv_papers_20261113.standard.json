@@ -1,0 +1,724 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-13T02:19:15.720311+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 17,
+    "deep_cap": 6,
+    "deep_selected": 6,
+    "quick_candidates": 11,
+    "quick_skim_target": 11,
+    "quick_selected": 11
+  },
+  "deep_dive": [
+    {
+      "id": "2610.23012v1",
+      "source": "arxiv",
+      "title": "Adaptation of Computer Use Agents to New Software with User Manuals",
+      "abstract": "Recent advances in multimodal foundation models have significantly improved the ability to operate real-world software through graphical user interfaces (GUIs) using visual observations and natural language instructions. However, maintaining strong performance on unseen applications remains challenging, as practical tasks often require long-horizon procedural knowledge and application-specific operation patterns. In addition, constructing executable tasks and collecting corresponding trajectories for training still heavily rely on human-annotated data, incurring substantial cost. In this paper, we propose MAGE (Manual-augmented computer use AGent Execution and learning), a framework that leverages user manuals as a scalable source of procedural knowledge to improve both inference and training. During execution, MAGE retrieves task-relevant manual content and uses a planner to generate explicit procedural guidance for CUAs. To further account for the discrepancies between manuals and actual GUI environments, such as version differences or user settings, MAGE also adapts the agent policy through environment interaction. During training, MAGE converts manuals into executable task-plan pairs and uses the plans to guide environment rollouts toward task-relevant states; the resulting trajectories are then used to optimize the policy without human-authored demonstrations. This unified design enables effective utilization of manuals for both task execution and training, reducing reliance on human-authored training data. Experimental results across six applications demonstrate improvements in task success rates over strong baselines, highlighting the effectiveness of manual-guided planning and policy adaptation in new software environments. We provide the code and reproduction scripts at https://github.com/ku-autoai/MAGE.",
+      "authors": [
+        "Chulhoon Yoon",
+        "Kyungri Park",
+        "Jinyeong Yun",
+        "Daeyun Jeong",
+        "Sukmin Yun",
+        "Woohwan Jung"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-16 06:44:56+00:00",
+      "link": "https://arxiv.org/pdf/2610.23012v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "computer use agents operating software via GUI with visual observations and instructions",
+      "llm_evidence_cn": "基于视觉观察与指令通过GUI操作软件的计算机使用智能体",
+      "llm_evidence": "基于视觉观察与指令通过GUI操作软件的计算机使用智能体",
+      "canonical_evidence": "基于视觉观察与指令通过GUI操作软件的计算机使用智能体",
+      "llm_tldr_en": "Proposes MAGE, a framework using user manuals as scalable procedural knowledge to adapt computer-using GUI agents to unseen software and reduce reliance on costly human-annotated trajectories.",
+      "llm_tldr_cn": "多模态基础模型已能通过GUI操作真实软件，但在未见应用上仍受长程程序性知识与特定操作模式制约，且任务与轨迹数据依赖昂贵人工标注。作者提出MAGE框架，利用用户手册作为可扩展的程序性知识来源，用于计算机使用智能体的执行与学习，从而降低标注成本并提升对新软件的适应能力。该工作为通用GUI智能体在陌生桌面软件上的自主操作提供了可扩展的知识驱动路径。",
+      "llm_tldr": "多模态基础模型已能通过GUI操作真实软件，但在未见应用上仍受长程程序性知识与特定操作模式制约，且任务与轨迹数据依赖昂贵人工标注。作者提出MAGE框架，利用用户手册作为可扩展的程序性知识来源，用于计算机使用智能体的执行与学习，从而降低标注成本并提升对新软件的适应能力。该工作为通用GUI智能体在陌生桌面软件上的自主操作提供了可扩展的知识驱动路径。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Methods for general purpose GUI agents that autonomously complete desktop, web, and mobile tasks.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.23012v1"
+    },
+    {
+      "id": "2610.24372v1",
+      "source": "arxiv",
+      "title": "Beyond Next-Screen Prediction: The Decision Value of GUI World Models",
+      "abstract": "GUI world models are increasingly used to improve action selection by predicting the consequences of candidate actions, but it is unclear how much of the resulting gain comes from prediction itself rather than from the evaluator that interprets those predictions. We study this attribution problem through controlled interventions on GUI action selection. With candidates and predictions held fixed, lookahead gains can change with how the prediction is presented to the evaluator, so end-to-end gains cannot be attributed to prediction alone. We then introduce Direct Action Ranking (DAR), which learns from reference actions to score candidates without generating future screens, and compare it with a prediction-augmented variant under matched supervision. Predicted successors add no detectable ranking signal once evaluation is learned directly. Without retraining, DAR improves AndroidWorld task success by 5.8--16.4 points across three proposers, outperforms world-model lookahead, and transfers zero-shot to unseen apps, where every prediction-conditioned configuration falls below proposer confidence. These results suggest that GUI world models should be evaluated by their decision value, the incremental action-selection value of their predictions beyond a strong direct evaluator, rather than by prediction fidelity or end-to-end lookahead gain alone.",
+      "authors": [
+        "Sizhe Tang",
+        "Hanhan Zhou",
+        "Jeffrey Svajlenko",
+        "Rashmi Gangadharaiah"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-17 02:03:20+00:00",
+      "link": "https://arxiv.org/pdf/2610.24372v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Studies GUI world models and Direct Action Ranking for scoring candidate actions in GUI action selection",
+      "llm_evidence_cn": "研究GUI世界模型与直接动作排序，用于界面动作选择中的候选动作评分",
+      "llm_evidence": "研究GUI世界模型与直接动作排序，用于界面动作选择中的候选动作评分",
+      "canonical_evidence": "研究GUI世界模型与直接动作排序，用于界面动作选择中的候选动作评分",
+      "llm_tldr_en": "This paper asks how much of GUI world-model lookahead gain comes from prediction versus the evaluator; it introduces Direct Action Ranking, which scores candidate actions from reference actions without generating future screens under matched supervision.",
+      "llm_tldr_cn": "GUI世界模型常被用于预测候选动作后果以改进动作选择，但增益究竟来自预测本身还是解释预测的评估器尚不清楚。作者通过受控干预研究这一归因问题，并提出直接动作排序DAR，从参考动作学习候选打分而无需生成未来界面。对比实验表明同等监督下评估方式显著影响收益，为GUI智能体的动作规划设计提供新视角。",
+      "llm_tldr": "GUI世界模型常被用于预测候选动作后果以改进动作选择，但增益究竟来自预测本身还是解释预测的评估器尚不清楚。作者通过受控干预研究这一归因问题，并提出直接动作排序DAR，从参考动作学习候选打分而无需生成未来界面。对比实验表明同等监督下评估方式显著影响收益，为GUI智能体的动作规划设计提供新视角。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "multi-step action planning for autonomous graphical interface task execution",
+      "matched_requirement_id": "req-4",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.24372v1"
+    },
+    {
+      "id": "2610.26503v1",
+      "source": "arxiv",
+      "title": "ScopeMem: Latent Memory That Learns Where to Revise Frozen GUI Agents",
+      "abstract": "Latent memory is gaining ground as a lightweight history supplement for GUI agents. It supplies history to a frozen vision-language model via prefix vectors trained with step-wise cross-entropy (CE). While resulting gains are naturally attributed to encoded history, our controlled experiments show they primarily stem from action revision. The prefix learns to alter the model's default actions. However, this revision is unscoped because step-wise CE pushes outputs toward reference actions at every step without explicitly preserving correct decisions. Consequently, it repairs errors but also breaks 8-13% of initially correct answers. Overall accuracy metrics hide these losses. We therefore propose ScopeMem, a latent-memory method for scoped revision. Its encoder conditions prefix generation on the model's initial answer and is trained to correct errors while preserving correct decisions. On the controlled ablation set, ScopeMem reduces the share of broken correct decisions to 5.6% while repairing more errors than any evaluated CE-trained prefix. On AndroidControl, GUI-Odyssey, and zero-shot AITW, ScopeMem outperforms all evaluated prompting and latent-memory baselines, enabling a frozen Qwen3-VL-8B to match or surpass GUI-specialized agents and Qwen3-VL-32B.",
+      "authors": [
+        "Zhicheng Zheng",
+        "Cheng Zhang",
+        "Shengping Yu",
+        "Tianxiang Zhao"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-19 14:38:41+00:00",
+      "link": "https://arxiv.org/pdf/2610.26503v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "latent memory method for frozen vision-language GUI agents with scoped action revision",
+      "llm_evidence_cn": "面向冻结视觉语言图形界面智能体的潜记忆与受控动作修正",
+      "llm_evidence": "面向冻结视觉语言图形界面智能体的潜记忆与受控动作修正",
+      "canonical_evidence": "面向冻结视觉语言图形界面智能体的潜记忆与受控动作修正",
+      "llm_tldr_en": "ScopeMem is a latent-memory method for GUI agents that scopes action revision, avoiding the 8-13% of correct actions broken by unscoped step-wise cross-entropy training.",
+      "llm_tldr_cn": "潜记忆被广泛用作图形界面智能体的轻量历史补充，但逐步交叉熵训练会让前缀向量无差别地改写每一步动作。作者通过受控实验发现收益主要来自动作修正而非历史编码，且这种修正会破坏 8% 至 13% 原本正确的决策，而总体准确率掩盖了损失。为此提出 ScopeMem，一种只对需要修正之处生效的潜记忆方法。该工作提升了冻结视觉语言图形界面智能体动作修正的可靠性。",
+      "llm_tldr": "潜记忆被广泛用作图形界面智能体的轻量历史补充，但逐步交叉熵训练会让前缀向量无差别地改写每一步动作。作者通过受控实验发现收益主要来自动作修正而非历史编码，且这种修正会破坏 8% 至 13% 原本正确的决策，而总体准确率掩盖了损失。为此提出 ScopeMem，一种只对需要修正之处生效的潜记忆方法。该工作提升了冻结视觉语言图形界面智能体动作修正的可靠性。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "large language model and vision-language agents that interact with graphical user interfaces",
+      "matched_requirement_id": "req-1",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.26503v1"
+    },
+    {
+      "id": "2610.26828v1",
+      "source": "arxiv",
+      "title": "Agent World Model in the Wild: Computer-Use Agent Environment Synthesis",
+      "abstract": "Agent learning is shifting from learning from human data toward learning through interaction with the world. However, scaling such learning directly in real-world computer systems is challenging and can introduce substantial security risks. We therefore propose Agent World Model in the Wild (WildAWM), a scalable pipeline for synthesizing controllable environments and tasks for training general computer-use agents (CUAs). Whereas existing approaches typically specialize in a single agent interaction interface, we construct executable environments that jointly support graphical user interfaces, model context protocol services, and command-line interfaces, allowing agents to flexibly combine visual interaction, tool use, and code execution. WildAWM is entirely powered by open-source models, demonstrating that high-quality computer-use environments can be generated without proprietary frontier models. Beyond environments, we address three recurring challenges in task synthesis: ensuring solvability, maintaining sufficient difficulty, and producing reliable verifiers, by introducing execution-based quality gates that combine heterogeneous agent rollouts, cross-judge consistency checks, and counterfactual probes of judgment robustness. The resulting pipeline synthesizes 341 long-horizon environment-task pairs that can require over 100 agent steps to solve and remain challenging even for frontier models, with GPT-6-Astra solving only 60% of them. We train two Qwen models of different sizes exclusively in these synthetic worlds. Both models achieve substantial gains across 8 out-of-distribution benchmarks spanning web, claw, and computer-use agents, demonstrating that learning in WildAWM's synthesized worlds generalizes broadly to unseen computer-use tasks. The code is publicly available at https://github.com/MSR-Orchard/WildAWM.",
+      "authors": [
+        "Zhaoyang Wang",
+        "Qianhui Wu",
+        "Haorui Wang",
+        "Simon Yu",
+        "Baolin Peng",
+        "Canwen Xu",
+        "Hao Cheng",
+        "Wenlin Yao",
+        "Boyi Liu",
+        "Yite Wang",
+        "Jianfeng Gao",
+        "Huaxiu Yao"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CL",
+        "cs.LG"
+      ],
+      "published": "2026-10-19 17:55:35+00:00",
+      "link": "https://arxiv.org/pdf/2610.26828v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "synthesizing controllable executable environments for training general computer-use agents",
+      "llm_evidence_cn": "为通用计算机使用智能体合成可控可执行环境",
+      "llm_evidence": "为通用计算机使用智能体合成可控可执行环境",
+      "canonical_evidence": "为通用计算机使用智能体合成可控可执行环境",
+      "llm_tldr_en": "WildAWM synthesizes controllable executable environments that jointly support GUI, model context protocol services and CLI, enabling safe scalable training of general computer-use agents.",
+      "llm_tldr_cn": "在真实计算机系统中直接训练智能体存在扩展困难与安全风险，而现有方法通常只支持单一交互接口。作者提出 WildAWM，一条可扩展的环境与任务合成流水线，构建同时支持图形界面、模型上下文协议服务与命令行的可执行环境，使智能体可组合视觉交互、工具调用与代码执行。该工作为通用计算机使用智能体提供了安全可控、可规模化扩展的训练与评测基础设施。",
+      "llm_tldr": "在真实计算机系统中直接训练智能体存在扩展困难与安全风险，而现有方法通常只支持单一交互接口。作者提出 WildAWM，一条可扩展的环境与任务合成流水线，构建同时支持图形界面、模型上下文协议服务与命令行的可执行环境，使智能体可组合视觉交互、工具调用与代码执行。该工作为通用计算机使用智能体提供了安全可控、可规模化扩展的训练与评测基础设施。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Methods for general purpose GUI agents that autonomously complete desktop, web, and mobile tasks.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.26828v1"
+    },
+    {
+      "id": "2610.27954v1",
+      "source": "arxiv",
+      "title": "Lost in Recovery: Demystifying Recovery Behavior of Computer-Use Agents via Goal-Oriented Action Replay",
+      "abstract": "Recent advances in large (vision) language models have enabled computer-use agents that automate digital workflows via fine-grained keyboard and mouse operations. However, such agents remain fragile in long-horizon settings, where errors accumulate and executed actions leave unintended side effects, making the ability to recover from failures critical. Yet, existing remedies remain inadequate: environment resets are infeasible in proprietary settings, action replay is prohibitively expensive over long horizons, and API-based rollback is limited to web environments, leaving model-based recovery largely unexplored. To address this gap, we present ReTrace, a scalable evaluation framework for systematically studying recovery behavior in computer-use agents. We formalize Transition-Consistent Recovery: identical downstream actions from the recovered and target states must yield identical outcomes. We operationalize this criterion through goal-oriented action replay following controlled error injection. Using ReTrace, we present the first systematic study of autonomous, model-based recovery, revealing that (i) ideal recovery can unlock model's latent task completion capabilities, (ii) current computer-use agents fail to exploit their latent recovery capabilities, and (iii) accurate model-based recovery yields measurable end-to-end gains. Together, these findings establish recovery as a fundamental capability for building reliable computer-use agents. Our code and dataset is available at https://github.com/BangProx/ReTRACE.",
+      "authors": [
+        "Byeonghun Bang",
+        "Sangwoo Park",
+        "Jinheon Baek",
+        "Kangsan Kim",
+        "Youngwan Lee",
+        "Sung Ju Hwang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CL",
+        "cs.LG"
+      ],
+      "published": "2026-10-20 09:59:12+00:00",
+      "link": "https://arxiv.org/pdf/2610.27954v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "ReTrace evaluation framework for studying failure recovery of computer-use agents in long-horizon tasks",
+      "llm_evidence_cn": "提出 ReTrace 评测框架，系统研究计算机使用智能体在长程任务中的失败恢复",
+      "llm_evidence": "提出 ReTrace 评测框架，系统研究计算机使用智能体在长程任务中的失败恢复",
+      "canonical_evidence": "提出 ReTrace 评测框架，系统研究计算机使用智能体在长程任务中的失败恢复",
+      "llm_tldr_en": "ReTrace is a scalable evaluation framework that uses goal-oriented action replay to diagnose how computer-use agents recover from errors in long-horizon digital workflows.",
+      "llm_tldr_cn": "基于大模型的计算机使用智能体虽能通过细粒度键鼠操作自动化数字工作流，但在长程任务中错误会累积并留下副作用，恢复能力因此至关重要，而环境重置、动作回放与 API 回滚等现有手段均受成本或环境限制。作者提出 ReTrace 可扩展评测框架，借助目标导向的动作回放系统化研究智能体的恢复行为。该工作揭示了长程任务中恢复失败的规律，为构建更鲁棒的计算机使用智能体提供了诊断工具。",
+      "llm_tldr": "基于大模型的计算机使用智能体虽能通过细粒度键鼠操作自动化数字工作流，但在长程任务中错误会累积并留下副作用，恢复能力因此至关重要，而环境重置、动作回放与 API 回滚等现有手段均受成本或环境限制。作者提出 ReTrace 可扩展评测框架，借助目标导向的动作回放系统化研究智能体的恢复行为。该工作揭示了长程任务中恢复失败的规律，为构建更鲁棒的计算机使用智能体提供了诊断工具。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "benchmarks and evaluation protocols for GUI agents on realistic computer tasks",
+      "matched_requirement_id": "req-6",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.27954v1"
+    },
+    {
+      "id": "2610.28601v1",
+      "source": "arxiv",
+      "title": "Evolving Agent Interfaces",
+      "abstract": "Computer-use agents are limited by the interfaces humans give them. An agent may type a spreadsheet cell by cell when a single line of code would do, or print all two thousand lines of a file through a shell to find one function. Both the interfaces and the knowledge of when to use each are built by hand, which cannot keep pace with new applications, workflows, and models. We argue that interface design should itself be an agent capability. We introduce Agent S4, an autonomous computer-use scientist that builds Evolving Agent Interfaces from task experience. A meta-agent examines task agents' trajectories on synthetic training tasks, without success labels, and constructs and revises interfaces and usage knowledge in a repository. Population-based evolution then selects which repositories to develop further by their performance on validation tasks the meta-agent never sees, favoring changes that generalize beyond the seen tasks. On OSWorld V2, Agent S4, with Qwen3.8-27B and the evolved repository of interfaces, sets a new state of the art in open-source computer-use agents, reaching 21.3% binary score, 3.8 times the same model with fixed interfaces. This is above both GPT-5.5 (13.0%) and Claude Opus 4.8 (20.6%), at about 4.3% and 1.5% of their respective costs. On ScienceBoard, the evolved interfaces improve the success rate from 41.4% to 58.6% with the same model. These results suggest that useful interfaces can be evolved from experience, making autonomous interface design a source of improvement complementary to advances in models and harnesses. We open-source our code at https://github.com/simular-ai/agent-s.",
+      "authors": [
+        "Saaket Agashe",
+        "Yuzhe Yang",
+        "Gonzalo Gonzalez-Pumariega",
+        "Bhuvan Chandra Koduru",
+        "Chih-Lun Li",
+        "Jiachen Yang",
+        "Ang Li",
+        "Xin Eric Wang"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-20 17:47:37+00:00",
+      "link": "https://arxiv.org/pdf/2610.28601v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "computer-use agents that design and evolve their own interaction interfaces from task experience",
+      "llm_evidence_cn": "从任务经验中设计并演化交互界面的计算机使用智能体",
+      "llm_evidence": "从任务经验中设计并演化交互界面的计算机使用智能体",
+      "canonical_evidence": "从任务经验中设计并演化交互界面的计算机使用智能体",
+      "llm_tldr_en": "The paper argues interface design should be an agent capability and introduces Agent S4, an autonomous computer-use scientist that builds and evolves agent interfaces from task trajectories.",
+      "llm_tldr_cn": "计算机使用智能体受限于人类给定的界面，常以低效方式逐格操作表格或逐行打印文件，而界面及其使用知识又需手工构建，难以跟上新应用与新模型。作者主张界面设计本身应成为智能体能力，并提出Agent S4这一自主计算机使用科学家，由元智能体在无成功标签的合成任务轨迹上分析任务智能体行为，构建并修订界面与使用知识库，再通过种群进化选择要发展的界面仓库。该方法使智能体能自主演化更高效的交互方式。其贡献在于拓展了通用计算机使用智能体的能力边界。",
+      "llm_tldr": "计算机使用智能体受限于人类给定的界面，常以低效方式逐格操作表格或逐行打印文件，而界面及其使用知识又需手工构建，难以跟上新应用与新模型。作者主张界面设计本身应成为智能体能力，并提出Agent S4这一自主计算机使用科学家，由元智能体在无成功标签的合成任务轨迹上分析任务智能体行为，构建并修订界面与使用知识库，再通过种群进化选择要发展的界面仓库。该方法使智能体能自主演化更高效的交互方式。其贡献在于拓展了通用计算机使用智能体的能力边界。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Methods for general purpose GUI agents that autonomously complete desktop, web, and mobile tasks.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.28601v1"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2610.30573v1",
+      "source": "arxiv",
+      "title": "Diagnosing Personalization Failures in Mobile GUI Agents",
+      "abstract": "Unlike conventional GUI agents, personalized GUI agents require user preferences to guide sequential execution over changing GUI states. This raises two challenges: determining HOW each preference should alter execution strategy and WHEN it should take effect along the interaction trajectory. Existing benchmarks primarily evaluate overall task success, offering limited insight into these questions. We introduce PrefDiag-Bench with two components: (1) a categorization of preferences into five types, characterizing HOW they affect execution; and (2) a stage-wise diagnostic framework with 1,664 probes, tracing WHEN preferences should take effect and where failures occur. We evaluate eleven GUI agent systems, including end-to-end agents and agentic workflows, under two forms of user context: explicit user profiles and behavioral memory logs. Although existing agents achieve relatively high completion rates on non-personalized tasks, performance is substantially lower on preference-personalized tasks. Even the best-performing model, Seed-2.0-Pro, achieves only 47.17% on Process preferences under explicit user profiles. Agents struggle particularly with Ranking and Process preferences. Further analysis reveals two key capability bottlenecks: selecting relevant evidence from user history and recognizing when preferences should take effect during execution. Controlled interventions that explicitly provide relevant evidence improve end-to-end task success by up to 7.06%. PrefDiag-Bench offers a more systematic evaluation of GUI agents' personalization capabilities beyond overall task success. Code and data are available at https://github.com/Zhixin-L/PrefDiag-Bench.",
+      "authors": [
+        "Zhixin Lin",
+        "Dongliang Xu",
+        "Jungang Li",
+        "Shidong Pan",
+        "Jun Feng",
+        "Yanbin Sun",
+        "Jing Li",
+        "Liang Liu",
+        "Yue Yao"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-22 01:04:24+00:00",
+      "link": "https://arxiv.org/pdf/2610.30573v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "PrefDiag-Bench with 1,664 stage-wise diagnostic probes evaluating eleven GUI agent systems",
+      "llm_evidence_cn": "构建含1664个分阶段诊断探针的 PrefDiag-Bench，评测11个 GUI 智能体系统",
+      "llm_evidence": "构建含1664个分阶段诊断探针的 PrefDiag-Bench，评测11个 GUI 智能体系统",
+      "canonical_evidence": "构建含1664个分阶段诊断探针的 PrefDiag-Bench，评测11个 GUI 智能体系统",
+      "llm_tldr_en": "PrefDiag-Bench categorizes five preference types and uses 1,664 stage-wise probes to diagnose how and when personalized mobile GUI agents fail across eleven systems.",
+      "llm_tldr_cn": "个性化 GUI 智能体需要依据用户偏好指导不断变化的界面状态下的顺序执行，但现有基准只衡量整体任务成功率，难以揭示偏好如何影响策略以及何时应当生效。作者提出 PrefDiag-Bench，把偏好分为五类以刻画其作用方式，并设计包含1664个探针的分阶段诊断框架，追踪偏好在轨迹中的生效时机与失败位置。据此评测了11个端到端与工作流式 GUI 智能体系统，揭示了现有方法在个性化执行上的系统性缺陷，为更细粒度的智能体评测提供了工具。",
+      "llm_tldr": "个性化 GUI 智能体需要依据用户偏好指导不断变化的界面状态下的顺序执行，但现有基准只衡量整体任务成功率，难以揭示偏好如何影响策略以及何时应当生效。作者提出 PrefDiag-Bench，把偏好分为五类以刻画其作用方式，并设计包含1664个探针的分阶段诊断框架，追踪偏好在轨迹中的生效时机与失败位置。据此评测了11个端到端与工作流式 GUI 智能体系统，揭示了现有方法在个性化执行上的系统性缺陷，为更细粒度的智能体评测提供了工具。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "benchmarks and evaluation protocols for GUI agents on realistic computer tasks",
+      "matched_requirement_id": "req-6",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.30573v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.30792v2",
+      "source": "arxiv",
+      "title": "Trace2World: Reconstructing App Worlds from Real Interaction Traces for Scalable GUI Agent Training",
+      "abstract": "Scaling GUI reinforcement learning requires environments that preserve real-app behavior. Yet coupling behavior inference with coding can turn partial traces into runnable mocks with incorrect state transitions. We introduce \\textbf{Trace2World}, which separates global behavior reconstruction from implementation. It reconciles traces into a shared, source-linked app model, then compiles an executable environment. Independent replay of source workflows localizes mismatches for bounded implementation repair. Validated worlds then support learner-adaptive task and environment augmentation within source-supported behavior. From 1,570 traces, Trace2World constructs 50 environments. On 200 workflows across ten apps, 91.1% are reproduced end to end, versus 59.8% for the strongest matched task-local baseline. Source-grounded validation retains 94.0% of simulated training gains on real devices, versus 54.7% under self-validation. Learner guidance raises benchmark success from 56.9% to 61.1%. Training in Trace2World further improves the model by 20.2 points on our benchmark, 5.4--16.2 points across four external GUI benchmarks, and 16.3 points on 100 real-device tasks. Reliable reconstruction separates what behavior source evidence supports from whether the implementation preserves it.",
+      "authors": [
+        "Zezhou Wang",
+        "Hanzhang Zhou",
+        "Panrong Tong",
+        "Quyu Kong",
+        "Pengxiang Li",
+        "Steven Hoi",
+        "Zhuzhong Qian",
+        "Yue Wang"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG",
+        "cs.SE"
+      ],
+      "published": "2026-10-22 06:10:53+00:00",
+      "link": "https://arxiv.org/pdf/2610.30792v2",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "reconstructing executable app environments from interaction traces for scalable GUI RL",
+      "llm_evidence_cn": "从交互轨迹重建可执行应用环境以支撑可扩展GUI强化学习",
+      "llm_evidence": "从交互轨迹重建可执行应用环境以支撑可扩展GUI强化学习",
+      "canonical_evidence": "从交互轨迹重建可执行应用环境以支撑可扩展GUI强化学习",
+      "llm_tldr_en": "Presents Trace2World, which reconstructs source-linked app world models from real interaction traces and compiles executable environments to support scalable GUI agent reinforcement learning training.",
+      "llm_tldr_cn": "扩展GUI强化学习需要保留真实应用行为的环境，而将行为推断与编码耦合会把不完整轨迹变成状态转移错误的模拟环境。作者提出Trace2World，将全局行为重建与实现分离，先把轨迹对齐为带来源链接的共享应用模型再编译为可执行环境，并通过独立重放定位不一致以做有界修复。基于1570条轨迹构建50个环境，在十款应用的200个工作流上达到91.1%复现率，为GUI智能体训练提供了可扩展环境。",
+      "llm_tldr": "扩展GUI强化学习需要保留真实应用行为的环境，而将行为推断与编码耦合会把不完整轨迹变成状态转移错误的模拟环境。作者提出Trace2World，将全局行为重建与实现分离，先把轨迹对齐为带来源链接的共享应用模型再编译为可执行环境，并通过独立重放定位不一致以做有界修复。基于1570条轨迹构建50个环境，在十款应用的200个工作流上达到91.1%复现率，为GUI智能体训练提供了可扩展环境。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "reinforcement learning methods for training GUI agents on interactive computer tasks",
+      "matched_requirement_id": "req-5",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.30792v2",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.31307v1",
+      "source": "arxiv",
+      "title": "Subgoal-aware Memory Graph for GUI Agent",
+      "abstract": "GUI agents aim to automate complex user tasks by interacting with mobile interfaces, but ef- fective decision-making in long-horizon set- tings requires reusing prior experience rather than relying solely on the environment ob- servations. Existing memory-based methods typically store experience either at the single- action level or as entire trajectories. Single- step actions are often too fine-grained to carry meaningful semantics, since the success of an individual action does not necessarily imply progress towards the overall goal. In contrast, whole trajectories are often too coarse-grained and difficult to reuse across different tasks. We propose a subgoal-aware memory graph that distils past trajectories into structured, reusable evidence at the level of subgoals. We define a subgoal as consecutive actions shar- ing a single intent, the granularity at which progress toward the task becomes meaning- ful. To reduce redundancy and support cross- task reuse, we organise subgoal experiences as nodes in a graph, where related memories can be merged, extended, and retrieved based on the environment observation. On SPA-Bench, our method improves success rate by 11.11% over the baseline.",
+      "authors": [
+        "Dezhao Luo",
+        "Daniel Beechey",
+        "Derek Yuen",
+        "Weilin Luo"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-22 14:06:00+00:00",
+      "link": "https://arxiv.org/pdf/2610.31307v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "subgoal-level memory graph distilling past GUI trajectories for long-horizon mobile agent decision-making",
+      "llm_evidence_cn": "以子目标级记忆图提炼历史 GUI 轨迹，支撑长程移动端智能体决策",
+      "llm_evidence": "以子目标级记忆图提炼历史 GUI 轨迹，支撑长程移动端智能体决策",
+      "canonical_evidence": "以子目标级记忆图提炼历史 GUI 轨迹，支撑长程移动端智能体决策",
+      "llm_tldr_en": "Proposes a subgoal-aware memory graph that distills past GUI trajectories into reusable subgoal-level evidence, avoiding overly fine-grained action or coarse whole-trajectory memory for long-horizon mobile tasks.",
+      "llm_tldr_cn": "GUI 智能体要在移动端完成复杂任务，长程决策需要复用过往经验，而现有记忆方法要么以单步动作存储、语义过细，要么以整条轨迹存储、难以跨任务复用。作者提出子目标感知记忆图，将历史轨迹提炼为子目标级别的结构化可复用证据，并据此支撑后续决策。该设计在记忆粒度与可复用性之间取得平衡，为长程 GUI 任务的经验积累与迁移提供了新思路。",
+      "llm_tldr": "GUI 智能体要在移动端完成复杂任务，长程决策需要复用过往经验，而现有记忆方法要么以单步动作存储、语义过细，要么以整条轨迹存储、难以跨任务复用。作者提出子目标感知记忆图，将历史轨迹提炼为子目标级别的结构化可复用证据，并据此支撑后续决策。该设计在记忆粒度与可复用性之间取得平衡，为长程 GUI 任务的经验积累与迁移提供了新思路。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "multi-step action planning for autonomous graphical interface task execution",
+      "matched_requirement_id": "req-4",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.31307v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.31712v1",
+      "source": "arxiv",
+      "title": "Reuse, Rewrite, or Reject: Evidence-Constrained Trace Reuse for Repeated Mobile GUI Control",
+      "abstract": "Mobile GUI agents frequently perform repetitive tasks with similar interaction procedures. Reusing previous executions can reduce redundant LLM inference and execution overhead, but variations in user instructions and execution environments may invalidate previously successful actions. We systematically characterize these variations into six representative categories and observe that such changes do not necessarily invalidate entire procedures: individual transitions can remain reusable when validated against the current task context and interface state. Based on this insight, we propose graph-text templates for selective execution-trace reuse. The graph captures UI states and action transitions, while the text encodes task intent, procedural structure, and typed slots for variable content. A record-template-replay framework constructs templates from verified executions and leverages the current instruction and live UI state to reuse, adapt, or discard individual transitions. Given an execution trace, our framework reduces LLM inference token consumption by approximately 80% on average across five base agents on AndroidWorld, with most agents achieving at least 1.5-fold execution speedup over LLM-only execution. In real-device evaluations on Android and HarmonyOS, our framework achieves action reuse ratios of 70.7-79.8% while maintaining over 2-fold execution speedup in most evaluated configurations.",
+      "authors": [
+        "Bingyu Bai",
+        "Cheng Zhang",
+        "Erhu Feng"
+      ],
+      "primary_category": "cs.SE",
+      "categories": [
+        "cs.SE",
+        "cs.AI",
+        "cs.LG"
+      ],
+      "published": "2026-10-22 03:09:20+00:00",
+      "link": "https://arxiv.org/pdf/2610.31712v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "selective execution-trace reuse for repeated mobile GUI agent control",
+      "llm_evidence_cn": "面向重复移动GUI控制的执行轨迹选择性复用",
+      "llm_evidence": "面向重复移动GUI控制的执行轨迹选择性复用",
+      "canonical_evidence": "面向重复移动GUI控制的执行轨迹选择性复用",
+      "llm_tldr_en": "This paper proposes graph-text templates that capture UI states and action transitions to selectively reuse validated execution traces for repeated mobile GUI tasks, avoiding redundant LLM inference.",
+      "llm_tldr_cn": "移动GUI智能体常重复执行相似任务，复用历史执行可降低推理与执行开销，但指令与环境变化可能使原有动作失效。作者将变化归纳为六类，并发现变化并不必然使整个流程失效，单个状态转移在对照当前任务上下文与界面状态验证后仍可复用。基于此提出图-文本模板，用图刻画UI状态与动作转移、用文本编码任务意图，实现选择性的轨迹复用。该方法在保证正确性的同时减少了冗余推理。其贡献在于为移动GUI智能体的高效可靠控制提供了轨迹复用机制。",
+      "llm_tldr": "移动GUI智能体常重复执行相似任务，复用历史执行可降低推理与执行开销，但指令与环境变化可能使原有动作失效。作者将变化归纳为六类，并发现变化并不必然使整个流程失效，单个状态转移在对照当前任务上下文与界面状态验证后仍可复用。基于此提出图-文本模板，用图刻画UI状态与动作转移、用文本编码任务意图，实现选择性的轨迹复用。该方法在保证正确性的同时减少了冗余推理。其贡献在于为移动GUI智能体的高效可靠控制提供了轨迹复用机制。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Methods for general purpose GUI agents that autonomously complete desktop, web, and mobile tasks.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.31712v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.32223v1",
+      "source": "arxiv",
+      "title": "Correct Answers, Closed Gates: SolveBind for GUI Agents at the Verification Barrier",
+      "abstract": "Websites and applications deploy CAPTCHAs and anti-automation mechanisms that use behavioral signals such as interaction trajectories and timing, not outcomes alone, to distinguish humans from automated agents. We call these protected GUI environments, where correctly solving a verification task is insufficient for end-to-end task completion. Agents must turn solver outputs into accepted interactions and adapt execution to runtime feedback under time constraints. We introduce SolveBind, a GUI-agent framework combining hierarchical solving with runtime supervision. A hierarchical solving tree decomposes verification into interdependent Perceive, Ground, Solve, Act, and Verify capabilities. A runtime supervisor grounds action commitments in tool-derived evidence, revises them as evidence arrives, and mediates execution under explicit recovery budgets. Across nine CAPTCHA task families and nine backbone models, SolveBind achieves the highest success rate on eight backbones, outperforming the strongest baseline by 13.3-34.5 percentage points. It achieves the highest success rate on all six AndroidWorld backbones. In a paired GPT-5.5 analysis, MobileAgent produces correct answers but fails dynamic verification on 13 of 90 tasks; SolveBind succeeds on seven of these tasks. With automatic submission, removing binding reduces success from 82.22% to 71.56% and increases latency and token usage. Recovery caps reduce execution cost with a small observed success trade-off: removing them raises success from 82.22% to 83.56%, while increasing latency and token usage to 3.7x and 2.4x their full-supervision values, respectively. These results support evidence-grounded execution control while identifying a success-cost trade-off in recovery and failure boundaries of heuristic submission rules.",
+      "authors": [
+        "Xinhao Song",
+        "Haoxuan Peng",
+        "Su Su",
+        "Hongliang Wu",
+        "Sirui Song",
+        "Gongshen Liu",
+        "Linfeng Zhang",
+        "Dongrui Liu"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-23 06:27:37+00:00",
+      "link": "https://arxiv.org/pdf/2610.32223v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "GUI-agent framework with hierarchical Perceive-Ground-Solve-Act-Verify solving and runtime supervision",
+      "llm_evidence_cn": "面向受保护界面的 GUI 智能体框架，分层完成感知、定位、求解、执行与验证",
+      "llm_evidence": "面向受保护界面的 GUI 智能体框架，分层完成感知、定位、求解、执行与验证",
+      "canonical_evidence": "面向受保护界面的 GUI 智能体框架，分层完成感知、定位、求解、执行与验证",
+      "llm_tldr_en": "Introduces SolveBind, a GUI-agent framework combining a hierarchical solving tree over Perceive, Ground, Solve, Act and Verify with runtime supervision so agents can pass CAPTCHA-style verification barriers end-to-end.",
+      "llm_tldr_cn": "网站与应用的验证码等反自动化机制依据交互轨迹与时间等行为信号区分人机，仅答对题目并不足以完成任务。作者提出 SolveBind 框架，用分层求解树把验证拆解为感知、定位、求解、执行与验证等相互依赖的能力，并由运行时监督器将动作承诺锚定到实际界面。该设计使智能体能把求解结果转化为被接受的交互，并在时间约束下依据运行时反馈调整执行，为真实网站上的端到端 GUI 任务提供了新解法。",
+      "llm_tldr": "网站与应用的验证码等反自动化机制依据交互轨迹与时间等行为信号区分人机，仅答对题目并不足以完成任务。作者提出 SolveBind 框架，用分层求解树把验证拆解为感知、定位、求解、执行与验证等相互依赖的能力，并由运行时监督器将动作承诺锚定到实际界面。该设计使智能体能把求解结果转化为被接受的交互，并在时间约束下依据运行时反馈调整执行，为真实网站上的端到端 GUI 任务提供了新解法。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Methods for general purpose GUI agents that autonomously complete desktop, web, and mobile tasks.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.32223v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.34384v1",
+      "source": "arxiv",
+      "title": "AndroidFlux: Evaluating and Reward Modeling Failure Recovery Capabilities in Mobile Use Multimodal Agents",
+      "abstract": "Mobile-use multimodal agents are typically evaluated by task success from a clean initial state, which does not isolate their ability to recover from intermediate errors. Because mobile environments change dynamically, a general mobile-use agent must complete tasks robustly even from unexpected states and in unseen environments. This requires knowing when and where an agent makes errors, and whether it can recover from errors and subsequent states. To evaluate this capability, we introduce AndroidFlux, a failure-recovery benchmark built on AndroidWorld. AndroidFlux restores recorded trajectories to controlled checkpoints before, at, and after the first recoverable error, so that different agents continue from the same device state and history. On these checkpoints, a complementary reward-modeling benchmark evaluates recovery-action preferences using downstream rollout outcomes. We further release an offline reinforcement learning (RL) dataset that improves both error recovery and overall task success. Our evaluations show that recovery performance only partially correlates with clean-start success, and that explicit reasoning helps only models trained with GUI-domain specific RL.",
+      "authors": [
+        "Gyubeum Lim",
+        "Yemo Koo",
+        "Ghunwoo Jang",
+        "Zsolt Kira"
+      ],
+      "primary_category": "cs.LG",
+      "categories": [
+        "cs.LG",
+        "cs.AI",
+        "cs.CL",
+        "cs.CV"
+      ],
+      "published": "2026-10-25 15:39:24+00:00",
+      "link": "https://arxiv.org/pdf/2610.34384v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Failure-recovery benchmark on AndroidWorld restoring trajectories to checkpoints to evaluate mobile multimodal agents",
+      "llm_evidence_cn": "基于AndroidWorld的失败恢复基准，将轨迹回滚到检查点以评测移动多模态智能体",
+      "llm_evidence": "基于AndroidWorld的失败恢复基准，将轨迹回滚到检查点以评测移动多模态智能体",
+      "canonical_evidence": "基于AndroidWorld的失败恢复基准，将轨迹回滚到检查点以评测移动多模态智能体",
+      "llm_tldr_en": "AndroidFlux argues task success from clean states hides error recovery; it restores recorded AndroidWorld trajectories to checkpoints before, at and after the first recoverable error so agents are compared from identical states, plus reward modeling.",
+      "llm_tldr_cn": "移动多模态智能体通常只从干净初始状态评测任务成功率，无法反映其在动态环境中的错误恢复能力。作者提出AndroidFlux，基于AndroidWorld将录制轨迹恢复到首次可恢复错误之前、之中与之后的检查点，使不同智能体从相同状态继续执行，并开展恢复能力的奖励建模。该基准细化了移动GUI智能体鲁棒性评测的维度。",
+      "llm_tldr": "移动多模态智能体通常只从干净初始状态评测任务成功率，无法反映其在动态环境中的错误恢复能力。作者提出AndroidFlux，基于AndroidWorld将录制轨迹恢复到首次可恢复错误之前、之中与之后的检查点，使不同智能体从相同状态继续执行，并开展恢复能力的奖励建模。该基准细化了移动GUI智能体鲁棒性评测的维度。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "benchmarks and evaluation protocols for GUI agents on realistic computer tasks",
+      "matched_requirement_id": "req-6",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.34384v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.35237v1",
+      "source": "arxiv",
+      "title": "Chart the Invisible: Interactive Perception for Hidden-Target Exploration in GUI Agents",
+      "abstract": "Despite rapid progress in command-line interface (CLI) tasks, recent LLM-based agents still struggle with reliable task execution through graphical user interfaces (GUIs). A key challenge is the limited content visible within a bounded viewport, especially on mobile devices, where many task-relevant targets remain hidden and can only be revealed through swipe interactions. Therefore, although most GUI agents support swipe as an action primitive, the lack of target visibility makes it difficult for them to decide when, where, and how to swipe to reveal the hidden content. Our quantitative study further shows that GUI agents incorrectly choose a click action in 47.8% of cases that require swipe exploration. To bridge this gap, this paper proposes equipping GUI agents with scrollable-region perception to support hidden-area exploration before action selection. To this end, we trained the first multimodal model for scrollable-region perception on a manually collected dataset of 667 UI screens, called Hagasu. By correctly identifying 78.5% of scrollable regions, experiments across nine GUI agents show that integrating Hagasu improves the mean end-to-end completion rate from 64.8% to 82.7% on explore-dependent tasks. To facilitate follow-up research, we release the swipe dataset and the source code of Hagasu.",
+      "authors": [
+        "Yongxiang Hu",
+        "Ruiyang Liu",
+        "Qining He",
+        "Xuan Wang",
+        "Yangfan Zhou"
+      ],
+      "primary_category": "cs.SE",
+      "categories": [
+        "cs.SE"
+      ],
+      "published": "2026-10-26 11:22:27+00:00",
+      "link": "https://arxiv.org/pdf/2610.35237v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "interactive perception letting GUI agents decide when, where and how to swipe to reveal hidden targets",
+      "llm_evidence_cn": "交互式感知，使GUI智能体能决定何时何地如何滑动以发现隐藏目标",
+      "llm_evidence": "交互式感知，使GUI智能体能决定何时何地如何滑动以发现隐藏目标",
+      "canonical_evidence": "交互式感知，使GUI智能体能决定何时何地如何滑动以发现隐藏目标",
+      "llm_tldr_en": "GUI agents on mobile often miss targets hidden beyond the viewport, wrongly clicking in 47.8% of cases that need swiping. This work proposes interactive perception that helps agents decide when, where and how to swipe to reveal hidden content.",
+      "llm_tldr_cn": "尽管命令行任务进展迅速，LLM智能体在图形界面上的可靠执行仍受限于有限视口，移动端尤其如此，许多任务相关目标只有通过滑动才能显现。作者通过定量研究发现智能体在需要滑动探索的场景中有47.8%的错误点击，并提出交互式感知方法，帮助智能体判断何时、何处以及如何滑动以揭示隐藏内容。该工作将隐藏目标探索确立为GUI智能体可靠执行任务的关键能力。",
+      "llm_tldr": "尽管命令行任务进展迅速，LLM智能体在图形界面上的可靠执行仍受限于有限视口，移动端尤其如此，许多任务相关目标只有通过滑动才能显现。作者通过定量研究发现智能体在需要滑动探索的场景中有47.8%的错误点击，并提出交互式感知方法，帮助智能体判断何时、何处以及如何滑动以揭示隐藏内容。该工作将隐藏目标探索确立为GUI智能体可靠执行任务的关键能力。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "multi-step action planning for autonomous graphical interface task execution",
+      "matched_requirement_id": "req-4",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.35237v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.36831v1",
+      "source": "arxiv",
+      "title": "Right Click, Wrong Box: Grading GUI Grounding by What a Click Does",
+      "abstract": "Leading GUI grounders score 93 to 96% on ScreenSpot-v2, and reported gaps between new and prior models are about a point. At this level the useful question is what the remaining errors are. Benchmarks count a click as correct only inside one annotated box, but interfaces often expose one action through several elements: a duplicated link, the label of a checkbox, the title next to a logo. The box is not wrong. The rule is incomplete. We call a click correct when executing it produces the same outcome as clicking the annotated target. A probe that executes and fingerprints about a thousand clicks per page turns this definition into outcome maps and an execution judge for live web applications, with no new annotation. We execute the predictions of three strong 7--8B grounders on a code forge and an online shop. About one in five and one in three of the clicks that box scoring rejects reach the intended outcome, and the shares remain one in seven and one in three when the instructions are rewritten as natural tasks. A blind audit of 11 models on ScreenSpot-v2 (three 7--8B grounders and eight 3B variants) finds the same effect on web screenshots, with two independent reviewers on a 60-unit subset. The share is highest for the strongest grounders. Training seeds and test-set sampling add noise that more runs and paired intervals control. Box scoring instead under-counts correct clicks, which repetition does not remove, and the audit-based correction of 0.2 to 1.8 points on ScreenSpot-v2 is as large as the gaps the field reports. The correction is needed in evaluation. In our 3B GRPO study, crediting equivalent clicks in the reward gives no stable gain over box rewards across three seeds and four test sets. We release the probe, the outcome maps, the audit and every prediction.",
+      "authors": [
+        "Xiaokang Yuan",
+        "Binhui Yao",
+        "Luwei Yang",
+        "Ruimin Chen",
+        "Zeng Wang"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV"
+      ],
+      "published": "2026-10-27 08:30:07+00:00",
+      "link": "https://arxiv.org/pdf/2610.36831v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "outcome-based evaluation protocol judging GUI grounding clicks by executed effects instead of annotated boxes",
+      "llm_evidence_cn": "以执行结果而非标注框评判点击的 GUI 定位评测协议",
+      "llm_evidence": "以执行结果而非标注框评判点击的 GUI 定位评测协议",
+      "canonical_evidence": "以执行结果而非标注框评判点击的 GUI 定位评测协议",
+      "llm_tldr_en": "Argues box-based GUI grounding benchmarks are incomplete and proposes execution-based correctness, using an execution judge over about a thousand probe clicks per page to grade grounders on live web apps.",
+      "llm_tldr_cn": "主流 GUI 定位基准只把落在唯一标注框内的点击判为正确，但同一动作常对应多个可点元素，评测规则并不完整。作者提出以执行结果定义点击正确性，只要点击产生的效果与点击标注目标一致即算正确。为此构建了在真实网页上执行并指纹化约千次点击的探针与执行评判器，无需新增标注即可生成结果图。该工作把定位评测从框匹配推进到结果匹配，更贴近 GUI 任务真实成功的判定。",
+      "llm_tldr": "主流 GUI 定位基准只把落在唯一标注框内的点击判为正确，但同一动作常对应多个可点元素，评测规则并不完整。作者提出以执行结果定义点击正确性，只要点击产生的效果与点击标注目标一致即算正确。为此构建了在真实网页上执行并指纹化约千次点击的探针与执行评判器，无需新增标注即可生成结果图。该工作把定位评测从框匹配推进到结果匹配，更贴近 GUI 任务真实成功的判定。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "benchmarks and evaluation protocols for GUI agents on realistic computer tasks",
+      "matched_requirement_id": "req-6",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.36831v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.36877v1",
+      "source": "arxiv",
+      "title": "GUI-JEPA: Candidate-Conditioned JEPA Latents as a Fast Action Policy for Mobile GUI Agents",
+      "abstract": "Mobile GUI agents are typically fine-tuned 7B-scale vision-language models (VLMs) that generate each action as text. However, these VLMs decode every action token by token, and even agents that score candidate actions keep a large language model or VLM in the loop, making them slow and memory-hungry. To address these issues, we propose GUI-JEPA, to our knowledge the first decoder-free GUI agent policy built on a Joint-Embedding Predictive Architecture (JEPA), which selects actions in the latent space of a JEPA encoder pretrained on unlabelled GUI screenshots. Its action- and region-conditioned latent predictor turns the screen latent into one latent per candidate action, letting lightweight heads score all candidates against the instruction in a single batched pass, without decoding a token. We further show that the scorer relies on this latent pathway and that the predictor is trained for the decision itself: a randomly initialised predictor does just as well as one pretrained on screen dynamics. On AndroidControl, GUI-JEPA is 2.8-4.0x faster on the same GPU than a Qwen2.5-VL-7B agent we fine-tune with the same inputs, while reaching 86-92% of its in-distribution accuracy with 6% of its parameters. Code is available at https://github.com/bcwang-sjtu/GUI-JEPA",
+      "authors": [
+        "Bingchao Wang",
+        "Yongcheng Jing",
+        "Shunyu Liu",
+        "Chengyu Wang",
+        "Jun Huang",
+        "Jie Yang",
+        "Wei Liu",
+        "Dacheng Tao"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CL",
+        "cs.CV"
+      ],
+      "published": "2026-10-27 09:17:51+00:00",
+      "link": "https://arxiv.org/pdf/2610.36877v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "decoder-free GUI action policy selecting actions in JEPA latent space",
+      "llm_evidence_cn": "在JEPA潜空间中直接选择动作的无解码器GUI策略",
+      "llm_evidence": "在JEPA潜空间中直接选择动作的无解码器GUI策略",
+      "canonical_evidence": "在JEPA潜空间中直接选择动作的无解码器GUI策略",
+      "llm_tldr_en": "Mobile GUI agents relying on 7B VLMs decoding actions token by token are slow and memory hungry; GUI-JEPA uses a JEPA encoder pretrained on unlabelled screenshots with candidate-conditioned latents to score actions fast.",
+      "llm_tldr_cn": "移动GUI智能体多依赖7B级视觉语言模型逐词解码动作，推理缓慢且显存开销大。作者提出GUI-JEPA，首个基于联合嵌入预测架构的无解码器GUI策略，利用无标注截图预训练的编码器把屏幕潜变量转换为每个候选动作的潜表示，再由轻量头部打分选择动作。实验表明该方法在保持动作选择效果的同时显著降低推理成本，为高效GUI智能体提供了新范式。",
+      "llm_tldr": "移动GUI智能体多依赖7B级视觉语言模型逐词解码动作，推理缓慢且显存开销大。作者提出GUI-JEPA，首个基于联合嵌入预测架构的无解码器GUI策略，利用无标注截图预训练的编码器把屏幕潜变量转换为每个候选动作的潜表示，再由轻量头部打分选择动作。实验表明该方法在保持动作选择效果的同时显著降低推理成本，为高效GUI智能体提供了新范式。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "agents that control computers through screen observations and low-level mouse and keyboard actions",
+      "matched_requirement_id": "req-2",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.36877v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.37093v1",
+      "source": "arxiv",
+      "title": "Learning to Look Beyond Screens: Transferable Visual Observation from GUI Grounding",
+      "abstract": "Visual perception is evolving from passive recognition toward active, task-oriented observation. We investigate GUI grounding as a scalable source of spatial supervision for learning observation behaviors that transfer beyond interfaces. We introduce LBS (Look Beyond Screens), a vision-language model trained through supervised initialization on teacher-generated GUI grounding trajectories, followed by reinforcement learning for multi-turn crop-and-inspect decisions. Under fixed inference settings, LBS models based on Qwen3.5-35B-A3B and Qwen3.8-27B consistently improve over their corresponding baselines. Gains beyond supervised fine-tuning transfer to PerceptionBench for both backbones and to HR-Bench and ChartQAPro for Qwen3.5-35B-A3B, supporting observation strategies that generalize beyond GUI-specific imitation. Further analysis suggests complementary roles for the two stages: SFT establishes visual inspection primitives, while RL improves their downstream effectiveness. These findings support GUI grounding as a practical supervision paradigm for transferable active visual perception and broader multimodal reasoning. Our code and model are publicly available at https://github.com/inclusionAI/UI-Venus/tree/LBS and https://huggingface.co/inclusionAI/LBS-27B, respectively.",
+      "authors": [
+        "Ruilin Yao",
+        "Xinyu Qiu",
+        "Tianyu Zou",
+        "Yi Rong",
+        "Shengwu Xiong",
+        "Shuheng Shen",
+        "Changhua Meng"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "published": "2026-10-27 11:56:00+00:00",
+      "link": "https://arxiv.org/pdf/2610.37093v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "vision-language model trained on GUI grounding trajectories with RL for crop-and-inspect decisions",
+      "llm_evidence_cn": "利用界面定位轨迹与强化学习训练视觉语言模型的观察行为",
+      "llm_evidence": "利用界面定位轨迹与强化学习训练视觉语言模型的观察行为",
+      "canonical_evidence": "利用界面定位轨迹与强化学习训练视觉语言模型的观察行为",
+      "llm_tldr_en": "LBS trains a vision-language model with supervised GUI grounding trajectories followed by reinforcement learning for multi-turn crop-and-inspect decisions, transferring observation skills beyond screens.",
+      "llm_tldr_cn": "视觉感知正从被动识别转向主动、任务导向的观察，而界面定位可为学习此类观察行为提供可扩展的空间监督。作者提出 LBS，先用教师生成的图形界面定位轨迹做监督初始化，再用强化学习训练多轮裁剪与查看决策。在固定推理设置下，基于两个骨干的模型均稳定优于基线，且增益可迁移到感知类与图表类基准。该工作表明界面定位是学习可迁移主动观察能力的有效信号。",
+      "llm_tldr": "视觉感知正从被动识别转向主动、任务导向的观察，而界面定位可为学习此类观察行为提供可扩展的空间监督。作者提出 LBS，先用教师生成的图形界面定位轨迹做监督初始化，再用强化学习训练多轮裁剪与查看决策。在固定推理设置下，基于两个骨干的模型均稳定优于基线，且增益可迁移到感知类与图表类基准。该工作表明界面定位是学习可迁移主动观察能力的有效信号。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "How can vision language models ground natural language instructions to GUI elements and plan reliable actions?",
+      "matched_requirement_id": "req-7",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.37093v1",
+      "quick_tier": "8plus"
+    },
+    {
+      "id": "2610.37482v1",
+      "source": "arxiv",
+      "title": "From Interaction to Capability: Task Advancement as State and Supervision for GUI Agents",
+      "abstract": "GUI memory should preserve the results of past actions and learn reusable operations. This is difficult in long-horizon workflows, where agents must use information across applications and useful operations are interleaved with failed attempts. We introduce Task Advancement Memory (TAM), which defines task advancement as verified task progress, and supports ongoing task execution and learns reusable operations. During execution, Task Advancement State represents how verified task progress changes the remaining goals, allowing the agent to build on earlier achievements across applications. After each task, advancement supervision identifies and abstracts the interactions that produced a verified local result. The learned operations preserve the relation between required inputs, expected outcomes, and verification conditions. This retains locally successful operations from both successful and failed tasks. On MobileWorld GUI-only tasks, Advancement State alone raises success from 12.0% to 28.2%. Full TAM achieves a 17.6% relative gain in task success over the strongest evaluated baseline and reduces lifecycle tokens per solved task by 38.7%. On SPA-Bench, TAM achieves state-of-the-art task success in the single-app English Level 3 setting.",
+      "authors": [
+        "Ziyang Chen",
+        "Qian Li",
+        "Chengwei Qin"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-10-27 16:09:25+00:00",
+      "link": "https://arxiv.org/pdf/2610.37482v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "Task Advancement Memory for long-horizon cross-application GUI agents learning reusable operations from verified progress",
+      "llm_evidence_cn": "面向跨应用长程 GUI 智能体的任务推进记忆，从已验证进展中学习可复用操作",
+      "llm_evidence": "面向跨应用长程 GUI 智能体的任务推进记忆，从已验证进展中学习可复用操作",
+      "canonical_evidence": "面向跨应用长程 GUI 智能体的任务推进记忆，从已验证进展中学习可复用操作",
+      "llm_tldr_en": "Introduces Task Advancement Memory, which defines task advancement as verified progress to guide ongoing cross-application execution and to abstract reusable operations from successful interaction segments.",
+      "llm_tldr_cn": "长程 GUI 工作流中智能体需跨应用利用信息，而有效操作常与失败尝试交织，现有记忆难以保留动作结果并学习可复用技能。作者提出任务推进记忆 TAM，把任务推进定义为经核验的进度，执行时用推进状态刻画已验证进展如何改变剩余目标，任务结束后再由推进监督抽取产生局部结果的交互并抽象为可复用操作。该机制让智能体能建立在既有成果之上，提升跨应用长程任务的执行与迁移能力。",
+      "llm_tldr": "长程 GUI 工作流中智能体需跨应用利用信息，而有效操作常与失败尝试交织，现有记忆难以保留动作结果并学习可复用技能。作者提出任务推进记忆 TAM，把任务推进定义为经核验的进度，执行时用推进状态刻画已验证进展如何改变剩余目标，任务结束后再由推进监督抽取产生局部结果的交互并抽象为可复用操作。该机制让智能体能建立在既有成果之上，提升跨应用长程任务的执行与迁移能力。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Methods for general purpose GUI agents that autonomously complete desktop, web, and mobile tasks.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "carryover_cache",
+      "paper_id": "2610.37482v1",
+      "quick_tier": "8plus"
+    }
+  ]
+}

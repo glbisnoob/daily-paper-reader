@@ -1,0 +1,281 @@
+{
+  "date": "20261113",
+  "date_label": "2026-11-12 06:00 ~ 2026-11-13 06:00 (UTC+8)",
+  "generated_at": "2026-11-13 02:24:49 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2610.23012v1",
+      "route": "202611/13/2610.23012v1-adaptation-of-computer-use-agents-to-new-software-with-user-manuals",
+      "title": "Adaptation of Computer Use Agents to New Software with User Manuals",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "基于视觉观察与指令通过GUI操作软件的计算机使用智能体",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.24372v1",
+      "route": "202611/13/2610.24372v1-beyond-next-screen-prediction-the-decision-value-of-gui-world-models",
+      "title": "Beyond Next-Screen Prediction: The Decision Value of GUI World Models",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "研究GUI世界模型与直接动作排序，用于界面动作选择中的候选动作评分",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.26503v1",
+      "route": "202611/13/2610.26503v1-scopemem-latent-memory-that-learns-where-to-revise-frozen-gui-agents",
+      "title": "ScopeMem: Latent Memory That Learns Where to Revise Frozen GUI Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向冻结视觉语言图形界面智能体的潜记忆与受控动作修正",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.26828v1",
+      "route": "202611/13/2610.26828v1-agent-world-model-in-the-wild-computer-use-agent-environment-synthesis",
+      "title": "Agent World Model in the Wild: Computer-Use Agent Environment Synthesis",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "为通用计算机使用智能体合成可控可执行环境",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.27954v1",
+      "route": "202611/13/2610.27954v1-lost-in-recovery-demystifying-recovery-behavior-of-computer-use-agents-via-goal-oriented-action-replay",
+      "title": "Lost in Recovery: Demystifying Recovery Behavior of Computer-Use Agents via Goal-Oriented Action Replay",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "提出 ReTrace 评测框架，系统研究计算机使用智能体在长程任务中的失败恢复",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.28601v1",
+      "route": "202611/13/2610.28601v1-evolving-agent-interfaces",
+      "title": "Evolving Agent Interfaces",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "从任务经验中设计并演化交互界面的计算机使用智能体",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.30573v1",
+      "route": "202611/13/2610.30573v1-diagnosing-personalization-failures-in-mobile-gui-agents",
+      "title": "Diagnosing Personalization Failures in Mobile GUI Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "构建含1664个分阶段诊断探针的 PrefDiag-Bench，评测11个 GUI 智能体系统",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.30792v2",
+      "route": "202611/13/2610.30792v2-trace2world-reconstructing-app-worlds-from-real-interaction-traces-for-scalable-gui-agent-training",
+      "title": "Trace2World: Reconstructing App Worlds from Real Interaction Traces for Scalable GUI Agent Training",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "从交互轨迹重建可执行应用环境以支撑可扩展GUI强化学习",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.31307v1",
+      "route": "202611/13/2610.31307v1-subgoal-aware-memory-graph-for-gui-agent",
+      "title": "Subgoal-aware Memory Graph for GUI Agent",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "以子目标级记忆图提炼历史 GUI 轨迹，支撑长程移动端智能体决策",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.31712v1",
+      "route": "202611/13/2610.31712v1-reuse-rewrite-or-reject-evidence-constrained-trace-reuse-for-repeated-mobile-gui-control",
+      "title": "Reuse, Rewrite, or Reject: Evidence-Constrained Trace Reuse for Repeated Mobile GUI Control",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向重复移动GUI控制的执行轨迹选择性复用",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.32223v1",
+      "route": "202611/13/2610.32223v1-correct-answers-closed-gates-solvebind-for-gui-agents-at-the-verification-barrier",
+      "title": "Correct Answers, Closed Gates: SolveBind for GUI Agents at the Verification Barrier",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向受保护界面的 GUI 智能体框架，分层完成感知、定位、求解、执行与验证",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.34384v1",
+      "route": "202611/13/2610.34384v1-androidflux-evaluating-and-reward-modeling-failure-recovery-capabilities-in-mobile-use-multimodal-agents",
+      "title": "AndroidFlux: Evaluating and Reward Modeling Failure Recovery Capabilities in Mobile Use Multimodal Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "基于AndroidWorld的失败恢复基准，将轨迹回滚到检查点以评测移动多模态智能体",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.35237v1",
+      "route": "202611/13/2610.35237v1-chart-the-invisible-interactive-perception-for-hidden-target-exploration-in-gui-agents",
+      "title": "Chart the Invisible: Interactive Perception for Hidden-Target Exploration in GUI Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "交互式感知，使GUI智能体能决定何时何地如何滑动以发现隐藏目标",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.36831v1",
+      "route": "202611/13/2610.36831v1-right-click-wrong-box-grading-gui-grounding-by-what-a-click-does",
+      "title": "Right Click, Wrong Box: Grading GUI Grounding by What a Click Does",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "以执行结果而非标注框评判点击的 GUI 定位评测协议",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.36877v1",
+      "route": "202611/13/2610.36877v1-gui-jepa-candidate-conditioned-jepa-latents-as-a-fast-action-policy-for-mobile-gui-agents",
+      "title": "GUI-JEPA: Candidate-Conditioned JEPA Latents as a Fast Action Policy for Mobile GUI Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "在JEPA潜空间中直接选择动作的无解码器GUI策略",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.37093v1",
+      "route": "202611/13/2610.37093v1-learning-to-look-beyond-screens-transferable-visual-observation-from-gui-grounding",
+      "title": "Learning to Look Beyond Screens: Transferable Visual Observation from GUI Grounding",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "利用界面定位轨迹与强化学习训练视觉语言模型的观察行为",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    },
+    {
+      "paper_id": "2610.37482v1",
+      "route": "202611/13/2610.37482v1-from-interaction-to-capability-task-advancement-as-state-and-supervision-for-gui-agents",
+      "title": "From Interaction to Capability: Task Advancement as State and Supervision for GUI Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "面向跨应用长程 GUI 智能体的任务推进记忆，从已验证进展中学习可复用操作",
+      "first_seen_at": "2026-11-13 02:24:49 UTC",
+      "updated_at": "2026-11-13 02:24:49 UTC"
+    }
+  ]
+}

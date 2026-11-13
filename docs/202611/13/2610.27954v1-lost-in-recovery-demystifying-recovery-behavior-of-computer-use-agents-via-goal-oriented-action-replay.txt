@@ -1,0 +1,916 @@
+Title: Lost in Recovery: Demystifying Recovery Behavior of Computer-Use Agents via Goal-Oriented Action Replay
+
+URL Source: https://arxiv.org/pdf/2610.27954v1
+
+Published Time: Wed, 21 Oct 2026 01:22:54 GMT
+
+Number of Pages: 35
+
+Markdown Content:
+# Lost in Recovery: Demystifying Recovery Behavior of Computer-Use Agents via Goal-Oriented Action Replay 
+
+Byeonghun Bang 1* Sangwoo Park 1* Jinheon Baek 1 Kangsan Kim 1
+
+Youngwan Lee 1,2 Sung Ju Hwang 1,3 
+
+> 1
+
+KAIST 2ETRI 3DeepAuto.ai 
+
+{bh.bang, jackson0530, jinheon.baek, kangsan.kim, sungju.hwang}@kaist.ac.kr yw.lee@etri.re.kr 
+
+Abstract 
+
+Recent advances in large (vision) language models have enabled computer-use agents that automate digital workflows via fine-grained keyboard and mouse operations. However, such agents remain fragile in long-horizon set-tings, where errors accumulate and executed actions leave unintended side effects, mak-ing the ability to recover from failures critical. Yet, existing remedies remain inadequate: en-vironment resets are infeasible in proprietary settings, action replay is prohibitively expen-sive over long horizons, and API-based roll-back is limited to web environments, leaving model-based recovery largely unexplored. To address this gap, we present R ETRACE , a scal-able evaluation framework for systematically studying recovery behavior in computer-use agents. We formalize Transition-Consistent Recovery : identical downstream actions from the recovered and target states must yield iden-tical outcomes. We operationalize this crite-rion through goal-oriented action replay fol-lowing controlled error injection. Using R E-TRACE , we present the first systematic study of autonomous, model-based recovery, revealing that (i) ideal recovery can unlock model’s la-tent task completion capabilities, (ii) current computer-use agents fail to exploit their la-tent recovery capabilities, and (iii) accurate model-based recovery yields measurable end-to-end gains. Together, these findings estab-lish recovery as a fundamental capability for building reliable computer-use agents. Our code and dataset is available at https:// github.com/BangProx/ReTRACE .
+
+1 Introduction 
+
+The digital computing environment has become the primary interface through which users interact with software, supporting a wide spectrum of tasks ranging from simple actions (e.g., website logins) to complex workflows (document editing). Recent 
+
+> *
+
+Equal contribution. (A) Reflection (B) Rollback 
+
+> Continues forward from an erroneous state, risking side effects.
+> (C) Recovery
+> Restores a prior intact state to resume the task
+> Requires environment reset and action replay, often infeasible.
+> Window Closed
+> Window Closed
+> Window Closed
+> Reset Infeasible Recovery & Resume
+> Side Effects
+> Query : The slide number is barely visible to me. Please help me change the color of the slide number to red.
+
+Figure 1: Comparison of error-handling strategies in computer-use agents. (A) Reflection proceeds from the erroneous state, (B) rollback requires often-infeasible environment resets, while (C) recovery restores a prior intact state and resumes the task. 
+
+advances in large (vision) language models (Bai et al., 2025; Singh et al., 2025; Guo et al., 2025; Anthropic, 2026) have made it possible to auto-mate such workflows through computer-use agents ,which act in digital environments via fine-grained keyboard and mouse inputs (Gur et al., 2023; Fu-ruta et al., 2023; Sager et al., 2025). However, computer-use agents remain fragile in long-horizon and sophisticated tasks, where early mistakes accumulate and propagate across subse-quent steps (Wang et al., 2026a), and where exe-cuted actions may leave unintended side effects that should not have occurred (e.g., an agent organiz-ing a directory may complete the task but silently overwrite files that the user wanted to keep). As a result, the ability to revert the environment to a pre-viously intact state is critical for reliable operation. To address this, prior work explores two directions: 1arXiv:2610.27954v1 [cs.AI] 20 Oct 2026 inducing self-reflective behaviors through textual feedback or parameter updates from reward signals that refine forward actions (Chae et al., 2025a,b; Wu et al., 2025b; Wang et al., 2025a; Zhang et al., 2026a; Xue et al., 2026; Wang et al., 2026c), and explicit test-time rollback through full environment resets followed by re-executing all prior actions (i.e., action replay) (Koh et al., 2024b; He et al., 2025) or API-based undo operations in web en-vironments (e.g., browser back) (Hu et al., 2025; Zhang et al., 2026b), utilized as a heuristic compo-nent within an inference pipeline rather than sub-jected to systematic study. Yet, these heuristic remedies fall short of provid-ing general-purpose recovery. Environment resets are often infeasible in proprietary settings such as production websites and operating systems (Regatti et al., 2021; Nguyen and Cheng, 2023; Wang et al., 2026b), action replay (Koh et al., 2024b; He et al., 2025) inherits this requirement and becomes costly over long horizons, and API-based rollback (Hu et al., 2025; Zhang et al., 2026b) is largely con-fined to web environments, leaving broader desk-top settings uncovered. Consequently, autonomous model-level recovery , in which the agent itself re-stores a prior state without relying on such ad hoc mechanisms, emerges as an essential capability. However, whether current agents possess recovery capabilities, and how it affects overall agent perfor-mance remain largely unexplored. Therefore, we investigate several fundamental research questions: 
+
+RQ1. Is recovery necessary to unlock models’ la-tent capabilities? 
+
+RQ2. Do current computer-use agents possess recovery capabilities under erroneous conditions, and are such capabilities latent or entirely absent? 
+
+RQ3. Does accurate model-level recovery translate into measurable improvements in task completion? 
+
+To address this, we introduce R ETRACE , a pipeline that conducts the first systematic study of autonomous, model-based recovery behavior in computer-use agents. Motivated by predictive state representation theory (Littman and Sutton, 2001), which represents states by the formaliza-tion of predicted futures, we formalize successful recovery as Transition-Consistent Recovery : a re-covered state matches its target if executing iden-tical downstream actions from both states yields identical outcomes. This formulation captures la-tent changes beyond visual similarity by leveraging behavioral equivalence, operationalized via goal-oriented action replay . Specifically, we replay each on-policy trajectory multiple times and retain only those with consistent successful outcomes, ensur-ing deterministic environment transitions. From these trajectories, we sample intermediate states as recovery targets, perturb them into erroneous states, and evaluate whether the original task outcome can be reproduced by replaying the remaining actions. We then instantiate R ETRACE on OSWorld (Xie et al., 2024) and WindowsAgentArena (Bonatti et al., 2024) across closed- and open-source computer-use agents, and find that recovery plays a critical role in reliable agent operation. We first show that ideal recovery, in which agents are re-turned to an oracle prior state, boosts performance over naive environment resets (Section 4), identify-ing recovery as the key lever for unlocking agents’ latent task-solving capacity ( RQ1 ). Yet current agents leave this lever unused, lacking both the tendency and capability to recover autonomously (Section 5) ( RQ2 ). When equipped with explicit model-based recovery, however, recovery success climbs by more than an order of magnitude, reveal-ing that the underlying capability is latent rather than absent (Section 5) (RQ2) . Moreover, recovery quality in turn translates into downstream task suc-cess: accurate model-level recovery delivers mea-surable end-to-end gains by unlocking otherwise latent task-solving capacity, while weak recovery can actively derail the trajectory ( RQ3 ) (Section 6) .These findings position accurate model-based re-covery, together with reliable continuation from the recovered state, as a key step toward stronger computer-use agents. 
+
+2 Related Works 
+
+Computer-Use Agents Computer-use agents aim to complete diverse user tasks across web-based environments (Gur et al., 2023; Furuta et al., 2023; OpenAI, 2025; Awadallah et al., 2025), desk-top operating systems such as Linux and Windows (Wang et al., 2025b; Yang et al., 2025; Anthropic, 2026), and mobile environments (Ye et al., 2025a; Xu et al., 2026). Pioneering works leverage LLMs over HTML DOM content (Liu et al., 2018; Kim et al., 2023; Zhou et al., 2023), while recent stud-ies operate LVLMs over screenshot observations (Koh et al., 2024a; Bai et al., 2025; Kim et al., 2026; Wang et al., 2026c) and further reinforce backbone capabilities through reinforcement learn-ing (Wang et al., 2025a; Xu et al., 2025; Xue et al., 2(A) On-policy Trajectory Rollout         
+
+> Policy Set 𝜫 𝜽
+> Environment (B) Trajectory Drift via Perturbation (C) Goal-Oriented Action Replay
+> 1. Collect Successful Trajectories
+> 3. Observation Comparison
+> 𝑺 𝑹 𝒓 𝑺 𝒌
+> 𝑺 𝑹 𝒓 𝑺 𝑻
+> (𝒂 𝒌 … 𝒂 𝑻$𝟏 )
+
+𝜋 𝒎     
+
+> 𝑺 𝟏 𝟏 𝑺 𝑻 𝟏
+> 𝑺 𝟏 𝒏 𝑺 𝑻 𝒏
+> Replay N Times
+> 𝑺 𝟏 𝒏 𝑺 𝑻 𝒏
+> 𝑺 𝟏 𝒏 𝑺 𝑻 𝒏
+
+𝜋 𝒎         
+
+> 𝑺 𝑬 "# 𝑺 𝑹 𝟏 𝑺 𝑹 𝒓
+> 1. Generate Recovery Action
+> 2. Action Replay from Recovered State 1. Select Seed Step 2. Generate Erroneous States
+> 𝑺 𝟏 𝑺 𝒌 𝑺 𝑻
+> 3. Collect Goal-Oriented Actions
+> 𝑺 𝒌 𝑺 𝑻
+> 𝑺 𝑬 "#
+> 𝑺 𝑬 𝟏
+> 𝑺 𝒌 2. Construct Transition-Consistent Dataset
+> (𝒂 𝒌 … 𝒂 𝑻$𝟏 )
+
+𝜋 𝟏 𝜋 𝑴 Figure 2: Overview of R ETRACE . (A) On-Policy Trajectory Rollout collects successful trajectories and replays each action sequence N times to build a transition-consistent dataset. (B) Trajectory Drift via Perturbation selects a recovery target and perturbs the agent into an erroneous state. (C) Goal-Oriented Action Replay replays the remaining actions from the recovered state to test whether the agent reproduces the original task outcome. 
+
+2026) or external memories (Zheng et al., 2023; Fu et al., 2024). However, these efforts concentrate on strengthening the forward decision policy, leaving long-horizon brittleness, where early mistakes ac-cumulate and propagate downstream (Wang et al., 2026a), largely unaddressed. In contrast, we focus on the systematic analysis of recovery behavior in computer-use agents, a complementary but under-explored axis. 
+
+Agent Behaviors under Failure Prior work ex-plores diverse error-handling strategies across com-plex interactive tasks. For example, Lightman et al. (2024); Shinn et al. (2023); Xi et al. (2024) use outcome and process-level feedback to refine ac-tions at test time in mathematical and code tasks (Chen et al., 2022). In long-horizon embodied set-tings, Huang et al. (2022); Wang et al. (2023a,b) leverage external rewards to revise plans or acquire new skills, and Li et al. (2025) perform rollback through resetting the environment and executing identical actions. This problem has also been ex-plored in computer-use agents: Wang et al. (2024); Chae et al. (2025b); Wu et al. (2025b) use external verifiers to induce reflective behaviors (Hu et al., 2025) for effective user task completion, Koh et al. (2024b); He et al. (2025) employ action replay to revert to prior states upon failure, and Hu et al. (2025); Zhang et al. (2026b) utilize explicit roll-back via go-back operations in Playwright, while Lu et al. (2026) introduce semantic actions for state recovery within the DFS algorithm. However, pre-vious works used these mechanisms as heuristics in inference pipelines rather than systematically an-alyzing their behavior and effects. In contrast, we uncover key findings on model-level recovery in computer-use agents using R ETRACE , a scalable pipeline enabling the first systematic analysis of recovery behavior. 
+
+3 Preliminary 
+
+Computer-Use Task We formulate a computer-use agent (CUA) task as a Partially Observable Markov Decision Process (Kaelbling et al., 1998), 
+
+M = ( S, A, O, E, T , Ω) , where a policy πθ inter-acts with a digital environment E (e.g., Linux termi-nals, PowerPoint) to complete a user query q. Each state st = ( ht, o t) ∈ S decomposes into a hidden component ht and an observation ot = Ω( st) ∈ O ,satisfying the Markov property. At each step, πθ
+
+selects an action at ∈ A, spanning high-level (CLICK ) to low-level ( pyautogui.click ) op-erations, yielding st+1 ∼ T (· | st, a t).
+
+Forward Policy and Trajectory Since E is only partially observable, πθ conditions on the observa-tion–action history, πθ(at | o0, a 0, . . . , o t), yield-ing a trajectory τ = {(ot, a t)}Tt=0 . However, this forward formulation leaves unspecified how the agent should behave once early actions drive τ into an erroneous state from which q can no longer be completed, the setting we study next. 
+
+4 Accurate Recovery Matters 
+
+Here, we show through a preliminary experiment that accurate recovery yields measurable gains, es-tablishing it as a powerful lever for reliable agents. For more details, please see Appendices B.1 and F. 
+
+Expected Gains from Ideal Recovery Agents exhibit diverse trajectories across repeated rollouts of the same task, and this variance may imply sub-stantial latent task-solving capability that any sin-gle rollout fails to exploit, motivating our hypothe-sis: reverting to an appropriate past state ( recovery step ) can convert it into task success. To validate this, we measure Success@5, the success rate over 5 independent continuations, when the forward pol-icy resumes from different recovery steps. 3010 20 30 40 50 1 2 3 4 5   
+
+> Number of attempts k Success@k (%)
+> EvoCUA-32B
+> R=0 R=E-1 R=E-random R=R LLM Figure 3: Success@ kacross different recovery steps R
+> under ideal recovery, using EvoCUA-32B as the forward policy on OSWorld.
+
+Setup We focus on tasks that the forward pol-icy fails to solve under standard rollouts, the cases where recovery can yield measurable gains, with EvoCUA-32B (Xue et al., 2026) as the forward pol-icy on the OSWorld (Xie et al., 2024) benchmark. For each failed trajectory, we annotate the error step E (where the agent first goes off track) using an LLM-based detector, and set the recovery step R,from which the forward policy resumes, to one of: the initial state ( R = 0 , equivalent to a full environ-ment reset), one step before the error ( R = E -1), a uniformly sampled past step ( R = E -random), or a step identified by an LLM-based recovery step de-tector ( R = R LLM ). We use Qwen3.6-Plus (Qwen Team, 2026b) as the backbone for both detectors. 
+
+Results As shown in Figure 3, every non-zero re-covery strategy outperforms complete environment resets ( R = 0 ), with the largest advantage observed in the low-K regime. This demonstrates that, under the same retry budget, recovering from the previ-ous state utilizes each retry substantially more effi-ciently than restarting the task from scratch (Find-ing 1) , resulting in significantly higher Success@ K.As K increases, the gap naturally diminishes be-cause repeated restarts also accumulate additional opportunities for success. These findings there-fore highlight the efficiency of accurate recovery in utilizing model’s internal capabilities under con-strained retry budgets. 
+
+5 How Well Can Agents Recover? 
+
+Here, we analyze the recovery behavior of current computer-use agents using the empirical pipeline illustrated in Figure 2. For more details, please see Appendices A, B.3, C, and F. 
+
+5.1 Transition-Consistent Recovery 
+
+Given a trajectory τ = {(st, a t)}Tt=0 produced by a policy π, the recovery task is defined as a func-tion f that maps an arbitrary state st back to a past target state, f (st) = starget = st−d, where 
+
+d is the recovery distance. Whether this mapping succeeds is judged by a predefined recovery ora-cle R, which returns a binary indicator of recov-ery success or failure, R(f (st), s target ) ∈ { 0, 1}.Recalling from Section 3 that each state decom-poses as st = ( ht, o t) into a hidden component 
+
+ht and an observation ot, R should verify that 
+
+f (st) matches starget in both components. A nat-ural instantiation of R is to compare the observa-tions of f (st) and starget directly, e.g., via pixel-or feature-level matching. However, this surface criterion is unreliable, since latent components of the environment may be implicitly altered with-out any visible change (Shani and Brafman, 2004) (e.g., a hidden configuration file modified while the screenshot remains identical), causing observation-only oracles to falsely declare success on states that nonetheless diverge in their downstream ef-fects. To capture such latent discrepancies, we draw on the theory of predictive state representa-tions (Littman and Sutton, 2001), which defines state equivalence through identical transition dy-namics, and formalize transition-consistent recov-ery . Specifically, in a controlled environment E
+
+with a deterministic transition function TE , we de-clare a recovery successful when executing the same downstream action at−d from the recovered state reproduces the next state along the original trajectory, defined as RTC = ITE (f (st), a t−d) = 
+
+st−d+1 
+
+ for (st−d, a t−d, s t−d+1 ) ∈ τ , which could extend to the multi-step setting by recur-sively chaining transitions along τ , as RTC =
+
+ITE (· · · T E (f (st), a t−d) · · · , a t−1) = st
+
+.
+
+To complement this hidden-state check, we ad-ditionally enforce observation-level agreement to guard against cases where the visible interface it-self diverges from the target. Formally, we de-fine RO = I[ o = ˆ o ], where (h, o ) = starget and 
+
+(ˆh, ˆo) = f (st). The final recovery oracle then com-bines both, R = RTC ∧ R O, jointly evaluating recovery on the hidden and observable axes. 
+
+5.2 Recovery Evaluation 
+
+RETRACE evaluates recovery in three stages (Fig-ure 2): the first two construct a transition-consistent evaluation set, and the third measures recovery on 4it via goal-oriented action replay. 
+
+On-Policy Trajectory Rollout As the first stage of R ETRACE (Figure 2 (A)), evaluating transition-consistent recovery requires a target state starget 
+
+and an error state serror for a trajectory τ , together with a deterministic transition function T . To probe each policy on its own behavior, τ must re-main on-policy with the evaluated πθ. We thus begin by rolling out each πθ ∈ Π on every user query q ∈ Q , collecting ground-truth trajectories 
+
+τgt = {(st, a t)}Tt=0 whose success is determined by an oracle Φq. For each τgt , we sample seed time steps tseed ∈ { 1, . . . , T } and retain only suc-cessful trajectories with Φq(τgt ) = 1 , forming an evaluation set D for each πθ.We further require a reliable transition function, grounded in the formal definition of state recov-ery in Section 5.1. To this end, inspired by prior work that approximates the latent model distri-bution through iterative sampling of model out-puts (Wu et al., 2025a), we construct an amortized deterministic transition function ˆT for a given ac-tion trajectory τgt . Specifically, we replay the iden-tical action sequence N times and retain only those that yield N successful outcomes, thereby ensur-ing reliable state transitions. This finally yields a transition-consistent trajectory dataset DTC for each policy πθ ∈ Π.
+
+Trajectory Drift via Perturbation Given the transition-consistent dataset, for (τgt , t seed , ˆT ) ∈DTC we next require a ground-truth error state 
+
+serror (Figure 2 (B)). Taking stseed ∈ τgt as the target state starget , we obtain serror by drifting the trajectory into erroneous conditions with respect to the user query q via a perturbation policy πp 
+
+> θ
+
+.Concretely, we first replay the action sequence of 
+
+τgt in E using ˆT up to step tseed , with the LLM ver-ifier hθ confirming that stseed is reproduced. From this state, πp 
+
+> θ
+
+rolls out a perturbation trajectory 
+
+τp = (stseed , atseed ), . . . , (stseed +tp ) up to the perturbation limit tp. The oracle Φq then as-signs the final state stseed +tp as serror when it is erroneous, yielding the transition-consistent recov-ery evaluation set DR for each policy πθ ∈ Π. By construction, every instance in DR pairs a verified off-track error state serror with its reachable target 
+
+starget , enabling a controlled evaluation of agent recovery under genuine failure. 
+
+Goal-Oriented Action Replay Given the recov-ery evaluation set DR, we initiate recovery from each serror ∈ D R, which serves as the starting state for the recovery policy πR 
+
+> θ
+
+(Figure 2 (C)). Since 
+
+serror is conditioned on starget , we first replay τgt 
+
+up to starget and then τp for tp steps, using the LLM verifier hθ to confirm faithful reconstruction of 
+
+starget and serror , respectively. With serror thus re-constructed, the recovery policy πR 
+
+> θ
+
+executes from it for at most r steps, producing the recovery trajec-tory τR = {(st, a t)}Tt=0 and the recovered state sT .However, single-step transition-consistent recovery is impractical, as defining oracle annotations for nu-merous intermediate states is infeasible. Therefore, following the multi-step formulation of transition-consistent recovery in Section 5.1, we instead lever-age the pre-configured oracle Φ for user-query com-pletion, extending the objective to test whether re-playing the remaining actions of τgt from the re-covered state reproduces the original task outcome. The recovery oracle is thus defined as RTC =
+
+IΦq(TE (· · · T E (f (st), a t−d), . . . , a T )) = 1 , to-gether with RO for observation-level matching. 
+
+5.3 Recovery Policy 
+
+Given an error state, a recovery policy acts to re-store a past target state. We study two instantiations, differing in whether recovery is elicited from the forward agent itself or from a dedicated policy. 
+
+Implicit Recovery The implicit recovery pol-icy reuses the forward decision policy as is, i.e., 
+
+πR 
+
+> θ
+
+= πθ, applying no recovery-specific instruc-tion or parameter update. The same agent simply continues to act from the error state, which probes whether it spontaneously produces restorative ac-tions toward prior states as an intrinsic behavior. 
+
+Explicit Recovery In contrast, the explicit re-covery policy πR 
+
+> θ
+
+is an external policy specifi-cally designed to revert the agent to a target re-covery state starget . Formally, this recovery pro-cess is defined as πR 
+
+> θ
+
+(at | st, s target ), which, fol-lowing the POMDP formulation in Section 3, can be expressed as πR 
+
+> θ
+
+(at | otarget , (o0, a 0, . . . , o t)) .Unlike the forward decision policy that begins from a fixed starting point, recovery may start from an arbitrary state along the forward trajec-tory. Moreover, since the target state itself lies within that trajectory, its hidden component can-not be inferred from otarget alone; we thus in-troduce an additional recovery context C to rep-resent the target hidden state htarget ∈ starget ,leading to the final explicit recovery formulation 
+
+πR 
+
+> θ
+
+(at | otarget , C, (o0, a 0, . . . , o t)) .5Claude-Sonnet-4.6 GPT-5.4-CUA Qwen3.5-9B UITARS-1.5-7B EvoCUA-32B 
+
+> Model Variant
+> 010 20 30 40 50 60 70 80 Recovery Success Rate (%)
+
+Avg: +33.2 
+
+Avg: +48.1 
+
+Avg: +4.7 
+
+Avg: +1.7 
+
+Avg: +0.4 
+
+> Implicit Recovery w/ Step 1; Implicit Recovery w/ Step 3; Explicit Recovery w/ Step 3; (w/o History) Explicit Recovery w/ Step 3; (0~E) Explicit Recovery w/ Step 3; (0~R) Explicit Recovery w/ Step 3; (w/ Contextualization)
+
+Figure 4: Comparison of short-horizon recovery strategies across computer-use agents on OSWorld. Sonnet-4.6 GPT-5.4-CUA Qwen3.5-9B EvoCUA-32B 
+
+> 010 20 30 40 50 60
+> Recovery Success Rate (%)  Avg. Implicit Avg. Explicit
+
+Figure 5: Comparison of short-horizon recovery strategies across models on WindowsAgentArena. Claude-Sonnet-4.6 Qwen3.5-9B EvoCUA-32B 0.0 0.2 0.4 0.6 0.8 
+
+> Cosine Similarity  Implicit Explicit
+
+Figure 6: Recovery intention under implicit vs explicit recovery, mea-sured by the similarity between agent rationales and recovery prompts. 
+
+Baselines Win Rate (%) w/o RO 82.0% 
+
+w/o RTC 63.0% 
+
+GPT-5.4 Evaluator 54.0% 
+
+Table 1: Average win rate of R E-TRACE against alternative evalua-tion strategies in matching human judgments, where human annota-tions serve as the ground truth. For more details, see Appendix B.3. 
+
+5.4 Experiments 5.4.1 Setup 
+
+We now describe the experimental setup, including datasets, models, and inference configurations. 
+
+Dataset We evaluate recovery on two computer-use benchmarks, OSWorld (Xie et al., 2024) and WindowsAgentArena (Bonatti et al., 2024), each deployed in an isolated environment and providing a user query together with an oracle evaluator that determines whether its execution succeeds. 
+
+Models We evaluate a range of state-of-the-art computer-use agents. As closed-source models, we use Claude Sonnet 4.6 (Anthropic, 2026) and GPT-5.4-Computer-Use (OpenAI, 2026), which achieve top performance on OSWorld. For open-source models, we consider two post-trained agentic mod-els, EvoCUA-32B (Xue et al., 2026) and UI-TARS-1.5-7B (Qin et al., 2025), together with Qwen3.5-9B-Thinking (Qwen Team, 2026a), a strong open-source model without task-specific post-training. 
+
+Inference Configurations We run experiments under short horizon and long horizon settings, with recovery distance d set to 1 and 5, respectively. We further vary the maximum recovery step budget 
+
+r ∈ { 1, 3, 10 }.
+
+Recovery Context We consider several recovery policy configurations with different contexts C. For the implicit recovery policy, we provide the obser-vation–action history from the first step up to the error step, denoted 0-E . For the explicit recovery policy, we evaluate four variants: 0-E ; 0-R , which instead provides the observation–action history up to the target recovery step starget ; w/o History ,which excludes the history from the context; and 
+
+w/ Recovery Target Contextualization , which contextualizes the transition history leading up to the target recovery with an LLM summarizer to reduce context (Zhou et al., 2025; Ye et al., 2025b). 
+
+5.4.2 Results and Analysis 
+
+We now present and analyze the recovery evalua-tion results across both benchmarks and all agents. 
+
+Agents Fail to Recover Prior States Our results in Figures 4 and 5 show that even the strongest computer-use agents, Claude-Sonnet-4.6 and GPT-5.4-CUA, have limited recovery capability, while the strongest open-source model, EvoCUA-32B, 6Sonnet-4.6 Qwen3.5-9B UITARS-1.5-7B EvoCUA-32B 
+
+> 020 40 60 80 Success Rate (%)
+> Max. Recovery Acc.
+
+Figure 7: Maximum long-horizon re-covery success rate among four dif-ferent explicit recovery strategies on OSWorld.                         
+
+> Recovery Context SR (%) ↑∆↑
+> Baseline 39 .38 ±1.17 —Contextualizer 41 .06 ±3.05 +1 .68
+> 0∼R44 .26 ±1.90 +4.88
+> 0∼E40 .49 ±0.95 +1 .11
+> w/o History 40 .2±1.84 +0 .82
+
+Table 2: End-to-end success rate (SR) across recovery strategies, where ∆
+
+is the change over the no-recovery baseline, with three independent runs. 1 3 5Iteration 05Performance  Δ (%)  EvoCUA-32B Qwen3.5-9B UITARS-1.5-7B 
+
+Figure 8: Performance change ( ∆)across recovery iterations under Re-covery Target Contextualization .                               
+
+> Model Setting SR (%) ↑
+> Sonnet-4.6 Baseline 70 .27 ±0.70
+> w/ Recovery 71 .81 ±1.51
+> Qwen3.5-9B Baseline 38 .76 ±0.64
+> w/ Recovery 41 .56 ±4.14
+> UI-TARS-1.5-7B Baseline 17 .25 ±1.55
+> w/ Recovery 15 .74 ±0.65
+> EvoCUA-32B Baseline 54 .88 ±4.39
+> w/ Recovery 51 .55 ±2.54
+
+Table 3: End-to-end task success rate (SR) on OSWorld across different models with the Recovery Target Con-textualization strategy, over two independent runs. 
+
+exhibits a near-complete inability to restore previ-ous states, with an average recovery rate below 1%. 
+
+This suggests that current forward policies lack both the intrinsic capability and the behavioral ten-dency to autonomously perform restorative actions under failure (Finding 2) . The analysis in Fig-ure 6 reinforces this: rationales generated during implicit recovery show substantially lower similar-ity to the ground-truth recovery prompts, indicating that agents rarely even attempt recovery. 
+
+Analysis on Explicit Recovery The results in Figures 4 and 5 further show that explicit model-based recovery substantially outperforms implicit recovery, by an average margin of 17.86% across the Linux and Windows environments. In addition, the largest improvements are observed for gener-alist computer-use agents, such as Claude-Sonnet-4.6, GPT-5.4-CUA, and Qwen-3.5-9B. These re-sults suggest that the recovery capability of current computer-use agents is latent rather than absent, but such capabilities are not effectively elicited during standard forward task execution (Finding 3) . In contrast, the gains are considerably smaller for post-trained open-source agents, suggesting that extensive post-training on one-directional task-completion trajectories may weaken their inherent recovery capability (Finding 4) . Figure 7 shows the same trend in long-horizon settings: gener-alist agents exhibit substantially greater recovery potential, whereas post-trained specialists consis-tently struggle with explicit recovery. Nevertheless, even the most capable models combined with ba-sic explicit recovery strategies still fail to achieve complete recovery under our evaluation settings, suggesting that substantial research remains in de-veloping more robust recovery mechanisms for computer-use agents. 
+
+Efficacy of R ETRACE To assess how reliably RETRACE judges recovery success, we conduct a human evaluation study against three baselines: two ablations of our oracle R with either the image-wise matching component RO or the transition-consistent component RTC removed, and GPT-5.4, a state-of-the-art model with extensive computer-use knowledge. We recruit 12 annotators to judge whether each recovered state aligns with the target state, with 50 samples per variant and each anno-tator rating 25 of them. As shown in Table 1, R E-TRACE agrees with human judgments more often than all baselines, including GPT-5.4, confirming the reliability of its recovery oracle R. We fur-ther report an average inter-annotator agreement of 82% and a Cohen’s kappa (Cohen, 1960) of 0.45, indicating reliable agreement. 
+
+6 End-to-End Evaluation of Recovery 
+
+In this section, we analyze how recovery quality af-fects the end-to-end task performance of computer-use agents. For more details, please see Appen-dices B.2 and F. 
+
+6.1 Setup 
+
+We follow the evaluation protocols of Sections 4 and 5.4. Specifically, the forward and recovery 7Error Type Instruction Target State Restored State Action Problem Spurious Perception                   
+
+> Align the text of the first textbox on slide 3 to the right ,on slide 4 to the center, and on slide 5 to the left.
+> [click] on the hov-ering alignment button to align slide 3 the text to the right.
+> Fixates on to the hovering UI ele-ment in recovered state ,skipping [drag] on the text before clicking the alignment button.
+> State Tracking Failure
+> Change the font to
+> "Times New Roman"
+> throughout the text.
+> [scroll down] to find Times New Ro-man, since font se-lection interface is opened.
+> Hallucinates the restored state due to failed state synchronization
+> with its previous states.
+
+Table 4: Qualitative analysis of erroneous agent behaviors induced by imperfect state restoration. 
+
+agents share the same backbone model, on which we run the explicit recovery strategies. 
+
+6.2 Results and Analysis Potential Gains from Model-Based Recovery 
+
+To validate the potential benefits of model-based recovery, we analyze its performance gains across diverse recovery settings. As shown in Table 2, model-based recovery improves Qwen3.5-9B over the no-recovery baseline under every recovery set-ting, with an average gain of 2.12% in the end-to-end setting. Notably, these gains hold despite the suboptimal recovery success rates observed in Figures 4 and 5, indicating that even imperfect re-covery can begin to unlock the latent capabilities of current computer-use agents, and that more reli-able recovery mechanisms hold substantial promise for improving the overall performance and robust-ness (Finding 5) .
+
+Recovery Performance Effects on Task Com-pletion The results in Table 3 show that models with weaker recovery capabilities (UI-TARS-1.5-7B, EvoCUA-32B) suffer performance degradation during end-to-end inference, underscoring the im-portance of accurate recovery behavior. In addition, Figure 8 demonstrates that allowing more recov-ery attempts yields further gains for models with comparably better recovery performance (Qwen-3.5-9B, UI-TARS-1.5-7B). EvoCUA-32B, in con-trast, exhibits severely limited explicit recovery capability: while even a single successful recovery can substantially improve downstream task perfor-mance, its consistently low recovery success rate means that additional attempts more often derail the trajectory into increasingly erroneous states. This suggests that accurate model-level recovery delivers performance gains, while weak recovery can actively derail the trajectory (Finding 6) .
+
+6.3 Qualitative Analysis 
+
+In Section 6.2, we showed that poor recovery per-formance can severely degrade downstream task completion, in contrast to the idealized settings of Section 4. To understand why, we examine the rationales that forward agents generate after recov-ering to incorrect states, and categorize the result-ing behaviors into two major patterns (Table 4). Additional examples are provided in Appendix D. 
+
+Spurious Perception Our first observation is that agents fixate on elements distinct from the target state and rely on them when choosing their next action. For example, in Table 4, the agent imme-diately clicks the right-alignment button because the cursor happens to hover over it in the restored state, skipping the drag operation on the text that should have come first and thereby deviating from the trajectory needed for correct task completion. 
+
+State Tracking Failure Meanwhile, agents also hallucinate actions by assuming the restored state matches the target, failing to register the discrep-ancy when the two diverge. For example, as shown in Table 4, although the restored state is masked by the terminal interface and no longer shows the font-selection UI, the agent acts as if that interface were still open, revealing the side effects of imperfect state restoration. 
+
+7 Conclusion 
+
+In this paper, we conducted the first systematic study of autonomous, model-level recovery behav-ior in computer-use agents through R ETRACE , a scalable pipeline that formalizes successful restora-tion as Transition-Consistent Recovery , where a recovered state matches its target if identical down-stream actions yield identical outcomes, and opera-tionalizes this via goal-oriented action replay . Em-pirical evaluations across closed and open-source 8agents reveal that current agents lack both the tendency and capability to recover autonomously, while accurate model-based recovery substantially closes this gap and translates into measurable end-to-end gains, despite characteristic failure modes such as spurious perception and state-tracking er-rors. We believe these findings position accurate model-based recovery as a key step toward reliable computer-use agents. 
+
+Limitations 
+
+RETRACE is designed to measure and analyze re-covery capabilities and behaviors rather than to directly improve them. Our explicit recovery set-tings can only elicit capabilities already present in the underlying model and cannot compensate for fundamental deficiencies in GUI understand-ing, state tracking, or action planning. Conse-quently, inaccurate recovery by specialist agents with weaker recovery capabilities may induce ad-ditional trajectory drift and reduce task success. Potential directions for addressing this gap include recovery-aware post-training on erroneous states, target states, and corresponding corrective action trajectories, as well as auxiliary objectives for track-ing latent environment states and predicting action-induced transitions. RETRACE can provide the evaluation protocol and controlled recovery scenar-ios needed to develop and assess such methods, but designing and validating them is beyond the scope of the present work. 
+
+Ethical Considerations 
+
+Our work aims to advance the reliability of computer-use agents by systematically studying their recovery behavior, contributing positively to the safe and dependable deployment of digital au-tomation. However, we acknowledge the dual-use nature of such research, as more capable agents could in principle be repurposed for harmful au-tomation. To mitigate such risks, we conduct all experiments in sandboxed virtual environments us-ing publicly available benchmarks in accordance with their licenses, without interaction with real user accounts or personal data, and recommend pairing deployments with appropriate safeguards. 
+
+References 
+
+Anthropic. 2026. Claude-sonnet-4.6. 
+
+https://www.anthropic.com/news/ claude-sonnet-4-6 .Ahmed Awadallah, Yash Lara, Raghav Magazine, Hus-sein Mozannar, Akshay Nambi, Yash Pandya, Ar-avind Rajeswaran, Corby Rosset, Alexey Taymanov, Vibhav Vineet, et al. 2025. Fara-7b: An efficient agentic model for computer use. arXiv preprint arXiv:2511.19663 .Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, et al. 2025. Qwen3-vl technical report. arXiv preprint arXiv:2511.21631 .Rogerio Bonatti, Dan Zhao, Francesco Bonacci, Dillon Dupont, Sara Abdali, Yinheng Li, Yadong Lu, Justin Wagle, Kazuhito Koishida, Arthur Bucker, et al. 2024. Windows agent arena: Evaluating multi-modal os agents at scale. arXiv preprint arXiv:2409.08264 .Hyungjoo Chae, Namyoung Kim, Kai Tzu iunn Ong, Minju Gwak, Gwanwoo Song, Jihoon Kim, Sungh-wan Kim, Dongha Lee, and Jinyoung Yeo. 2025a. Web agents with world models: Learning and lever-aging environment dynamics in web navigation. In 
+
+The Thirteenth International Conference on Learning Representations .Hyungjoo Chae, Sunghwan Kim, Junhee Cho, Se-ungone Kim, Seungjun Moon, Gyeom Hwangbo, Dongha Lim, Minjin Kim, Yeonjun Hwang, Minju Gwak, et al. 2025b. Web-shepherd: Advancing prms for reinforcing web agents. arXiv preprint arXiv:2505.15277 .Bei Chen, Fengji Zhang, A. Nguyen, Daoguang Zan, Zeqi Lin, Jian-Guang Lou, and Weizhu Chen. 2022. Codet: Code generation with generated tests. ArXiv ,abs/2207.10397. Jacob Cohen. 1960. A coefficient of agreement for nominal scales. Educational and psychological mea-surement , 20(1):37–46. Yao Fu, Dong-Ki Kim, Jaekyeom Kim, Sungryull Sohn, Lajanugen Logeswaran, Kyunghoon Bae, and Honglak Lee. 2024. Autoguide: Automated gener-ation and selection of context-aware guidelines for large language model agents. Advances in Neural Information Processing Systems , 37:119919–119948. Hiroki Furuta, Kuang-Huei Lee, Ofir Nachum, Yutaka Matsuo, Aleksandra Faust, Shixiang Shane Gu, and Izzeddin Gur. 2023. Multimodal web navigation with instruction-finetuned foundation models. arXiv preprint arXiv:2305.11854 .Daya Guo, Dejian Yang, Haowei Zhang, Junxiao Song, Peiyi Wang, Qihao Zhu, Runxin Xu, Ruoyu Zhang, Shirong Ma, Xiao Bi, Xiaokang Zhang, Xingkai Yu, Yu Wu, Z. F. Wu, Zhibin Gou, Zhihong Shao, Zhu-oshu Li, Ziyi Gao, Aixin Liu, and 175 others. 2025. Deepseek-r1 incentivizes reasoning in llms through reinforcement learning. Nature , 645(8081):633–638. 
+
+9Izzeddin Gur, Hiroki Furuta, Austin Huang, Mustafa Safdari, Yutaka Matsuo, Douglas Eck, and Aleksan-dra Faust. 2023. A real-world webagent with plan-ning, long context understanding, and program syn-thesis. arXiv preprint arXiv:2307.12856 .Shiqi He, Yue Cui, Xinyu Ma, Yaliang Li, Bolin Ding, and Mosharaf Chowdhury. 2025. Branch-and-browse: Efficient and controllable web exploration with tree-structured reasoning and action memory. 
+
+arXiv preprint arXiv:2510.19838 .Minda Hu, Tianqing Fang, Jianshu Zhang, Jun-Yu Ma, Zhisong Zhang, Jingyan Zhou, Hongming Zhang, Haitao Mi, Dong Yu, and Irwin King. 2025. Web-CoT: Enhancing web agent reasoning by reconstruct-ing chain-of-thought in reflection, branching, and rollback. In Findings of the Association for Com-putational Linguistics: EMNLP 2025 , pages 5155– 5173, Suzhou, China. Association for Computational Linguistics. Wenlong Huang, Fei Xia, Ted Xiao, Harris Chan, Jacky Liang, Pete Florence, Andy Zeng, Jonathan Tomp-son, Igor Mordatch, Yevgen Chebotar, et al. 2022. Inner monologue: Embodied reasoning through planning with language models. arXiv preprint arXiv:2207.05608 .Leslie Pack Kaelbling, Michael L Littman, and An-thony R Cassandra. 1998. Planning and acting in partially observable stochastic domains. Artificial intelligence , 101(1-2):99–134. Geunwoo Kim, Pierre Baldi, and Stephen McAleer. 2023. Language models can solve computer tasks. 
+
+Advances in Neural Information Processing Systems ,36:39648–39677. Suji Kim, Kangsan Kim, and Sung Ju Hwang. 2026. Learn from weaknesses: Automated domain special-ization for small computer-use agents. arXiv preprint arXiv:2605.28775 .Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Lim, Po-Yu Huang, Graham Neu-big, Shuyan Zhou, Russ Salakhutdinov, and Daniel Fried. 2024a. Visualwebarena: Evaluating multi-modal agents on realistic visual web tasks. In Pro-ceedings of the 62nd Annual Meeting of the Associa-tion for Computational Linguistics (Volume 1: Long Papers) , pages 881–905. Jing Yu Koh, Stephen McAleer, Daniel Fried, and Rus-lan Salakhutdinov. 2024b. Tree search for language model agents. arXiv preprint arXiv:2407.01476 .Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph E. Gonzalez, Hao Zhang, and Ion Stoica. 2023. Effi-cient memory management for large language model serving with pagedattention. In Proceedings of the ACM SIGOPS 29th Symposium on Operating Systems Principles .Xingzuo Li, Kehai Chen, Yunfei Long, Xuefeng Bai, Yong Xu, and Min Zhang. 2025. Generator-assistant stepwise rollback framework for large language model agent. In Proceedings of the 2025 Conference on Empirical Methods in Natural Language Process-ing , pages 17683–17700, Suzhou, China. Association for Computational Linguistics. Hunter Lightman, Vineet Kosaraju, Yuri Burda, Harri-son Edwards, Bowen Baker, Teddy Lee, Jan Leike, John Schulman, Ilya Sutskever, and Karl Cobbe. 2024. Let’s verify step by step. In International Conference on Learning Representations , volume 2024, pages 39578–39601. Michael Littman and Richard S Sutton. 2001. Predictive representations of state. Advances in neural informa-tion processing systems , 14. Evan Zheran Liu, Kelvin Guu, Panupong Pasupat, Tian-lin Shi, and Percy Liang. 2018. Reinforcement learn-ing on web interfaces using workflow-guided explo-ration. arXiv preprint arXiv:1802.08802 .Ziyu Lu, Tengjin Weng, Yiying Yang, Yuhang Zhao, Xinxin Huang, and Wenhao Jiang. 2026. Beap-agent: Backtrackable execution and adaptive planning for gui agents. arXiv preprint arXiv:2601.21352 .Hoai-An Nguyen and Ching-An Cheng. 2023. Prov-able reset-free reinforcement learning by no-regret reduction. In International Conference on Machine Learning , pages 25939–25955. PMLR. OpenAI. 2025. Operator. https://openai.com/ ko-KR/index/introducing-operator/ .OpenAI. 2026. Gpt-5.4-computer use. 
+
+https://openai.com/ko-KR/index/ introducing-gpt-5-4/ .Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, et al. 2025. Ui-tars: Pio-neering automated gui interaction with native agents. 
+
+arXiv preprint arXiv:2501.12326 .Qwen Team. 2026a. Qwen3.5: Towards native multi-modal agents. Qwen Team. 2026b. Qwen3.6-Plus: Towards real world agents. Jayanth Reddy Regatti, Aniket Anand Deshmukh, Frank Cheng, Young Hun Jung, Abhishek Gupta, and Urun Dogan. 2021. Offline rl with resource constrained on-line deployment. arXiv preprint arXiv:2110.03165 .Pascal J Sager, Benjamin Meyer, Peng Yan, Rebekka von Wartburg-Kottler, Layan Etaiwi, Aref Enay-ati, Gabriel Nobel, Ahmed Abdulkadir, Benjamin F Grewe, and Thilo Stadelmann. 2025. Ai agents for computer use: A review of instruction-based com-puter control, gui automation, and operator assistants. 
+
+arXiv preprint arXiv:2501.16150 , pages 1–64. 
+
+10 Guy Shani and Ronen Brafman. 2004. Resolving per-ceptual aliasing in the presence of noisy sensors. Ad-vances in Neural Information Processing Systems ,17. Noah Shinn, Federico Cassano, Ashwin Gopinath, Karthik Narasimhan, and Shunyu Yao. 2023. Re-flexion: Language agents with verbal reinforcement learning. Advances in neural information processing systems , 36:8634–8652. Aaditya K. Singh, Adam Fry, Adam Perelman, Adam Tart, Adithya Ganesh, Ahmed El-Kishky, Aidan McLaughlin, Aiden Low, AJ Ostrow, Akhila Anan-thram, Akshay Nathan, Alan Luo, Alec Helyar, Alek-sander Madry, Aleksandr A Efremov, Aleksandra Spyra, Alex Baker-Whitcomb, Alex Beutel, Alex Karpenko, and 464 others. 2025. Openai gpt-5 sys-tem card. Guanzhi Wang, Yuqi Xie, Yunfan Jiang, Ajay Man-dlekar, Chaowei Xiao, Yuke Zhu, Linxi Fan, and An-ima Anandkumar. 2023a. Voyager: An open-ended embodied agent with large language models. arXiv preprint arXiv:2305.16291 .Haoming Wang, Haoyang Zou, Huatong Song, Jiazhan Feng, Junjie Fang, Junting Lu, Longxiang Liu, Qinyu Luo, Shihao Liang, Shijue Huang, et al. 2025a. Ui-tars-2 technical report: Advancing gui agent with multi-turn reinforcement learning. arXiv preprint arXiv:2509.02544 .Junyang Wang, Haiyang Xu, Haitao Jia, Xi Zhang, Ming Yan, Weizhou Shen, Ji Zhang, Fei Huang, and Jitao Sang. 2024. Mobile-agent-v2: Mobile device op-eration assistant with effective navigation via multi-agent collaboration. Advances in Neural Information Processing Systems , 37:2686–2710. Xinyu Jessica Wang, Haoyue Bai, Yiyou Sun, Haorui Wang, Shuibai Zhang, Wenjie Hu, Mya Schroder, Bilge Mutlu, Dawn Song, and Robert D Nowak. 2026a. The long-horizon task mirage? diagnosing where and why agentic systems break. arXiv preprint arXiv:2604.11978 .Xinyuan Wang, Bowen Wang, Dunjie Lu, Junlin Yang, Tianbao Xie, Junli Wang, Jiaqi Deng, Xiaole Guo, Yiheng Xu, Chen Henry Wu, et al. 2025b. Opencua: Open foundations for computer-use agents. arXiv preprint arXiv:2508.09123 .Zhaoyang Wang, Canwen Xu, Boyi Liu, Yite Wang, Siwei Han, Zhewei Yao, Huaxiu Yao, and Yuxiong He. 2026b. Agent world model: Infinity synthetic en-vironments for agentic reinforcement learning. arXiv preprint arXiv:2602.10090 .Zhou Wang, Alan C Bovik, Hamid R Sheikh, and Eero P Simoncelli. 2004. Image quality assessment: from error visibility to structural similarity. IEEE transac-tions on image processing , 13(4):600–612. Zihao Wang, Shaofei Cai, Anji Liu, Xiaojian Ma, and Yitao Liang. 2023b. Describe, explain, plan and se-lect: Interactive planning with large language models enables open-world multi-task agents. arXiv preprint arXiv:2302.01560 .Ziwei Wang, Leyang Yang, Xiaoxuan Tang, Sheng Zhou, Dajun Chen, Wei Jiang, and Yong Li. 2026c. History-aware reasoning for gui agents. In Proceed-ings of the AAAI Conference on Artificial Intelli-gence .Fang Wu, Weihao Xuan, Ximing Lu, Mingjie Liu, Yi Dong, Zaid Harchaoui, and Yejin Choi. 2025a. The invisible leash: Why rlvr may or may not escape its origin. arXiv preprint arXiv:2507.14843 .Qinzhuo Wu, Pengzhi Gao, Wei Liu, and Jian Luan. 2025b. Backtrackagent: Enhancing gui agent with error detection and backtracking mechanism. In Pro-ceedings of the 2025 Conference on Empirical Meth-ods in Natural Language Processing , pages 4250– 4272. Zhiheng Xi, Dingwen Yang, Jixuan Huang, Jiafu Tang, Guanyu Li, Yiwen Ding, Wei He, Boyang Hong, Shi-han Do, Wenyu Zhan, Xiao Wang, Rui Zheng, Tao Ji, Xiaowei Shi, Yitao Zhai, Rongxiang Weng, Jingang Wang, Xunliang Cai, Tao Gui, and 5 others. 2024. Enhancing llm reasoning via critique models with test-time and training-time supervision. Preprint ,arXiv:2411.16579. Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhou-jun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caim-ing Xiong, Victor Zhong, and Tao Yu. 2024. Os-world: Benchmarking multimodal agents for open-ended tasks in real computer environments. Preprint ,arXiv:2404.07972. Haiyang Xu, Xi Zhang, Haowei Liu, Junyang Wang, Zhaozai Zhu, Shengjie Zhou, Xuhao Hu, Feiyu Gao, Junjie Cao, Zihua Wang, et al. 2026. Mobile-agent-v3. 5: Multi-platform fundamental gui agents. arXiv preprint arXiv:2602.16855 .Yifan Xu, Xiao Liu, Xinghan Liu, Jiaqi Fu, Hanchen Zhang, Bohao Jing, Shudan Zhang, Yuting Wang, Wenyi Zhao, and Yuxiao Dong. 2025. Mobilerl: On-line agentic reinforcement learning for mobile gui agents. arXiv preprint arXiv:2509.18119 .Taofeng Xue, Chong Peng, Mianqiu Huang, Linsen Guo, Tiancheng Han, Haozhe Wang, Jianing Wang, Xiaocheng Zhang, Xin Yang, Dengchang Zhao, et al. 2026. Evocua: Evolving computer use agents via learning from scalable synthetic experience. arXiv preprint arXiv:2601.15876 .Bowen Yang, Kaiming Jin, Zhenyu Wu, Zhaoyang Liu, Qiushi Sun, Zehao Li, JingJing Xie, Zhoumi-anze Liu, Fangzhi Xu, Kanzhi Cheng, Qingyun Li, Yian Wang, Yu Qiao, Zun Wang, and Zichen Ding. 
+
+11 2026. Os-symphony: A holistic framework for ro-bust and generalist computer-using agent. Preprint ,arXiv:2601.07779. Yan Yang, Dongxu Li, Yutong Dai, Yuhao Yang, Ziyang Luo, Zirui Zhao, Zhiyuan Hu, Junzhe Huang, Amrita Saha, Zeyuan Chen, et al. 2025. Gta1: Gui test-time scaling agent. arXiv preprint arXiv:2507.05791 .Jiabo Ye, Xi Zhang, Haiyang Xu, Haowei Liu, Jun-yang Wang, Zhaoqing Zhu, Ziwei Zheng, Feiyu Gao, Junjie Cao, Zhengxi Lu, et al. 2025a. Mobile-agent-v3: Fundamental agents for gui automation. arXiv preprint arXiv:2508.15144 .Rui Ye, Zhongwang Zhang, Kuan Li, Huifeng Yin, Zhengwei Tao, Yida Zhao, Liangcai Su, Liwen Zhang, Zile Qiao, Xinyu Wang, et al. 2025b. Agent-fold: Long-horizon web agents with proactive con-text management. arXiv preprint arXiv:2510.24699 .Yao Zhang, Shijie Tang, Zeyu Li, Zhen Han, and Volker Tresp. 2026a. Webarbiter: A principle-guided rea-soning process reward model for web agents. arXiv preprint arXiv:2601.21872 .Zhisong Zhang, Tianqing Fang, Kaixin Ma, Wenhao Yu, Hongming Zhang, Haitao Mi, and Dong Yu. 2026b. Webrollback: Enhancing web agents with explicit rollback mechanisms. In Proceedings of the 19th Conference of the European Chapter of the Associa-tion for Computational Linguistics (Volume 2: Short Papers) , pages 187–197. Longtao Zheng, Rundong Wang, Xinrun Wang, and Bo An. 2023. Synapse: Trajectory-as-exemplar prompting with memory for computer control. arXiv preprint arXiv:2306.07863 .Shuyan Zhou, Frank F Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, et al. 2023. We-barena: A realistic web environment for building au-tonomous agents. arXiv preprint arXiv:2307.13854 .Zijian Zhou, Ao Qu, Zhaoxuan Wu, Sunghwan Kim, Alok Prakash, Daniela Rus, Jinhua Zhao, Bryan Kian Hsiang Low, and Paul Pu Liang. 2025. Mem1: Learning to synergize memory and reason-ing for efficient long-horizon agents. arXiv preprint arXiv:2506.15841 .
+
+12 A RETRACE Details 
+
+Here, we provide implementation details on the evaluation set construction and recovery evaluation in R ETRACE framework. We provide statistics of the filtered trajectories in Table 6, and distribution of domains within our recovery evaluation set in Table 7. 
+
+A.1 Evaluation Set Construction Benchmarks We primarily leverage two publicly available benchmarks consisting of both web tasks and non-web tasks: OSWorld 1 (Xie et al., 2024), released under the Apache License 2.0, and Win-dowsAgentArena (Bonatti et al., 2024), released under the MIT License. Both benchmarks consist of non-web tasks with significantly higher ratio compared to web-based tasks, which we demon-strate such ratio in Table 5 that underscores the importance of model-level recovery, where web-based apis such as Playwright is not supported. To accelerate evaluation, we execute multiple environ-ments in parallel, and for WindowsAgentArena, we utilize the processed environments provided by OS-Symphony 2 (Yang et al., 2026), released under the Apache License 2.0, to enable efficient large-scale evaluation set construction. Our use of these arti-facts is consistent with their intended use as public benchmark and evaluation resources. We deploy all environments within isolated Docker containers and apply a 10-second post-action settle window to ensure that pending UI updates are fully ren-dered before capturing the next observation. For screenshot resolution, we use (1920 , 1080) for OS-World and (1280 , 800) for WindowsAgentArena. Finally, we restrict our evaluation to tasks that do not require proxy or Google Drive settings, due to constraints on proxy server budget and account configuration, respectively. 
+
+Models To construct the recovery evaluation set, we use five models: Claude-Sonnet-4.6 (Anthropic, 2026), GPT-5.4-CUA (OpenAI, 2026), Qwen-3.5-9B-Thinking (Qwen Team, 2026a), EvoCUA-32B (Xue et al., 2026), and UI-TARS-1.5-7B (Qin et al., 2025). Claude-Sonnet-4.6 and GPT-5.4-CUA are configured with thinking mode and xhigh rea-soning mode, respectively. We use the pyautogui 
+
+action space for all models except Claude-Sonnet-     
+
+> 1https://github.com/xlang-ai/OSWorld. git
+> 2https://github.com/OS-Copilot/ OS-Symphony.git
+> Benchmark Web Tasks (%) Non-Web Tasks (%)
+> OSWorld 12.66 87.34 WindowsAgentArena 21.28 78.72
+> Table 5: Ratio of web and non-web tasks in the OSWorld and WindowsAgentArena benchmarks.
+
+4.6, which uses the proprietary claude-computer use action space, while providing raw screenshots as observations. We adopt the default prompts from OSWorld and adapt them to Windows envi-ronments for WindowsAgentArena evaluation (Fig-ures 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26). All open-source models are served lo-cally using vLLM (Kwon et al., 2023) with bfloat16 precision through OpenAI-compatible HTTP end-points. Experiments are conducted using a combi-nation of one NVIDIA H200 GPU (141GB) and two RTX A6000 GPUs. 
+
+On-Policy Rollout For each model, we construct trajectories for the corresponding tasks in each benchmark. We then create an annotated dataset by selecting potential starting steps within each trajectory, while filtering out trajectories contain-ing multiple actions within a single step or erro-neous trajectories in which actions are missing from the agent output, as such cases can complicate the annotation process. Subsequently, the action sequences from each trajectory are replayed con-secutively, and we retain only the trajectories that achieve a successful oracle evaluation in three con-secutive replays (N=3) to minimize the effect from environment stochasticity (Transition-Consistent Filtering). This process empirically ensures deter-ministic transition dynamics, resulting in a filtered evaluation set in which the starting step of each trajectory is guaranteed to exhibit consistent transi-tions while retaining 64.4% of recovery trajectories (Table 6). For OsWorld short-horizon evaluation settings using GPT-5.4-CUA, we randomly sam-ple 600 samples for perturbation after transition-consistent filtering to keep the API computational cost manageable prior to subsequent filtering stage (Trajectory Perturbation). 
+
+Trajectory Perturbation Using the filtered eval-uation set consisting of annotated starting steps from each trajectory, we replay the action se-quences until reaching the designated starting step, while verifying that the resulting observa-tion matches the original state. Subsequently, a 13 Dataset Filtering Step Claude-Sonnet-4.6 GPT-5.4-CUA QWEN-3.5-9B UI-Tars-1.5-7B EvoCUA-32B                                         
+
+> OsWorld  # of traj. after formatting 2733 2749 790 1277 1259 # of traj. after transition-consistent filtering 1921 1912 (600) 574 227 924 # of traj. after perturbation 1335 334 397 133 314 # of traj. after final set construction 120 120 120 60 120
+> Windows AgentArena  # of traj. after formatting 919 867 211 N/A 280 # of traj. after transition-consistent filtering 779 407 153 N/A 201 # of traj. after perturbation 506 200 88 N/A 122 # of traj. after final set construction 70 70 50 N/A 50
+
+Table 6: Dataset statistics after each filtering step for the short-horizon settings. 
+
+perturbation agent sharing the same backbone as the forward agent is prompted (Figures 27, 28) to intentionally drift the trajectory under a maxi-mum step budget identical to the recovery distance 
+
+d. For short-horizon recovery evaluation, we use a perturbation budget of 1 for all models, except GPT-5.4-CUA, for which we use a budget of 2 due to its strong tendency to generate a “take a screenshot” action as the initial step which maps to 
+
+time.sleep() , even under explicit instructions. We then retain only trajectories that result in ora-cle failure according to the benchmark evaluators (while excluding samples that were crashed due to environmental failures or gpt verification fail-ures). This process constructs a recovery-annotated dataset, where the original starting state serves as the target recovery state, and the final perturbed state serves as the error state. 
+
+Final Evaluation Set Construction Finally, us-ing the recovery-annotated dataset, we exclude problematic samples whose perturbation trajecto-ries generate multiple actions within a single step or fail to produce actions at arbitrary steps, as such cases complicate annotation. For short-horizon recovery evaluation, we additionally remove sam-ples without meaningful perturbation actions, such as time.sleep() or WAIT . For GPT-5.4-CUA, we exclusively retain samples where the first ac-tion is “take a screenshot” and the second action corresponds to an actual perturbation action, due to its strong tendency to begin trajectories with screenshot actions. Furthermore, we remove sam-ples where the error state and target recovery state show significantly high similarity, while also as-suring that duplicate samples with both same error state observation and target recovery state obser-vation do not exist, adopting SSIM as core mecha-nism. After filtering, we randomly sample eval-uation subsets. For short-horizon evaluation in OSWorld, we sample 120 instances for all mod-els except UI-TARS-1.5-7B, for which we sample 60 due to the limited number of remaining trajec-tories. For long-horizon evaluation, we sample 80 instances for Qwen-3.5-9B and EvoCUA-32B, 60 for Claude-Sonnet-4.6, and UI-TARS-1.5-7B. Finally for WindowsAgentArena, we sample 70 in-stances for Claude-Sonnet-4.6 and GPT-5.4-CUA, and 50 for EvoCUA-32B and Qwen-3.5-9B, due to the different number of remaining samples after the filtering process. 
+
+A.2 Recovery Evaluation Benchmarks We use the evaluation sets con-structed in Section A.1 to measure the recov-ery success rates of both implicit and explicit re-covery policies, where the annotated evaluation sets are instantiated in both OSWorld and Win-dowsAgentArena, where we set the environment settings identical with Section A.1. 
+
+Models We evaluate both implicit and explicit recovery using the five models described in Sec-tion A.1. For Claude-Sonnet-4.6 and GPT-5.4-CUA, we use a temperature of 1.0 with thinking mode and xhigh reasoning mode enabled, respec-tively. For Qwen-3.5-9B and EvoCUA-32B, we use a temperature of 0.7, while UI-TARS-1.5-7B is evaluated with a temperature of 0.0. As the recov-ery target contextualizer, we use Claude-Sonnet-4.6 as the backbone state-transition summarizer with a temperature of 0.0 and a maximum token budget of 1024. All open-source backbones are served locally using vLLM within the same computing infrastruc-ture described in Section A.1. Finally, we use GPT-5-Mini (Singh et al., 2025) as the state-verification model with default OpenAI hyperparameters. 
+
+Recovery Context For implicit recovery strate-gies, we provide the full history of observa-tion–action pairs up to the error state, allowing 14 Domain Composition (%) Original Claude-Sonnet-4.6 GPT-5.4-CUA QWEN-3.5-9B UI-Tars-1.5-7B EvoCUA-32B                                                                                                                                     
+
+> OsWorld
+> chrome 6.64 4.17 2.50 6.67 25.00 0.00 gimp 8.23 0.83 6.67 8.33 1.67 6.67 libreoffice_calc 14.87 26.67 14.17 7.50 0.00 17.50 libreoffice_impress 14.87 29.17 15.83 21.67 13.33 38.33 libreoffice_writer 7.28 5.83 8.33 5.83 13.33 14.17 multi_apps 23.73 16.67 35.00 27.50 3.33 9.17 os 7.59 4.17 1.67 2.50 11.67 8.33 thunderbird 4.75 4.17 1.67 11.67 11.67 0.00 vlc 5.38 3.33 5.00 0.83 15.00 3.33 vscode 6.65 5.00 9.17 7.50 5.00 2.50
+> WindowsAgentArena  file_explorer 13.48 14.29 17.14 24.00 N/A 48.00 microsoft_paint 2.13 4.29 0.00 0.00 N/A 0.00 libreoffice_writer 12.77 22.86 22.86 4.00 N/A 8.00 libreoffice_calc 17.02 11.43 18.57 0.00 N/A 6.00 settings 3.55 1.43 0.00 16.00 N/A 14.00 vs_code 13.48 10.00 4.29 40.00 N/A 14.00 msedge 9.22 7.14 7.14 0.00 N/A 0.00 vlc 9.92 8.57 21.43 8.00 N/A 0.00 clock 2.84 1.43 0.00 8.00 N/A 4.00 windows_calc 2.13 0.00 4.29 0.00 N/A 0.00 notepad 1.42 5.71 1.43 0.00 N/A 0.00 chrome 12.06 12.86 2.86 0.00 N/A 6.00
+
+Table 7: Domain Composition ratio per recovery evaluation dataset (short horizon). 
+
+the forward agent to infer the underlying state tran-sitions, similar to real-world settings where agents interact continuously throughout the trajectory. In contrast, for explicit recovery strategies, we pro-vide policies with various recovery contexts, in-cluding the observation–action history up to the error state and the target recovery state, which we denote as 0-E and 0-R , respectively. We addition-ally consider settings where such observations are not provided, as well as settings where the obser-vation–action pairs up to the goal state are sum-marized by an LLM contextualizer that generates a compact description of the target recovery state and the transitions leading to it. When constructing observation–action histories, we maintain aligned observation–action pairs and exclude the final ob-servation resulting from the last action, since new observation is input as current observation. The only exception is GPT-5.4-CUA, for which the fi-nal observation is included in the history due to proprietary API technical constraints. 
+
+Prompts We construct the system prompts for explicit recovery by concatenating the recovery pre-fix prompts (Figures 29, 31) from Section F with the default system prompts used for each model in their respective benchmark settings. Similarly, we construct explicit recovery instructions by com-bining the model-specific instructions provided in the default OSWorld benchmark with the recovery instruction prefixes from Figures 30 and 32. In contrast, for implicit recovery policies, we use the original default system prompts and instructions without any recovery-specific prefix prompts or in-structions. Meanwhile, we use prompts in Figures 34 and 35 for recovery target contextualizer, while leveraging prompts in Figure 33 for LLM -based state verification during recovery evaluation. 
+
+Recovery Verification In R ETRACE , we evalu-ate recovery success along two axes: latent state recovery success and observation-wise state recov-ery success. For latent state recovery, we leverage our goal-oriented action replay framework, where recovery is considered unsuccessful if the bench-mark oracle evaluator outputs 0 after executing the remaining actions from the ground-truth trajectory starting from the recovered state. For observation-wise recovery, we use SSIM (Wang et al., 2004) with a threshold of 0.99 to detect visual mismatches that may interfere with accurate evaluation. Fur-thermore, in our main recovery evaluation experi-ments, we exclusively sample tasks that are consis-tently executable across all variants without docker failures or state verification failures, thereby en-suring a fair and reliable comparison of recovery success rates. 
+
+B Additional Experiment Details 
+
+Here, we explain the experimental settings and im-plementation details for experiments introduced in Sections 4 and 6, along with details on Human Evaluation introduced in Table 1. 
+
+B.1 Ideal Gains from Recovery 
+
+This experiment estimates how much end-to-end performance can improve when an agent is allowed to resume from an appropriate past state after a fail-15 ure. It measures the potential gain from recovery under a controlled replay setting, where the target past state is reconstructed by action replay before the forward agent resumes execution. 
+
+Benchmark and model We run the analysis on OSWorld (Xie et al., 2024) using EvoCUA-32B (Xue et al., 2026) as the forward model, fol-lowing the setup from Section A.1. We set the temperature to 0.7, max_tokens to 32768 , and 
+
+max_steps to 50 . We first collect standard for-ward rollouts and keep only failed instances whose 
+
+result.txt score is 0. For each failed instance, we identify an error step and select a correspond-ing recovery step using the recovery-step selection procedure described in Section 4. The environment at the selected recovery step is reconstructed by re-playing the saved action prefix up to that step. We measure Success@5 on 83 samples after excluding instances where action replay fails. 
+
+Fixed annotations For each failed instance, we annotate an error step E once before running any recovery-step experiment. The annotation stage reads the saved trajectory, reconstructs the observation-action history, and calls the LLM error-step detector. When evaluating the LLM-selected recovery step, we also annotate a recovery step 
+
+RLLM once in the same preparation stage. These annotations are then materialized into a fixed run plan, so different recovery-step conditions are eval-uated against the same underlying failed trajectory rather than re-detecting E or RLLM at runtime. 
+
+Recovery Steps We compare four starting steps. 
+
+R = 0 restarts from the initial environment state. 
+
+R = E − 1 resumes from the step immediately be-fore the detected error. R = E − random samples a previous step with a fixed seed and reuses the same sampled step across runs for that instance. 
+
+R = R LLM uses the recovery step predicted by the recovery-step detector. For R > 0, the environ-ment is reset and the saved action prefix up to R
+
+is replayed before the forward agent resumes. For 
+
+R = 0 , no prefix is replayed. 
+
+Metric For each instance and each condition, we draw five independent continuations from the se-lected recovery state, and report Success@ K for 
+
+K ∈ { 1, . . . , 5}. Each continuation begins with action-prefix replay to reconstruct the recovery state; because replay can occasionally desynchro-nize from the saved trajectory (e.g., due to UI tim-ing), we retry replay up to three times per con-tinuation. Success@ K measures whether at least one of the K successfully reconstructed continua-tions from the same recovery state completes the task, and reflects how much of the agent’s latent task-solving ability is exposed by recovery. 
+
+B.2 End-to-End Evaluation Benchmark We evaluate on the OSWorld (Xie et al., 2024) benchmark, where we follow a consis-tent setting as A.1. 
+
+Forward agents We use three open-source mod-els as the forward agent: Qwen3.5-9B (Qwen Team, 2026a) with thinking mode, UI-TARS-1.5-7B (Qin et al., 2025), and EvoCUA-32B (Xue et al., 2026), following the setup in Section A.1, where default system prompts and instructions in Section A.1 are provided. Within each end-to-end experiment, the recovery agent shares the same backbone as the forward agent; the two differ only in their prompts and step budgets. For all forward agents we set 
+
+max_steps to 50 . Temperatures are chosen from each model’s official inference recipe except for EvoCUA-32B: its default temperature of 0.0 pro-duces deterministic outputs, which would cause the forward agent to repeat the same action when it resumes from a past state, so we set it to 0.7 to pre-serve action diversity after recovery. The resulting values are 0.7 for EvoCUA-32B, 0.7 for Qwen3.5-9B-Thinking, and 1.0 for UI-TARS-1.5-7B. The 
+
+max_tokens budget is 32768 for EvoCUA-32B (to accommodate its long reasoning trace), 3000 
+
+for Qwen3.5-9B-Thinking, and 500 for UI-TARS-1.5-7B. 
+
+Detectors Both the error-step detector and the recovery-step detector are LLM-based and share Qwen3.6-Plus (Qwen Team, 2026b) as their back-bone, accessed through the OpenRouter API 3 with a temperature of 0.7 and custom system prompts (Figure 36, 37). The error detector is queried once per forward step. Once a recovery is triggered, the error detector is frozen for the next 5 steps; this pre-vents the detector from re-interrupting the forward agent before any recovery-induced changes have a chance to take effect. 
+
+Recovery agent The recovery agent is given a recovery step budget of 10 steps per attempt and is triggered at most 
+
+max_recovery_iteration times per episode, with max_recovery_iteration 
+
+> 3https://openrouter.ai/
+
+16 ∈ {1, 3, 5}, using the identical system prompt and instructions as Section A.2. Recovery steps are tracked separately from the forward agent’s step budget. When all retries are exhausted, the forward agent continues without further recovery activation. 
+
+Post-recovery context After recovery completes, the forward agent resumes from the recovery-step context where the message history is truncated to the recovery boundary, and a short transition string informing the agent that the environment has been recovered is prepended before the next forward decision. 
+
+B.3 Human Evaluation 
+
+When constructing the human evaluation sets, we sample recovery results from three representative models, including Claude-Sonnet-4.6, Qwen3.5-9B, and EvoCUA-32B, across both short- and long-horizon evaluation settings in OSWorld, as well as the short-horizon setting in WindowsAgentArena. We compare R ETRACE against three baselines: variants of our oracle evaluator with either RO
+
+or RTC removed, and GPT-5.4, a state-of-the-art model with extensive computer-use knowledge. We collect cases where the evaluation decisions pro-duced by the oracle implemented in R ETRACE 
+
+differ from those of the alternative evaluators, and randomly sample 50 instances for each variant, re-sulting in a total of 150 evaluation samples in Ta-ble 1. For the image-wise matching evaluator, we provide only the recovery target screenshot and the screenshot after the final recovery step. For the Transition-Consistent evaluator, success is de-termined solely based on whether replaying the remaining actions from the recovered state success-fully reaches the original task goal. For GPT-5.4, we provide the history of observation-action pairs leading up to the error step, the recovery trajec-tory generated by the recovery agent, the recovery target screenshot, the error-step screenshot, and the final recovered-state screenshot. GPT-5.4 is then prompted to determine whether the seman-tic meaning of the recovered state aligns with the target recovery state, following the same context and inputs provided to human annotators for a fair comparison (See Figure 38 for prompt details). After constructing the evaluation set, we split the 50 samples for each variant into two subsets and assigned two human annotators to each subset. In total, we recruited 12 annotators (4 annotators for each variant) who were researchers based in South Korea and highly proficient in computer-use tasks and voluntarily consented to participate in the study, with each annotator compensated approximately 20 USD for their participation, provided with de-tailed guideline for objective evaluation (Figure 11). Each pair of annotators independently eval-uated whether the recovery target state had been successfully restored, labeling each sample in a binary success-or-failure manner consistent with our evaluators, while optionally indicating whether their decision was made despite stochastic envi-ronment dynamics (e.g., different timestamps or pop-ups) when the recovery process was believed to be successful, allowing us to analyze the effect of such environment dynamics on oracle judgments in R ETRACE (Table 11). Using these annotations as reference labels, we compared the decisions from our oracle evaluator against those from the alternative evaluators and measured their alignment with human judgments. Specifically, we independently computed the win rate of our oracle evaluator against each baseline for every annotator pair, and report the average win rate across all four subsets per variant in Table 1. Across annotator pairs, we additionally observed an average agreement rate of 82% and a Cohen’s kappa coefficient of 0.45 (Cohen, 1960). 
+
+C Supplementary Experiments 
+
+Here, we provide additional experiments to further support the results and analysis in the main paper. 
+
+Additional Results on WindowsAgentArena In Figure 9, we present the full results on Win-dowsAgentArena, reporting the individual recovery success rates of each policy model. These results complement the average recovery success rates of the implicit and explicit recovery variants reported in Figure 5. The results are consistent with the overall trend observed across our experiments: cur-rent computer-use agents possess latent recovery capabilities rather than lacking them entirely, but they do not reliably invoke these capabilities during inference (Finding 2, Finding 3) . Moreover, the results further support our Finding 4 , where gener-alist agents exhibit stronger recovery capabilities overall. Specifically, Claude-Sonnet-4.6, GPT-5.4-CUA, and Qwen-3.5-9B achieve higher recovery success rates under implicit recovery and generally exhibit larger performance gains when explicitly instructed to perform recovery. These additional 17 Claude-Sonnet-4.6 GPT-5.4-CUA Qwen3.5-9B EvoCUA-32B Model Variant 010 20 30 40 50 60 70 80 
+
+> Recovery Success Rate (%)
+
+Avg: +30.5 
+
+Avg: +38.5 
+
+Avg: +1.6 
+
+Avg: +2.0 
+
+> Implicit Recovery w/ Step 1; Implicit Recovery w/ Step 3; Explicit Recovery w/ Step 3; (w/o History) Explicit Recovery w/ Step 3; (0~E) Explicit Recovery w/ Step 3; (0~R) Explicit Recovery w/ Step 3; (w/ Contextualization)
+
+Figure 9: Expanded Results on WindowsAgentArena from Figure 5.                         
+
+> Model Max 2 Max 4 Max 5 Max 10 Claude-Sonnet-4.6 26.98 13.34 8.76 6.37
+> GPT-5.4-CUA 17.85 6.30 5.81 5.15
+> Qwen3.5-9B 12.04 7.29 6.12 5.29
+> EvoCUA-32B 0.86 2.00 0.86 1.44
+> UI-TARS-1.5-7B 7.26 7.81 12.31 7.82
+
+Table 8: Implicit recovery success rate (%) across di-verse max recovery step budgets in OSWorld bench-mark. We report the mean success rate across three different trials from three independently sampled evalu-ation sets. 
+
+analyses further substantiate the claims and major findings presented in our original paper. 
+
+Robust Suboptimal Implicit Recovery The re-sults in Table 8 show that current computer-use agents struggle to perform restorative actions across different recovery budgets. Moreover, the recovery success rates of most agents consistently decrease as the maximum number of recovery steps increases, suggesting that simply allowing more steps does not resolve their recovery limitations. Notably, however, success rates do not drop to zero, suggesting that agents retain some latent ability to perform restorative actions but fail to reliably lever-age it under failure scenarios. These findings fur-ther support our main-paper conclusion that current computer-use agents struggle to effectively realize their restorative capabilities when recovering from failures ( Finding 2 , Finding 3 ). 
+
+Hyperparameter Ablation Study To further val-idate the robustness of our findings, we provide an additional analysis of the recovery capabilities of state-of-the-art computer-use agents under differ-                           
+
+> Temperature Max Tokens Short Horizon Long Horizon
+> EvoCUA -32B  1.0 32768 0.00 7.94 1.0 16384 1.75 4.76 0.0 32768 3.51 20.63 0.0 16384 4.39 6.35
+> UI-Tars-1.5-7B  1.0 1000 31.67 25.00 1.0 500 26.67 26.67 0.0 1000 26.67 21.67 0.0 500 26.67 13.33
+
+Table 9: Recovery Success Rate (%) across two different models with different hyper parameters using Recovery Target Contextualization in OSWorld benchmark.                   
+
+> Temperature Max Tokens Top_P Success Rate (%)
+> EvoCUA -32B
+> 0.7 32768 0.95 18.00 1.0 32768 0.95 14.00 1.0 16384 0.95 20.00 0.0 32768 0.95 20.00 0.0 16384 0.95 18.00
+
+Table 10: Recovery Success Rate (%) of EvoCUA-32B with different hyper parameters using Recovery Target Contextualization in WindowsAgentArena benchmark. 
+
+ent hyperparameter settings in Table 9, using the 
+
+Recovery Target Contextualization setting. The re-sults consistently show that EvoCUA-32B exhibits limited recovery capability even under explicit re-covery prompting, compared to UI-TARS-1.5-7B across a wide range of hyperparameter configura-tions. Furthermore, the recovery success rate also remains robust across diverse hyper parameter set-tings for EvoCUA in WindowsAgentArena (Table 10). This finding highlights the inherent limitation of the EvoCUA-32B post-trained model, despite being extensively trained on offline trajectory data. In other words, even with explicit recovery guid-18 Claude-Sonnet-4.6 GPT-5.4-CUA Qwen3.5-9B UITARS-1.5-7B EvoCUA-32B 
+
+> Model Variant
+> 010 20 30 40 50 60 70 80 Recovery Success Rate (%)  Avg: +30.7
+> Avg: +47.9
+> Avg: +4.9
+> Avg: +1.4
+> Avg: +0.9
+> Implicit Recovery w/ Step 1; Implicit Recovery w/ Step 3; Explicit Recovery w/ Step 3; (w/o History) Explicit Recovery w/ Step 3; (0~E) Explicit Recovery w/ Step 3; (0~R) Explicit Recovery w/ Step 3; (w/ Contextualization)
+
+Figure 10: Three-run average recovery success rates for each recovery variant across three randomly sampled recovery evaluation sets in R ETRACE .
+
+ance, the model remains unable to reliably restore previous states regardless of the hyper parameter settings. These observations further reinforce the results presented in Figure 4 and Figure 7. 
+
+Dataset Robustness Analysis In Figure 10, we show that the trend observed in Figure 4 remains consistent across different randomly sampled re-covery evaluation sets. We randomly sample two additional recovery evaluation sets for respective policy model, each containing the same number of samples as the original set, and measure the re-covery success rate of each policy model on all three sets (including one used in our main experi-ments). We then compute the macro-average suc-cess rate across the three evaluation sets for each recovery variant of each policy model. The results closely mirror the trend observed in Figure 4: ex-plicit recovery instructions yield substantial gains over implicit recovery, demonstrating that current computer-use agents possess recovery capabilities but fail to reliably invoke them during inference 
+
+(Finding 2, Finding 3) . Furthermore, post-trained models such as EvoCUA exhibit nearly no recovery capability, while UI-TARS shows only modest im-provements with explicit recovery instructions. In contrast, generalist agents (Claude, GPT-5.4, and Qwen) exhibit substantial gains from explicit recov-ery instructions. These results further support our claim, suggesting that extensive post-training on one-directional task-completion trajectories may suppress or weaken the inherent recovery capa-bilities of computer-use agents (Finding 4) . Fur-thermore, in Table 8, we show that across three randomly sampled recovery evaluation sets, cur-   
+
+> Oracle Unaffected Rate (%)
+> RETRACE (A LL )86.0 (%)
+
+Table 11: Analysis on the rate of oracle evaluations unaffected by stochastic environmental dynamics. 
+
+rent computer-use agents rarely have restorative behavior ( Finding 2 ), and its performance is robust regardless of evaluation set. 
+
+Effect of Environment Dynamics on R ETRACE 
+
+In addition, we investigate the impact of stochastic transition dynamics, such as pop-ups, rendering variations, and dynamic timestamps, on the judg-ments of our oracle evaluation framework. Specif-ically, we conduct a human study following the same protocol as in Table 1 and Appendix B.3. Annotators are asked to determine whether a suc-cessfully recovered state differs from the target state only due to ignorable environmental varia-tions. Since recovery failures identified by human annotators are not attributed to environmental dy-namics (see the evaluation guidelines in Figure 11), this evaluation quantifies how often our oracle in-correctly judges a successful recovery as failure due to stochastic environmental variations. To ob-tain a reliable estimate, we consider only cases where both annotators agree on a judgment on both recovery success and environmental effect. From these cases, we sample instances where the hu-man judgment disagrees with R ETRACE , and both agree that there exists stochastic environmental dy-namics. Finally, we eliminate the same recovery evaluation set distributed across the independent 19 Oracle Alignment Rate (%)       
+
+> RTC 38.8 (%)
+> RO61.2 (%) RETRACE 81.2 (%)
+> Table 12: Analysis on the alignment rate of oracle judg-ments with human annotations using samples under RO
+> and RTC disagreement.
+
+evaluation sets (GPT-5.4 evaluator, w/o RO, w/o 
+
+RTC ) from Table 1 and compute micro-average ratio. The results in Table 11 show that R ETRACE 
+
+is largely robust to stochastic environmental dy-namics: 86.0% of the R ETRACE judgments were favorable decisions unaffected by stochastic envi-ronmental dynamics. Furthermore, since this analy-sis is performed on a challenging subset consisting exclusively of disagreement cases between differ-ent oracles, the overall adverse effect of stochastic environmental dynamics on the judgments of R E-TRACE is expected to be even smaller in practice. 
+
+Analysis on the RO and RTC disagreements 
+
+Furthermore, we analyze the quality of the judg-ments made by R ETRACE in cases where the two oracles, RO and RTC , disagree. Specifically, we sample disagreement cases between RO and RTC 
+
+from the human evaluation sets (Tables 1 and 11). Following the protocol in Table 11, we consider only samples for which both human annotators within each evaluation subset agree on a recovery success evaluation. We then measure the agree-ment rate between human judgments and oracle decisions when using RO, and RTC alone, and both oracles jointly, among such samples using the micro-average protocol demonstrated in Table 11. The results in Table 12 demonstrate that the joint use of two oracles provides complementary strength and that the combination of them yields higher agreement with human judgments than ei-ther oracle alone, compared to utilizing each oracle in isolation, further indicating that even in disagree-ment situations, R ETRACE can provide objective evaluation results. 
+
+Analysis of R ETRACE ’s Sensitivity to the SSIM Threshold Finally, we analyze the sensitivity of 
+
+RO to the SSIM threshold, which is set to 0.99 by default. Table 13 reports the alignment between the judgments of RO and human annotations under different SSIM thresholds. Following the protocol       
+
+> Threshold Alignment Rate (%)
+> 0.99 56.9 (%) 0.95 33.9 (%) 0.91 26.6 (%)
+> Table 13: Analysis of the Effect of the SSIM Threshold on the Alignment Between ROand Human Judgments.
+
+used in Tables 11 and 12, we sample a common set of instances for which both human annotators agree on whether the recovery is successful, and measure the proportion of agreement between RO and the corresponding human judgments across different thresholds among such samples. The results show that lowering the SSIM threshold causes RO to overestimate recovery success, substantially reduc-ing its alignment with human annotations. These findings justify our design choice of adopting a strict SSIM threshold of 0.99 in R ETRACE to en-sure high-fidelity screenshot-level matching. 20 D Qualitative Analyses 
+
+Here, we provide additional qualitative examples that explain the behavior pattern of computer agents under suboptimal recovery demonstrated in Table 14. 
+
+Error Type Instruction Target State Restored State Action Problem Spurious Perception 
+
+Align the text of the first textbox on slide 3 to the right , on slide 4 to the center, and on slide 5 to the left. 
+
+[click] on the hover-ing alignment but-ton to align slide 3 the text to the right. 
+
+Fixates on to the hovering UI element in recovered state ,
+
+skipping [drag] on the text before click-ing the alignment but-ton. 
+
+Spurious Perception 
+
+Please help me 
+
+change the color theme of VS Code 
+
+to Visual Studio Dark. 
+
+[click] Activities ele-ment in the top left corner to launch vs-code application 
+
+Fixates on to the UI element appearing in the restored state, un-able to correctly click vscode application af-ter restoration. 
+
+Spurious Perception 
+
+Could you help me 
+
+remove the dock on the left side of the screen in the GIMP? 
+
+[click] on windows option in the right window to explore options for removing the dock 
+
+Fixates on to the new windows option irrelevant to remov-ing the dock option ,fails to generate cor-rect actions due to in-correct state restora-tion. 
+
+State Tracking Failure 
+
+Change the font to 
+
+"Times New Roman" throughout the text. 
+
+[scroll down] to find Times New Roman, since font selection interface is opened. 
+
+Hallucinates the re-stored state due to failed state synchro-nization with its pre-vious states. 
+
+State Tracking Failure 
+
+Help me freeze the range A1:B1 on this sheet to keep the headers always visible. 
+
+[Drag] from column A1 to B1, in order to accurately select the area we want to freeze 
+
+Hallucinates that the restored state allows clicking the range A1 to B1, when in fact, cannot be dragged , failing to synchronize with the actual prior state. 
+
+State Tracking Failure 
+
+Please modify VS Code’s settings to disable error 
+
+reporting for Python missing imports. 
+
+[hotkey(key=’ctrl shift p’)] I checked the results, but there’s nothing in the search box. I’m aware of a better solution. 
+
+Hallucinates that the restored state has blank results, just like the recov-ery target state ,leading to completely novel behavior. 
+
+State Tracking Failure 
+
+Find flights from Seattle to New York on 5th next month and only show those that can be purchased with miles. 
+
+[click] I located the button labeled "South Korea - English" and clicked on it to con-tinue booking my flight. 
+
+Hallucinates the current state as clickable based on the target-state observation , failing to correctly synchro-nize with the actual system state. 
+
+State Tracking Failure 
+
+Set the background color to yellow for any slide that contains one or more images of real people, and set the title of slide 2 as "Let’s start". 
+
+[click] I’ve already changed the back-ground on the third slide to yellow, it’s time to change fourth one. Hallucinates the cur-rent state as being on the fourth slide in-stead of third, unable to synchronize with the erroneous recov-ered state. 
+
+Table 14: Additional Qualitative analysis of erroneous agent behaviors induced by imperfect state restoration. 
+
+21 E Human Evaluation Guidelines 
+
+In this section, we provide the guidelines for human evaluation provided to the participants in Table 1. Human Evaluation Guideline 
+
+You will be provided with: - Goal Screenshot - Error-Step Screenshot - Final Recovery Screenshot - Original Instruction - Recovery Trajectory - Original Execution Trajectory - Your task is to determine whether the recovery process successfully restores the environment to the intended goal state. Evaluation Objective - Evaluate whether the Final Recovery Screenshot is functionally equivalent to the Goal Screenshot. - Success (1): the environment is correctly restored - Failure (0): the environment is not properly restored Evaluation Principles 1. Prioritize Visual Similarity The primary signal is the visual similarity between the Final Recovery Screenshot and the Goal Screenshot. Please carefully compare the screenshots at afine-grained, segment-level detail, including interaction-dependent UI elements. Pay close attention to whether: - active windows or pages differ, - selected content or tabs change, - focused text boxes differ, - dropdowns or menus are opened differently, - cursor positions or hover states change, - highlighted or selected UI elements differ, - drag-and-drop states change, or other interaction-sensitive regions are inconsistent. Mark as Failure (0) if important visual or interaction-level differences remain. **Important** Minor differences caused by dynamic environments (e.g., notifications, pop-ups, timestamps, loading indicators, rendering variations) can be ignored if the underlying functional state remains equivalent. 2. Verify Functional Recovery The recovered state should allow the original task to continue correctly. Even if screenshots appear visually similar, mark as Failure (0) if:-- important interaction context is missing, - unintended changes remain, - incorrect files/pages/windows are active, or the operational state is not properly restored. Use the recovery trajectory and original trajectory to understand: - what actions changed the environment, - whether erroneous states were actually reverted, - and whether the recovery process is consistent with the intended goal state. Trajectory information is especially important when screenshots appear visually similar but the actual operational state may still differ. Final Output Binary Label: 1 for Success Binary Label: 0 for Failure Final Output (Optional If Recovery is Successful) If you believe that the recovery is successful, please determine whether the successful recovery decision was despite ignorable observation differences caused by minor dynamic environmental changes such as notifications, pop-ups, timestamps, loading indicators, and rendering variations. Binary Label: 1 for YES Binary Label: 0 for NO 
+
+Figure 11: Human Evaluation Guideline 
+
+F Prompts 
+
+Here, we provide the prompts in our experiments. System Prompt for Claude-Sonnet-4.6 For-ward Agent in OsWorld 
+
+<SYSTEM_CAPABILITY> * You are utilising an Ubuntu virtual machine using x86_64 architecture with internet access. * You can feel free to install Ubuntu applications with your bash tool. Use curl instead of wget. * To open browser, please just click on the Chrome icon. Note, Chrome is what is installed on your system. * Using bash tool you can start GUI applications, but you need to set export DISPLAY=:1 and use asubshell. For example "(DISPLAY=:1 xterm &)". GUI apps run with bash tool will appear within your desktop environment, but they may take some time to appear. Take ascreenshot to confirm it did. * When using your bash tool with 
+
+22 commands that are expected to output very large quantities of text, redirect into a tmp file and use str_replace_editor or ‘grep -n -B <lines before> -A <lines after> <query> <filename>‘ to confirm output. * When viewing a page it can be helpful to zoom out so that you can see everything on the page. Either that, or make sure you scroll down to see everything before deciding something isn’t available. * DO NOT ask users for clarification during task execution. DO NOT stop to request more information from users. Always take action using available tools. * When using your computer function calls, they take a while to run and send back to you. Where possible/feasible, try to chain multiple of these calls all into one function calls request. * TASK FEASIBILITY: You can declare a task infeasible at any point during execution -whether at the beginning after taking a screenshot, or later after attempting some actions and discovering barriers. Carefully evaluate whether the task is feasible given the current system state, available applications, and task requirements. If you determine that a task cannot be completed due to: - Missing required applications or dependencies that cannot be installed - Insufficient permissions or system limitations - Contradictory or impossible requirements - Any other fundamental barriers that make completion impossible Then you MUST output exactly "[INFEASIBLE]" (including the square brackets) anywhere in your response to trigger the fail action. The system will automatically detect this pattern and terminate the task appropriately. * The current date is {current_date}. * Home directory of this Ubuntu system is ’/home/user’. * If you need a password for sudo, the password of the computer is {password}. </SYSTEM_CAPABILITY> <IMPORTANT> * If the item you are looking at is a pdf, if after taking a single screenshot of the pdf it seems that you want to read the entire document instead of trying to continue to read the pdf from your screenshots + navigation, determine the URL, use curl to download the pdf, install and use pdftotext to convert it to a text file, and then read that text file directly with your StrReplaceEditTool. </IMPORTANT> 
+
+Figure 12: System Prompt for Claude-Sonnet-4.6 For-ward Agent in OsWorld 
+
+System Prompt for Claude-Sonnet-4.6 For-ward Agent in WindowsAgentArena 
+
+<SYSTEM_CAPABILITY> * You are utilising a Windows virtual machine using x86_64 architecture with internet access. * To open browser, please just click on the Chrome icon. Note, Chrome is what is installed on your system. * When viewing a page it can be helpful to zoom out so that you can see everything on the page. Either that, or make sure you scroll down to see everything before deciding something isn’t available. * When you want to open some applications on Windows, please use Double Click on it instead of clicking once. </SYSTEM_CAPABILITY> 
+
+Figure 13: System Prompt for Claude-Sonnet-4.6 For-ward Agent in WindowsAgentArena 
+
+System Prompt for Evocua-32B forward agent in OsWorld 
+
+# Tools You may call one or more functions to assist with the user query. You are provided with function signatures within <tools></tools> XML tags: <tools> {tools_xml} </tools> For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags: <tool_call> {"name": <function-name>, "arguments": <args-json-object>} </tool_call> The current date is {date} 
+
+23 If you need a password for sudo, the password of the computer is {client_password} # Response format Response format for every step: 1) Action: a short imperative describing what to do in the UI. 2) A single <tool_call>...</tool_call> block containing only the JSON: {"name": <function-name>, "arguments": <args-json-object>}. Rules: - Output exactly in the order: Action, <tool_call>. - Be brief: one sentence for Action. - Do not output anything else outside those parts. - If finishing, use action=terminate in the tool call. 
+
+Figure 14: System Prompt for Evocua-32B forward agent in OsWorld 
+
+System Prompt used for Evocua-32B for-ward agent in WindowsAgentArena 
+
+# Tools You may call one or more functions to assist with the user query. You are provided with function signatures within <tools></tools> XML tags: <tools> {tools_xml} </tools> For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags: <tool_call> {"name": <function-name>, "arguments": <args-json-object>} </tool_call> # Response format Response format for every step: 1) Action: a short imperative describing what to do in the UI. 2) A single <tool_call>...</tool_call> block containing only the JSON: {"name": <function-name>, "arguments": <args-json-object>}. Rules: - Output exactly in the order: Action, <tool_call>. - Be brief: one sentence for Action. - Do not output anything else outside those parts. - If finishing, use action=terminate in the tool call. 
+
+Figure 15: System Prompt used for Evocua-32B for-ward agent in WindowsAgentArena 
+
+Tool description prompt used for Evocua-32B agent 
+
+{ "type": "function", "function": {"name_for_human": "computer_use", "name": "computer_use", "description": description_prompt, "parameters": {"properties": {"action": {"description": S2_ACTION_DESCRIPTION, "enum": ["key", "type", "mouse_move", "left_click", "left_click_drag", "right_click", "middle_click", "double_click", "triple_click", "scroll", "wait", "terminate", "key_down", "key_up"], "type": "string" }, "keys": {"description": "Required only by ‘action=key‘.", "type": "array" }, "text": {"description": "Required only by ‘action=type‘.", "type": "string" }, "coordinate": {"description": "The x,y coordinates for mouse actions.", "type": "array" }, "pixels": {"description": "The amount of scrolling.", "type": "number" }, "time": {"description": "The seconds to wait.", "type": "number"}, "status": {"description": "The status of the task.", "type": "string", "enum": ["success", "failure"] }}, 
+
+24 "required": ["action"], "type": "object" }, "args_format": "Format the arguments as a JSON object." }}
+
+Figure 16: Tool description prompt used for Evocua-32B agent 
+
+Description Prompt used for Evocua-32B agent 
+
+Use a mouse and keyboard to interact with a computer, and take screenshots. * This is an interface to a desktop GUI. You must click on desktop icons to start applications. * Some applications may take time to start or process actions, so you may need to wait and take successive screenshots to see the results of your actions. E.g. if you click on Firefox and a window doesn’t open, try wait and taking another screenshot. {resolution_info} * Whenever you intend to move the cursor to click on an element like an icon, you should consult a screenshot to determine the coordinates of the element before moving the cursor. * If you tried clicking on aprogram or link but it failed to load even after waiting, try adjusting your cursor position so that the tip of the cursor visually falls on the element that you want to click. * Make sure to click any buttons, links, icons, etc with the cursor tip in the center of the element. Don’t click boxes on their edges unless asked. 
+
+Figure 17: Description Prompt used for Evocua-32B agent 
+
+Action description prompt used for Evocua-32B agent 
+
+* ‘key‘: Performs key down presses on the arguments passed in order, then performs key releases in reverse order. * ‘key_down‘: Press and HOLD the specified key(s) down in order (no release). Use this for stateful holds like holding Shift while clicking. * ‘key_up‘: Release the specified key(s) in reverse order. * ‘type‘: Type a string of text on the keyboard. * ‘mouse_move‘: Move the cursor to a specified (x, y) pixel coordinate on the screen. * ‘left_click‘: Click the left mouse button at a specified (x, y) pixel coordinate on the screen. * ‘left_click_drag‘: Click and drag the cursor to a specified (x, y) pixel coordinate on the screen. * ‘right_click‘: Click the right mouse button at a specified (x, y) pixel coordinate on the screen. * ‘middle_click‘: Click the middle mouse button at a specified (x, y) pixel coordinate on the screen. * ‘double_click‘: Double-click the left mouse button at a specified (x, y) pixel coordinate on the screen. * ‘triple_click‘: Triple-click the left mouse button at a specified (x, y) pixel coordinate on the screen. * ‘scroll‘: Performs a scroll of the mouse scroll wheel. * ‘hscroll‘: Performs a horizontal scroll (mapped to regular scroll). * ‘wait‘: Wait specified seconds for the change to happen. * ‘terminate‘: Terminate the current task and report its completion status. * ‘answer‘: Answer a question. 
+
+Figure 18: Action description prompt used for Evocua-32B agent 
+
+Action space used for UI-Tars-1.5-7B for-ward agent 
+
+click(start_box=’<|box_start|> (x1,y1)<|box_end|>’) left_double(start_box=’<|box_start|> (x1,y1)<|box_end|>’) right_single(start_box=’<|box_start|> (x1,y1)<|box_end|>’) drag(start_box=’<|box_start|> (x1,y1)<|box_end|>’, end_box=’<|box_start|> (x3,y3)<|box_end|>’) hotkey(key=”) type(content=”) #If you want to submit your input, use "n" at the end of ‘content‘. scroll(start_box=’<|box_start|> (x1,y1)<|box_end|>’, direction=’down or up or right or left’) wait() #Sleep for 5s and take a screenshot to check for any changes. finished(content=’xxx’) # Use escape characters 
+
+25 ’, ", and n in content part to ensure we can parse the content in normal python string format. 
+
+Figure 19: Action space used for UI-Tars-1.5-7B for-ward agent 
+
+System prompt used for GPT-5.4-CUA agent in OsWorld benchmark 
+
+Here are some helpful tips: - My computer password is "{CLIENT_PASSWORD}" when sudo is needed. - Stick to the website or application already opened for the task when possible. - Prefer Chrome over Firefox/Chromium unless the task says otherwise. - You can act without asking for confirmation. - If the task is infeasible, say so explicitly. 
+
+Figure 20: System prompt used for GPT-5.4-CUA agent in OsWorld benchmark 
+
+System prompt used for QWEN-3.5-9B for-ward agent in OsWorld 
+
+You are a multi-purpose intelligent assistant. Based on my requests, you can use tools to help me complete various tasks. # Tools You have access to the following functions: <tools> {json.dumps(tools_def)} </tools> If you choose to call a function ONLY reply in the following format with NO suffix: <tool_call> <function=example_function_name> <parameter=example_parameter_1> value_1 </parameter> <parameter=example_parameter_2> This is the value for the second parameter that can span multiple lines </parameter> </function> </tool_call> <IMPORTANT> Reminder: - Function calls MUST follow the specified format: an inner <function=...></function> block must be nested within <tool_call></tool_call> XML tags - Required parameters MUST be specified - You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls - The current date is {datetime.today().strftime(’%A, %B %d, %Y’)}. - Collapsed screenshots appear as text: {self.collapse_text} If you need a password for sudo, the password of the computer is {self.client_password} </IMPORTANT> # Response format Response format for every step: 1) Action: a short imperative describing what to do in the UI. 2) A single <tool_call>...</tool_call> block. Rules: - Output exactly in the order: Action, <tool_call>. - Be brief: one sentence for Action. - Do not output anything else outside those parts. - If finishing, use action=terminate in the tool call. 
+
+Figure 21: System prompt used for QWEN-3.5-9B for-ward agent in OsWorld 
+
+System prompt used for GPT-5.4-CUA agent in WindowsAgentArena 
+
+Here are some helpful tips: - Stick to the website or application already opened for the task when possible. - Prefer Chrome over Firefox/Chromium unless the task says otherwise. - You can act without asking for confirmation. - If the task is infeasible, say so explicitly. 
+
+Figure 22: System prompt used for GPT-5.4-CUA agent in WindowsAgentArena 
+
+26 System prompt used for Qwen-3.5-9B agent in WindowsAgentArena 
+
+You are a multi-purpose intelligent assistant. Based on my requests, you can use tools to help me complete various tasks. # Tools You have access to the following functions: <tools> {json.dumps(tools_def)} </tools> If you choose to call a function ONLY reply in the following format with NO suffix: <tool_call> <function=example_function_name> <parameter=example_parameter_1> value_1 </parameter> <parameter=example_parameter_2> This is the value for the second parameter that can span multiple lines </parameter> </function> </tool_call> <IMPORTANT> Reminder: - Function calls MUST follow the specified format: an inner <function=...></function> block must be nested within <tool_call></tool_call> XML tags - Required parameters MUST be specified - You may provide optional reasoning for your function call in natural language BEFORE the function call, but NOT after - If there is no function call available, answer the question like normal with your current knowledge and do not tell the user about function calls - Collapsed screenshots appear as text: {self.collapse_text} </IMPORTANT> # Response format Response format for every step: 1) Action: a short imperative describing what to do in the UI. 2) A single <tool_call>...</tool_call> block. Rules: - Output exactly in the order: Action, <tool_call>. - Be brief: one sentence for Action. - Do not output anything else outside those parts. - If finishing, use action=terminate in the tool call. 
+
+Figure 23: System prompt used for Qwen-3.5-9B agent in WindowsAgentArena 
+
+Action description prompt used for QWEN3.5-9B agent 
+
+* ‘key‘: Performs key down presses on the arguments passed in order, then performs key releases in reverse order. * ‘type‘: Type a string of text on the keyboard. * ‘mouse_move‘: Move the cursor to a specified (x, y) pixel coordinate on the screen. * ‘left_click‘: Click the left mouse button at a specified (x, y) pixel coordinate on the screen. Optional ‘text‘ parameter can specify modifier keys (e.g., "ctrl", "shift", "ctrl+shift") that will be held during the click. * ‘left_click_drag‘: Click and drag the cursor to a specified (x, y) coordinate. * ‘right_click‘: Click the right mouse button at a specified (x, y) pixel coordinate on the screen. Optional ‘text‘ parameter can specify modifier keys that will be held during the click. * ‘middle_click‘: Click the middle mouse button at a specified (x, y) pixel coordinate on the screen. Optional ‘text‘ parameter can specify modifier keys that will be held during the click. * ‘double_click‘: Double-click the left mouse button at a specified (x, y) pixel coordinate on the screen. Optional ‘text‘ parameter can specify modifier keys that will be held during the click. * ‘triple_click‘: Triple-click the left mouse button at a specified (x, y) pixel coordinate on the screen (simulated as double-click since it’s the closest action). Optional ‘text‘ parameter can specify modifier keys that will be held during the click. * ‘scroll‘: Performs a scroll of the mouse scroll wheel. Optional ‘text‘ parameter can specify amodifier key (e.g., "shift", "ctrl") that will be held during scrolling. * ‘hscroll‘: Performs a horizontal scroll (mapped to regular scroll). 
+
+27 Optional ‘text‘ parameter can specify a modifier key that will be held during scrolling. * ‘wait‘: Wait specified seconds for the change to happen. * ‘terminate‘: Terminate the current task and report its completion status. * ‘answer‘: Answer a question. 
+
+Figure 24: Action description prompt used for QWEN3.5-9B agent 
+
+User prompt used for UI-Tars-1.5-7B for-ward agent 
+
+You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task. ## Output Format “‘ Thought: ... Action: ... “‘ ## Action Space {action_space} ## Note - Use {language} in ‘Thought‘ part. - Write a small plan and finally summarize your next action (with its target element) in one sentence in ‘Thought‘ part. ## User Instruction {instruction} 
+
+Figure 25: User prompt used for UI-Tars-1.5-7B for-ward agent 
+
+Tool description prompt used for QWEN3.5-9B agent 
+
+"type": "function", "function": {"name": "computer_use", "description": description_prompt, "parameters": {"type": "object", "required": ["action"], "properties": {"action": {"type": "string", "description": action_description_prompt, "enum": ["key", "type", "mouse_move", "left_click", "left_click_drag", "right_click", "middle_click", "double_click", "triple_click", "scroll", "hscroll", "wait", "terminate", "answer", ], }, "keys": {"type": "array", "description": "Required only by ‘action=key‘."}, "text": {"type": "string", "description": "Required by ‘action=type‘ and ‘action=answer‘. Optional for click actions (left_click, right_click, middle_click, double_click, triple_click) to specify modifier keys (e.g., ’ctrl’, ’shift’, ’ctrl+shift’). Optional for scroll actions (scroll, hscroll) to specify a modifier key (e.g., ’shift’, ’ctrl’) to hold during scrolling.", }, "coordinate": {"type": "array", "description": "(x, y) coordinates." }, "pixels": {"type": "number", "description": "Scroll amount."}, "time": {"type": "number", "description": "Seconds to wait."}, "status": {"type": "string", "description": "Task status for terminate.", "enum": ["success", "failure"], }, }, }, }, 
+
+Figure 26: Tool description prompt used for QWEN3.5-9B agent 
+
+Prefix prompt used for perturbation agent 
+
+<Perturbation_AGENT_ROLE> * You are a Perturbation Agent. Your primary objective is to generate series of INCORRECT actions that causes a significant 
+
+28 DRIFT from the user’s original instruction, such that the observation is completely different. * Your series of generated actions should lead to a completely unrelated state to the current instruction, forcing the system state into an unexpected or divergent path, where there it shows completely different scenery. * You will be provided with the current state and a "correct" action (the ground truth) from the given state. * Your initially generated action must be DIFFERENT from the provided action and should actively disrupt the flow of the task, leading to a completely different state. Try to make the path diverge as much as possible until you believe that the scenery is completely different. * Do not make a minor mistake; perform an active, significantly deviant steps that has nothing to do with the original goal. * While trying to create asignificant drift, try your best effort to signficantly drift the current state via a single action, instead of doing a series of small mistakes. </Perturbation_AGENT_ROLE> <Perturbation_COMPLETION> * To complete your task, you must output a series of actions that satisfies the following criteria, which you will be also given the history of disruptive flow of observation and actions you have performed: 1. It is DIFFERENT from the provided correct action. 2. It is a valid, executable action in the current state. 3. It causes a SIGNIFICANT DRIFT from the intended goal (completely unrelated or divergent), to the point where the observation completely changes to different scenery. 4. Since the given correct action is from the initial state, try to make the action only different from the given action when there are no past perturbation history, meaning that the correct action only applies to the inital state, and not for the rest of the perturbation process. * Once you have generated this single unrelated action, that constitutes the completion of your turn, which you must perform multiple times until the system state is completely different from the original instruction. * While trying to create asignificant drift, try your best effort to signficantly drift the current state via a single action, instead of doing a series of small mistakes. You should not try to complete the original task at all, and you must make a mistake or go off-track intentionally. </Perturbation_COMPLETION> 
+
+Figure 27: Prefix prompt used for perturbation agent 
+
+Prefix prompt used for GPT-5.4-CUA pertur-bation agent 
+
+<Perturbation_AGENT_ROLE> * You are a Perturbation Agent. Your primary objective is to generate a series of INCORRECT computer-use actions that cause asignificant DRIFT from the user’s original instruction, such that the resulting observation becomes completely different from what the original task expects. * Your generated actions must lead to a completely unrelated state, forcing the system into an unexpected or divergent path where the screen shows completely different scenery. * You will be provided with the current screenshot, the user’s original instruction, and the ’correct’ action (the ground truth) from the initial state. * Your initially generated action must be DIFFERENT from the provided correct action and should actively disrupt the flow of the task, leading to a completely different state. Make the path diverge as much as possible until the scenery is completely different. * Do not make a minor mistake; perform an active, significantly deviant step that has nothing to do with the original goal. * Try your best effort to significantly drift the current state via a single action, instead of doing a series of small mistakes. * Do not output waiting actions that do not alter anything, such as "wait". You must generate an active, significantly deviant step that has nothing to do with the original goal, instead of making a minor mistake, meaning that the observation and the state should drasticially change. 
+
+29 </Perturbation_AGENT_ROLE> <Perturbation_COMPLETION> * To complete your task, you must output a series of computer-use actions that satisfy the following criteria: 1. The action is DIFFERENT from the provided correct action. 2. The action is valid and executable in the current state. 3. The action causes a SIGNIFICANT DRIFT from the intended goal (completely unrelated or divergent), to the point where the observation completely changes to different scenery. 4. Since the given correct action is from the initial state, only the initial action must differ from the given correct action; subsequent actions only need to keep diverging from the original task. * Once the system state is completely different from the original instruction’s expected scenery, you may stop emitting actions. * You should NOT try to complete the original task at all. You MUST go off-track intentionally. </Perturbation_COMPLETION> 
+
+Figure 28: Prefix prompt used for GPT-5.4-CUA pertur-bation agent 
+
+Prefix prompt used for recovery agent (0-E) 
+
+<RECOVERY_AGENT_ROLE> * You are a Recovery Agent. Your primary objective is to navigate from the current Error State to the Goal State. * The Goal State image is labeled with "This is the GOAL STATE you need to return to" - this is your target destination. * The current state (Error Step) is where an error or deviation occurred, and you must find the path back to the Goal State. * Analyze the differences between the current state and Goal State, then execute actions to bridge that gap. * Focus on efficiency: take the most direct path to recovery while ensuring accuracy. </RECOVERY_AGENT_ROLE> <RECOVERY_COMPLETION> * When you believe you have successfully returned to the Goal State: 1. Take a screenshot to verify the current state matches the Goal State 2. Compare visual elements carefully: - Window positions and sizes - UI component states (buttons, menus, dialogs) - Text content and input fields - Application state and open windows - Cursor position if relevant 3. If the states match, output the "done" action to complete the recovery 4. If they don’t match, identify remaining discrepancies and continue taking recovery actions * Be thorough in your comparison - minor differences may indicate incomplete recovery * Do not declare completion until you have verified through a fresh screenshot </RECOVERY_COMPLETION> 
+
+Figure 29: Prefix prompt used for recovery agent (0-E) 
+
+Recovery Instruction for recovery agent (0-E) 
+
+## RECOVERY TASK You are a Recovery Agent. Your task is to navigate the system back to the Goal State. ### Goal State The Goal State image is labeled with "This is the GOAL STATE you need to return to". Use the available tools to navigate the system back to that state. ### Current Status - Current step: Error Step {error_step} - Target: Return to Goal State (Step {goal_step}) ### Your Task Analyze the difference between the current state and the Goal State, then take the necessary actions step by step to reach the Goal State. 
+
+Figure 30: Recovery Instruction for recovery agent (0-E) 
+
+Prefix prompt used for recovery agent (0-R) 
+
+<RECOVERY_AGENT_ROLE> * You are a Recovery Agent. Your primary objective is to navigate from the current Error State to the Goal State. * The Goal State image is labeled 
+
+30 with "This is the GOAL STATE you need to return to" - this is your target destination. * The current state (Error Step) is where an error or deviation occurred, and you must find the path back to the Goal State. * Analyze the differences between the current state and Goal State, then execute actions to bridge that gap. * Focus on efficiency: take the most direct path to recovery while ensuring accuracy. * You will be provided with the description of the goal state for more detailed information to assist in your recovery process. * You will also be provided with information regarding the transition from the initial state to the goal state. Use such information to gain knowledge of the goal state. </RECOVERY_AGENT_ROLE> <RECOVERY_COMPLETION> * When you believe you have successfully returned to the Goal State: 1. Take a screenshot to verify the current state matches the Goal State 2. Compare visual elements carefully: - Window positions and sizes - UI component states (buttons, menus, dialogs) - Text content and input fields - Application state and open windows - Cursor position if relevant 3. If the states match, output the "done" action to complete the recovery 4. If they don’t match, identify remaining discrepancies and continue taking recovery actions * Be thorough in your comparison - minor differences may indicate incomplete recovery * Do not declare completion until you have verified through a fresh screenshot </RECOVERY_COMPLETION> 
+
+Figure 31: Prefix prompt used for recovery agent (0-R) 
+
+Recovery Instruction for recovery agent (0-R) 
+
+## RECOVERY TASK You are a Recovery Agent. Your task is to navigate the system back to the Goal State. ### Goal State The Goal State image is labeled with "This is the GOAL STATE you need to return to". Use the available tools to navigate the system back to that state. You will be provided with the description of the goal state for more detailed information to assist in your recovery process. You will also be provided with information regarding the transition from the initial state to the goal state. Use such information to gain knowledge of the goal state. ### Current Status - Current step: Error Step {error_step} - Target: Return to Goal State (Step {goal_step}) ### Your Task Analyze the difference between the current state and the Goal State, then take the necessary actions step by step to reach the Goal State. 
+
+Figure 32: Recovery Instruction for recovery agent (0-R) 
+
+State-verification prompt for R ETRACE 
+
+You are an expert UI-state verifier. Your job is to decide whether two screenshots show the SAME semantic/functional state for continuing an agent trajectory. I will show you two screenshots: 1. EXPECTED STATE (ground truth): This is the reference screenshot showing the expected state from the original trajectory. 2. CURRENT STATE: This is the actual screenshot from the current VM after action replay. Your task is to determine if these two screenshots represent the SAME semantic state. Definition of "SAME semantic state": - An agent could continue the task from CURRENT STATE exactly as they would from EXPECTED STATE, without extra recovery steps. - The same page/view is open (same site/app and same logical screen). - The same critical UI state is present (same modal/popup/overlay 
+
+31 presence, same selected tab/filter/sort, same form values/selection states, same login/account state). - Minor cosmetic differences are allowed. Important considerations: - Ignore minor differences like exact timestamps, cursor positions, simple popups, information banners or minor visual variations. - Focus on the FUNCTIONAL state: Are the same windows/applications open? Are the same elements visible? Is the same content displayed? - Consider the overall layout and which UI components are active. Respond in the following JSON format: {"are_same": true/false, "confidence": 0.0-1.0, "explanation": "Detailed explanation of what is the same or different between the two states" }Be precise about what differs if the states are not the same. Return ONLY valid JSON. No markdown. No extra keys. 
+
+Figure 33: State-verification prompt for R ETRACE 
+
+State transition summarizer system prompt for Recovery Target Contextualization 
+
+<GOAL_CONTEXTUALIZER_ROLE> You are a Goal State Contextualizer. Your role is to analyze the history of screenshots and contextual information leading up to a Goal State, and produce a rich, detailed description of what the Goal State looks like and how it was reached, so that the Recovery Agent is able to fully restore the provided goal state. Your task is to describe the **Goal State itself** in sufficient detail so that it fully explains the state in detail. For the provided trajectory leading to the Goal State, you must: 1. **Describe the Goal State**: Provide a comprehensive visual description of the Goal State screenshot -- what windows are open, what content is displayed, what UI elements are visible, what values or data are shown. 2. **Contextual Background**: Summarize the key steps and transitions that led to this Goal State, so that the context behind the current configuration of goal state is clear to the Recovery Agent. 3. **Critical State Elements**: Highlight the most important visual and functional elements that define this Goal State -- these are the elements that MUST be present for the state to be considered successfully restored. </GOAL_CONTEXTUALIZER_ROLE> <OUTPUT_GUIDELINES> * Be precise and detailed -- the Recovery Agent will rely on your description to understand the target state. * Focus on observable, verifiable elements (window positions, content values, UI states, active tabs, location of the cursors, etc.). * Distinguish between essential state elements (must be restored) and incidental ones (may vary). *Structure your response clearly with labeled sections. * Do NOT describe actions or commands -- focus on the resulting state. </OUTPUT_GUIDELINES> 
+
+Figure 34: State transition summarizer system prompt for Recovery Target Contextualization 
+
+State transition summarizer Instruction for 
+
+Recovery Target Contextualization 
+
+## GOAL STATE CONTEXTUALIZATION TASK You are provided with: 1. **Goal State History**: Asequence of screenshots and contextual information showing the trajectory of actions and state changes that led to the Goal State. 2. **Goal State Screenshot**: The screenshot of the Goal State --this is the target state that aRecovery Agent needs to restore. ### Your Task Analyze the history and the Goal State screenshot to produce a detailed, contextualized description of the Goal State. Focus on: - **Visual Description**: What 
+
+32 exactly is shown on screen -- open windows, active applications, displayed content, UI element states (buttons, menus, checkboxes, selections), file contents, browser tabs, etc. - **Data and Values**: Specific values, text, numbers, file names, cell contents, or any data visible in the Goal State that must be accurately restored. - **Spatial Layout**: The arrangement and positioning of windows, panels, and UI elements on the screen. - **Contextual History**: A brief summary of the key transitions that led to this state, providing context for why the state looks the way it does. ### Output Format Provide a structured description with: 1. **Goal State Overview**: Aconcise summary of the Goal State (1-2 sentences). 2. **Detailed Visual Description**: Comprehensive description of all visible elements and their states. 3. **Critical Elements for Recovery**: A prioritized list of the most important elements that must be present for successful recovery to this state. 4. **Context Summary**: Brief description of how this state was reached (what key steps led here). 
+
+Figure 35: State transition summarizer Instruction for 
+
+Recovery Target Contextualization 
+
+System prompt used for the Error Detector 
+
+You are an expert Error Detector for GUI automation agents. Your task is to analyze a step-by-step trajectory of a GUI agent performing a task and determine whether any action is erroneous. # Step Indexing Convention 
+
+- Step indices are 0-based. - If the trajectory is observation 0, action 0, observation 1, action 1, observation 2, and error is observed in ’observation 2’, then error step is 2. - Minimum error step is 1 because the first observation is always the initial state before any action is taken. # Input Format 
+
+You will receive: 1. A goal instruction describing what the agent should accomplish. 2. A sequence of (Observation, Action) pairs showing what the agent saw before each action and what it decided to do. 3. A current observation after the most recent executed step. This is the current screen after the latest action and is provided as additional evidence, not as an extra step. # Your Task 
+
+After reviewing the trajectory up to the current step, determine: - Whether any action in the trajectory is an error (i.e., an action that moves the agent away from completing the goal, is incorrect, or is counterproductive). - If an error is detected, identify which step contain the error. # Retrospective Detection 
+
+You may recognize that an earlier step was erroneous based on later observations. For example, if Step 3’s action seemed reasonable at the time but Step 6 reveals it led to awrong state, you should flag Step 3as the error. # Output Format 
+
+You MUST respond with a valid JSON object and nothing else. Do not include any text before or after the JSON. If NO error is detected: {"is_error": false, "error_step": null, "reasoning": ""} If an error IS detected: {"is_error": true, "error_step": <integer>, "reasoning": "Detailed explanation of what went wrong and why this step is erroneous."} Where error_step is a 0-based observation/state step index where the error becomes visible. # Important Guidelines 
+
+- Be conservative: only flag clear errors, not merely suboptimal actions. You got only one chance to detect errors, so you should be careful. - Consider the full context of the goal when evaluating actions. - An action that seems wrong in 
+
+33 isolation might be correct in context (e.g., scrolling to find an element). - Focus on actions that clearly prevent task completion or cause damage. - Always provide clear reasoning for your judgment. 
+
+Figure 36: System prompt used for the Error Detector 
+
+System prompt used for the Recovery Step Detector 
+
+You are an expert Recovery Step Detector for GUI agents. Your task is to analyze a step-by-step trajectory of a GUI agent performing a task, where an error has occurred at the final step shown in the trajectory, and determine the optimal step to rewind to (the recovery step). # Step Indexing Convention 
+
+- Step indices are 0-based. - If the trajectory is observation 0, action 0, observation 1, action 1, observation 2, and error step is 2, then the recovery step can be 0 or 1 depending on where the critical mistake occurred that led to the error observed in observation 2. - A recovery step k means: return to the observation ’observation_k’ which is the observation before action ’action_k’ - Therefore, recovery_step = 0means returning to the observation 0 which is the initial observation before the first action. # Input Format 
+
+You will receive: 1. A goal instruction describing what the agent should accomplish. 2. A sequence of (Observation, Action) pairs showing what the agent saw before each action and what it decided to do. 3. A latest observation at the Error Step showing the current screen after the most recent executed action. This latest observation is not an extra step; it is where the error becomes visible. # Your Task 
+
+After reviewing the trajectory up to and including the Error Step, determine: - The single best recovery step (k): Which observation/state step index (0 ≤ k < error_step) should the agent recover to in order to correct the mistake and successfully complete the task? The recovery step is the observation point right before 
+
+the agent made the critical mistake that led to the error. By rewinding to Step k, the agent returns to the observation before action action_k and can choose adifferent action for that same step. Let the error step be N. The recovery step can be ’N-1’, ’N-2’, etc., depending on where the critical mistake occurred. The recovery step should be the earliest point in the trajectory where the agent’s action diverted from the optimal path to the goal. # Output Format 
+
+You MUST respond with a valid JSON object and NOTHING else. Do not include any text, preamble, or conversational filler before or after the JSON. Your entire response must be parseable by json.loads(). You must output exactly this format: {"recovery_step": <integer>, "reasoning": "Detailed explanation of why this specific step is the optimal point to resume from."} Where recovery_step is an integer 0-based observation/state step index (0-indexed) where 
+
+0 ≤ recovery_step < error_step. # Important Guidelines 
+
+- The recovery step should be the earliest point in the trajectory where the agent’s action diverted from the optimal path to the goal. - Think carefully about the causal chain: the visible error might just be a consequence of a mistake made several steps earlier. - Always provide clear, step-by-step reasoning for your choice. 
+
+Figure 37: System prompt used for the Recovery Step Detector 
+
+34 Prompt used for GPT-5.4 evaluator in Table 1
+
+You are a strict and robust verifier responsible for determining whether the given target state has been successfuly reached from an erroneous starting state. Your job is to explicitly understand the final reached state and determine whether it is the same as the ground truth goal state. You will be provided with: 1) The ground truth goal state that must be reached. 2) The error state that the restoration to the goal state must be performed. 3) Final state of the trajectory from a computer agent. 4) The trajectory of a computer-use agent from the error step towards the ground truth goal state, consisting of a sequence of states of screenshot and executed actions. 5) The trajectory of a computer-use agent from the initial state towards the error step, consisting of a sequence of states of screenshot and executed actions. 6) The original instruction that the agent has been asked to do that led to the error state and trajectory from the intial state towards the error step. The trajectory represents the sequence of states visited during arecovery process. Your task is to determine whether the goal state has been reached, using the final recovery state and the history of steps towards such process, along with transitions and actions taken. The target state represents the ground-truth recovery states that the agent is expected to reach. Rules: 1. Target states are provided as visual screenshots of the environment. 2. Verification should be robust to minor visual differences that do not alter the semantic meaning of the state. 3. Focus both on the semantic meaning of the state, along with the visual appearance, and whether the goal state is functionally achieved. 4. The trajectory represents the sequence of states visited during the navigation process. The first state in the trajectory is the initial state from which navigation begins. Output format (STRICT): Output only true or false. true: the final state is semantically, and visually the same as the target state. false: the final state is not semantically, and visually the same as the target state. Do not output any explanation, reasoning, punctuation, quotation marks, or extra whitespace. 
+
+Figure 38: Prompt used for GPT-5.4 evaluator in Table 1
+
+35

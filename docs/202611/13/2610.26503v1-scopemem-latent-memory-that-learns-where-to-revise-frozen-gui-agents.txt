@@ -1,0 +1,437 @@
+Title: ScopeMem: Latent Memory That Learns Where to Revise Frozen GUI Agents
+
+URL Source: https://arxiv.org/pdf/2610.26503v1
+
+Published Time: Tue, 20 Oct 2026 02:59:05 GMT
+
+Number of Pages: 13
+
+Markdown Content:
+# ScopeMem: Latent Memory That Learns Where to Revise Frozen GUI Agents 
+
+Zhicheng Zheng 1,∗ Cheng Zhang 1,∗ Shengping Yu 2 Tianxiang Zhao 11The Hong Kong University of Science and Technology (Guangzhou) 
+
+> 2
+
+Imperial College London 
+
+> zzheng186@connect.hkust-gz.edu.cn tianxiangz@hkust-gz.edu.cn
+> ∗Equal contribution.
+
+Abstract 
+
+Latent memory is gaining ground as alightweight history supplement for GUI agents. It supplies history to a frozen vision-language model via prefix vectors trained with step-wise cross-entropy (CE). While resulting gains are naturally attributed to encoded history, our con-trolled experiments show they primarily stem from action revision. The prefix learns to alter the model’s default actions. However, this revi-sion is unscoped because step-wise CE pushes outputs toward reference actions at every step without explicitly preserving correct decisions. Consequently, it repairs errors but also breaks 8–13% of initially correct answers. Overall ac-curacy metrics hide these losses. We therefore propose S COPE MEM , a latent-memory method for scoped revision. Its encoder conditions pre-fix generation on the model’s initial answer and is trained to correct errors while preserv-ing correct decisions. On the controlled ab-lation set, S COPE MEM reduces the share of broken correct decisions to 5.6% while repair-ing more errors than any evaluated CE-trained prefix. On AndroidControl, GUI-Odyssey, and zero-shot AITW, S COPE MEM outperforms all evaluated prompting and latent-memory baselines, enabling a frozen Qwen3-VL-8B to match or surpass GUI-specialized agents and Qwen3-VL-32B. 
+
+1 Introduction 
+
+Latent memory is gaining ground as a lightweight history supplement for GUI agents built on general-purpose vision–language models (Wu et al., 2025a; Zhang et al., 2026b,c). We call the frozen model that selects each action the actor . An en-coder converts history into a small set of continuous 
+
+prefix vectors, which are prepended to the actor’s input (Li and Liang, 2021). Only the encoder is trained, with step-wise cross-entropy (CE) on refer-ence actions. The prefix’s gains are often attributed     
+
+> Code available at ScopeMem Open-Source Code correct wrong
+> Fixed-query prefix ScopeMem Actor alone without a scope with a scope
+> Δ accuracy
+
++5.5 pp Δ accuracy +14.0 pp 
+
+196 repaired 
+
+115 harmed 
+
+254 repaired 
+
+49 harmed keep scope 
+
+Figure 1: Revision cuts both ways. Of the frozen actor’s 1,463 decisions (centre), a fixed-query latent-memory prefix (left) repairs 196 errors but harms 115 correct decisions. Its 5.5-point accuracy gain (pp: percentage points) hides these harms. S COPE MEM (right) learns to focus revisions on the actor’s errors, repairing 254 and harming 49. 
+
+to stored history. We test this explanation by exam-ining which decisions the prefix changes. Our controlled experiments (§3) show that much of the gain persists even when the encoder does not read history. Holding the actor, its context and training fixed, a task-only encoder improves ac-curacy by 12.0 percentage points, compared with 11.8 points for an encoder that also reads recent history. The actor already sees the same recent his-tory in both conditions, so this comparison isolates the benefit of encoding that history again into the prefix. The small difference suggests that, in this setting, the prefix mainly revises actions using the actor’s existing context. At every step, CE rewards changes that move the actor’s output towards the reference action, with-out requiring its output distribution to remain un-changed when its decision is already correct. This leaves the revision unscoped . A change can repair 1arXiv:2610.26503v1 [cs.AI] 19 Oct 2026 an incorrect decision, but it can also turn a cor-rect decision into an incorrect one, which we call a harm . Across our CE-trained prefixes, 8–13% of the actor’s originally correct decisions become incorrect. Encoders that read different inputs ex-hibit similar harm rates, pointing to their shared objective. Figure 1 illustrates how overall accuracy gains can conceal many harms because accuracy reports only the net effect of repairs and harms. We therefore propose SCOPE MEM , alatent-memory method for scoped revision .It aims to repair the actor’s errors while preserving the decisions it already gets right. To make this judgement, the encoder needs to see the particular answer it may revise, which a context-only encoder never directly observes. SCOPE MEM therefore conditions prefix generation on the actor’s first opinion . Figure 2 shows the resulting two-pass process. The frozen actor first responds without a prefix. The encoder then reads this answer and its confidence signals together with the task and recent history, and generates a prefix for a second pass over the same context. The resulting second opinion is the action S COPE MEM takes. However, seeing the first opinion does not teach the encoder which decisions to preserve. We there-fore train only the encoder with a scoped preserva-tion objective. We call the steps where the actor’s original answer is wrong the scope of revision. Dur-ing training, reference actions identify these steps. CE remains active at every step to encourage the reference action. Outside the scope, we addition-ally penalise changes to the actor’s original output distribution. At deployment, the encoder uses the first opinion and context to decide which answers to preserve, without access to reference actions. On the controlled ablation set, scoped preser-vation reduces harms for every encoder, most strongly for the first-opinion encoder. S COPE MEM 
+
+lowers the harm rate to 5.6% while repairing more errors than any CE-trained prefix. Across AndroidControl, GUI-Odyssey and zero-shot AITW, it outperforms all evaluated prompting and latent-memory baselines. With S COPE MEM , the frozen Qwen3-VL-8B actor matches or surpasses GUI-specialised agents and Qwen3-VL-32B under the same actor context. Our contributions are threefold: • With recent history already in context, our CE-trained prefixes mainly revise decisions rather than supply history (§3).                                     
+
+> Line of work Actor Revision Harms
+> frozen reads learned prevented reported GUI fine-tuning and RL ✗✗✓✗✗
+> Explicit memory ✓✗✗✗✗
+> Latent memory ✓✗✓✗✗
+> Self-reflection ✓✓✗✗
+> SCOPE MEM ✓✓✓✓✓
+> Table 1: Only S COPE MEM combines learned revision, access to the first opinion, and an objective for preserv-ing correct decisions. Reads : sees the first opinion;
+> learned : trained; prevented : preservation is a training objective; reported : repairs and harms reported; : par-tially.
+
+• Cross-entropy leaves this revision unscoped. Ev-ery tested prefix trained with CE alone breaks some correct decisions, and aggregate accuracy hides these losses. We therefore recommend reporting repairs and harms alongside accuracy. • We propose SCOPE MEM , which combines an encoder that reads the actor’s first opin-ion with a scoped preservation objective. SCOPE MEM outperforms the evaluated prompt-ing and latent-memory baselines across three benchmarks (§§4–6). 
+
+2 Related Work 
+
+Vision–language GUI agents. Vision–language GUI agents learn screenshot-based control through supervised fine-tuning (Cheng et al., 2024; Wu et al., 2025c; Xu et al., 2025; Qin et al., 2025) or reinforcement learning (Xu et al., 2026; Yang et al., 2026; Venus Team et al., 2026). To com-plete multi-step tasks, they must also retain interac-tion history. Resamplers compress this history (Lu et al., 2025), memory units track it (Wang et al., 2024), and summaries retain recent steps (Wu et al., 2025b). Our actor already receives recent history, so we keep that context fixed when evaluating an added prefix. 
+
+Memory mechanisms. Memory supplies reusable information (Zhang et al., 2026a) in two main forms. Explicit memory stores app guidance (Zhang et al., 2025; Wang et al., 2025b), experiences and workflows (Zheng et al., 2024; Agashe et al., 2025; Wang et al., 2025c), or task state (Zheng et al., 2026), including hybrid structures (Zhu et al., 2026a,b). Latent memory encodes trajectories (Wu et al., 2025a; Zhang et al., 2026b) or trusted evidence (Zhang et al., 2026c) into continuous prefixes for a frozen actor (Li 2task · textual history (no images)              
+
+> Action
+> supervision
+> context ct
+> Task: Turn off dark mode
+> Recent history
+> Same frozen actor πθ
+> 1observe
+> 2first pass
+> no prefix
+> 5second pass
+> with prefix
+> 4prepend prefix
+> first opinion
+> a0= scroll(down)
+> 3
+> Revise
+> errors
+> 6compare with reference
+> reference action
+> y*
+> = complete
+> First
+> action
+> Action
+> probs. Uncertainty
+> Encoder Eφ
+> trainable
+> text + first opinion
+> …
+> Cross-attention
+> 16 prefix vectors
+> …
+> zt
+> second opinion
+> at= complete
+> prefix zt
+> 7update encoder only
+> frozen
+> trained
+> training only
+> gradient
+> Action probabilities
+> Uncertainty
+> Preserve only
+> correct first
+> opinions
+> Training only
+> encode
+> first opinion
+
+Figure 2: S COPE MEM gives the frozen actor a second opinion on its first. The actor 1 observes the context and  
+
+> 2
+
+answers alone in a first pass. The encoder Eϕ 3 reads the first opinion, its confidence, the task and textual history to generate a prefix. This prefix is 4 prepended to the same context, and the actor 5 answers again. Gold parts exist only in training: 6 the preservation term is active when the first opinion matches the reference action, and 7 gradients update Eϕ only. 
+
+and Liang, 2021). LoRA-controlled memory is a parametric alternative (Zeng et al., 2026). These designs concern how information is represented. We focus on how a latent prefix revises actions, with training that also aims to preserve correct decisions. Table 1 summarises these distinctions. 
+
+Revision and negative flips. Revision can repair errors but also cause negative flips from correct to incorrect answers. Prompted self-correction re-vises without training (Madaan et al., 2023) and can introduce as many errors as it repairs without external feedback (Huang et al., 2024; Kamoi et al., 2024). Learned correctors train a model to revise generated answers (Welleck et al., 2023). Focal distillation addresses such errors during model up-dates by preserving predictions the old model gets right (Yan et al., 2021). S COPE MEM applies this preservation principle during prefix training. Its encoder reads the initial answer to guide revision. 
+
+3 Does Latent Memory Remember or Revise? 
+
+A prefix may supply information the actor lacks or change how it uses information already in its context. To distinguish these explanations, we withhold history from the encoder while keeping the actor’s history available. If the prefix helps mainly by encoding history, its gain should shrink. If it mainly revises how the actor uses existing con-text, much of the gain should remain. Revision also predicts a side effect. Since cross-entropy pulls every step towards the refer-ence action whatever the prefix reads, a revising prefix should change correct decisions as well as wrong ones. Prefixes trained in the usual way, with cross-entropy alone, behave as revision predicts on both counts. 
+
+3.1 A controlled study 
+
+At step t the frozen actor πθ reads a history-memory context ct and emits the next action. This context consists of the task, a rolling summary of the last three steps and the latest three screenshots. A prefix 
+
+zt of K=16 vectors is prepended to the actor’s input embeddings. Only the module that writes the prefix is trained. The actor then selects an action as 
+
+at ∼ πθ(· | zt ⊕ ct), (1) where ⊕ denotes prepending. We compare three prefixes with different inputs. The fixed-query pre-fix , used in latent memory (Zhang et al., 2026b,c), uses one set of learned queries shared across steps 3Prefix Accuracy gain                       
+
+> over plain actor (pp)
+> Actions changed
+> initially correct (%)
+> Harm rate
+> initially correct (%)
+> Fixed-query 5.54 74.0 13.1 Task only 11.96 71.9 8.1 History 11.76 71.4 7.7
+> ScopeMem 14.01 62.5 5.6
+> 0816 050 100 0816
+> Detecting actor errors Distinguishing repairs from harms
+> AUC
+> 0.0 0.2 0.4 0.6 0.8 1.0 0.0 0.2 0.4 0.6 0.8 1.0
+> 0.718
+> Max-prob. uncertainty
+> 0.709
+> Action type uncertainty
+> 0.531
+> Confidence first opinion
+> 0.538
+> Entropy first opinion
+> 0.513
+> Probability second opinion
+> 0.650
+> Action types + step index
+> 0.675
+> All features
+> Plain actor Confidence signals Expanded features
+> (a)
+> (b)
+> Error bars: 95% CI. Dashed line: chance (AUC = 0.5).
+
+Figure 3: Prefixes trained with cross-entropy alone also change correct decisions, and confidence barely sepa-rates repairs from harms. (a) Ablation set: gain over the plain actor (pp), share of correct actions changed, and harm rate. Shading marks S COPE MEM . (b) AUC of confidence signals and expanded features for detecting the plain actor’s errors and separating S COPE MEM ’s repairs from harms. 
+
+to read the current context inside the actor’s for-ward pass. The task-only encoder reads the task, while the history encoder also reads the rolling summary and recent actions. All three use the same actor, actor context, training data and sched-ule. They minimise cross-entropy on the reference action y∗ annotated for each step. We compare each with the plain actor , which has no prefix. Evaluation uses a held-out ablation set of 1,463 test steps from AndroidControl (high-level instruc-tions) and GUI-Odyssey (random split). We report paired 95% trajectory-bootstrap intervals for differ-ences between methods. Appendix A reports the key paired contrasts. 
+
+3.2 The gain comes from revision 
+
+Figure 3a shows that the task-only encoder im-proves the actor as much as the history encoder (12.0 vs. 11.8 pp), and both improve it about twice as much as the fixed-query prefix. For history mi-nus task-only accuracy, the paired 95% confidence interval has an upper bound of 1.6 pp, a small frac-tion of either encoder’s gain. The prefix thus mainly revises how the actor uses its existing context and should be judged by the decisions it changes. 
+
+3.3 The revision repairs and harms 
+
+Accuracy measures only the net effect of a revision, so we count its two kinds of change separately. A repair is a step that the plain actor gets wrong and the prefixed actor gets right, and a harm is the reverse. With R repairs and H harms over N steps, the gain over the plain actor is 
+
+∆Acc = R − H
+
+N . (2) We also report two rates. The repair rate divides R by the plain actor’s errors, and the harm rate 
+
+divides H by its correct steps. Every tested prefix changes most of the plain actor’s correct actions in at least one field. Changes need not cause errors, since coordinate shifts within the benchmark’s tolerance still count as changes. Most modified actions remain correct, but some become incorrect. These harms cancel more than a quarter of what each encoder repairs, and more than half for the fixed-query prefix. The task-only and history encoders harm at nearly the same rate although they read different inputs, which points to the objective they share. A gate could fall back to the plain actor’s answer to avoid harms, but it would need to distinguish harmful from helpful revisions. The actor’s confi-dence detects its own errors moderately well (AUC 0.72). However, Figure 3b shows that this confi-dence barely distinguishes S COPE MEM ’s repairs from harms (AUC 0.53). This motivates learning the scope rather than gating revisions by this confi-dence alone. 
+
+4 SCOPE MEM : Latent Memory as a Scoped Revision 
+
+Our ideal revision repairs every error and preserves every correct decision, maximising Eq. (2). Let a0
+
+be the actor’s answer without a prefix and π0 the output distribution used to decode that answer. The ideal distribution with the prefix is 
+
+π⋆z =
+
+(
+
+δy∗ if a0 is wrong ,π0 if a0 is right , (3) where δy∗ puts all mass on the reference action. The scope consists of steps on which a0 is wrong. The ideal revision corrects these errors and leaves 4Method AndroidControl GUI-Odyssey AITW (zero-shot)                                                                                                                                                                                                      
+
+> EM TM EM TM Gen. Inst. Google Single Shop Macro
+> General-purpose models
+> Qwen3-VL-4B 60.64 76.42 57.18 78.06 54.19 68.05 57.40 66.67 53.44 59.95 Qwen3-VL-32B 61.88 78.37 61.84 80.30 57.54 69.82 62.13 63.16 56.87 61.90 InternVL3.5-8B 35.28 57.80 29.52 60.41 40.22 39.64 28.99 47.37 34.35 38.12 GLM-4.1V-9B 40.96 70.74 35.80 67.56 37.43 44.97 39.05 40.35 35.88 39.54
+> Trained for GUI control
+> Aguvis-7B 64.18 81.91 40.96 64.08 41.90 40.24 32.54 33.33 41.60 37.92 UI-TARS-1.5-7B 50.00 72.70 37.10 62.15 45.25 65.68 46.75 54.39 39.31 50.28 UI-Venus-1.5-8B 63.48 75.18 60.97 76.69 60.89 68.64 63.31 59.65 58.40 62.18 GUI-Owl-1.5-8B 67.55 82.62 60.66 76.07 52.51 55.03 56.80 50.88 51.15 53.27 GUI-Libra-8B 65.43 79.08 57.18 73.90 49.16 65.09 50.30 71.93 50.38 57.37
+> Prompting or memory on the frozen actor
+> Qwen3-VL-8B (plain actor) 62.59 75.35 58.73 78.74 60.89 65.68 57.99 54.39 52.29 58.25
+> ,→Self-Reflection 57.98 68.97 47.98 67.31 58.66 67.46 59.76 57.89 47.71 58.30
+> ,→ReAct 63.30 76.42 62.34 79.80 62.01 67.46 59.17 59.65 53.05 60.27
+> ,→ReSum 63.83 76.95 63.70 80.36 62.57 68.64 59.76 63.16 53.82 61.59
+> ,→CoMEM †63.30 78.19 62.77 81.48 58.66 68.64 59.76 68.42 56.11 62.32
+> ,→HyMEM 64.89 78.37 65.26 82.41 62.01 68.05 60.95 63.16 56.11 62.05
+> ,→Mem-W 65.96 80.32 68.61 84.03 62.01 69.23 62.72 68.42 57.63 64.00
+> ,→SCOPE MEM (ours) 67.91 82.98 72.90 86.33 62.57 71.01 64.50 75.44 59.92 66.69
+> gain over the plain actor +5.32 +7.63 +14.17 +7.59 +1.68 +5.33 +6.51 +21.05 +7.63 +8.44
+
+Table 2: On the frozen actor, only S COPE MEM matches or beats GUI-specialised models on all three benchmarks. Step accuracy (%) on the main test sets; EM: full action; TM: action type; AITW subsets General, Install, GoogleApps, Single, WebShopping and their mean (Macro). ,→: on the frozen plain actor ( †: on Qwen2.5-VL-7B); last row: gain in pp. 
+
+the original output distribution unchanged on cor-rect steps. Keeping this distribution unchanged also preserves the correct answer. S COPE MEM learns to approximate this ideal. Its encoder reads the first opinion to guide revision at deployment, and its training objective encourages correction inside the scope and preservation outside it. 
+
+4.1 A second opinion on the actor’s answer 
+
+Under Eq. (3), revision is needed when the actor’s initial answer is wrong. An encoder without screen-shots can use textual context to estimate the actor’s chance of being correct. However, that context does not show the answer the actor actually produced. We therefore first query the frozen actor without a prefix to obtain the first opinion a0. The encoder receives this answer before the second actor pass. Both passes use greedy decoding. The confidence inputs are the actor’s proba-bilities over ten action types ( p0) and their en-tropy ( H0). The first-opinion encoder Eϕ is a 10.5M-parameter cross-attention network. It gen-erates zt from a0, these inputs, the task, rolling summary and recent actions. With this prefix, the frozen actor produces the second opinion at,SCOPE MEM ’s selected action. 
+
+4.2 Learning the scope 
+
+Reference actions are unavailable at deployment, so correctness labels guide the encoder only during training. The keep indicator kt is 1 when the initial answer is correct under the benchmark’s matching rules, and 0 when the answer is wrong. The training objective is 
+
+L = CE + kt wt Pt, (4) where CE is the cross-entropy loss of the reference action and Pt is a preservation term based on KL divergence. For incorrect initial answers ( kt = 0 ), CE encourages the reference action. For correct initial answers, weighted preservation penalises differences between the actor’s token distributions with and without the prefix, evaluated along the reference action. CE still encourages the reference tokens, while preservation also constrains changes to other token probabilities. We call this objective 
+
+scoped preservation . The encoder receives no correctness label kt. Instead, the encoder learns to generate prefixes from the first opinion, context and confidence inputs. Three choices shape the objective. First, bench-marks require exact action-type matches but al-low tolerance for arguments such as coordinates. 5We therefore give decision tokens , including those specifying action type, ten times the preservation weight of argument tokens . Second, the confi-dence weight wt increases with confidence, so con-fident correct answers receive stronger preservation. Third, the first epoch uses CE alone to teach the prefix to revise. Adding preservation immediately would reward a prefix that changes nothing. The second epoch adds preservation to teach the en-coder which decisions to keep. 
+
+5 Experiments 
+
+5.1 Setup Benchmarks. We use three standard of-fline benchmarks for mobile GUI control. 
+
+AndroidControl (Li et al., 2024) covers everyday tasks within an app, and GUI-Odyssey (Lu et al., 2025) covers long cross-app tasks, where history should matter most. Prefixes are trained on the training splits of these two benchmarks. AITW 
+
+(Android in the Wild; Rawles et al., 2023) is held out from training and tests transfer. We sample whole trajectories from the official test splits to form the main test sets : 564 steps for AndroidControl, 1,609 for GUI-Odyssey and 836 for AITW. Standard scorers report full-action (EM) and action-type (TM) accuracy for AndroidControl and GUI-Odyssey, and subset scores with their macro average for AITW. 
+
+Baselines. An actor can be improved in four ways, and we compare with recent methods of each. To scale or replace the general-purpose model, we use Qwen3-VL at 4B and 32B around our 8B actor, InternVL3.5-8B and GLM-4.1V-9B (Bai et al., 2025; Wang et al., 2025a; GLM-V Team, 2025). Aguvis, UI-TARS-1.5, UI-Venus-1.5, GUI-Owl-1.5 and GUI-Libra represent training for GUI control (Xu et al., 2025; Qin et al., 2025; Venus Team et al., 2026; Xu et al., 2026; Yang et al., 2026). The prompting baselines are ReAct (Yao et al., 2023), ReSum (Wu et al., 2025b) and Self-Reflection, which revises the answer verbally in the manner of Self-Refine (Madaan et al., 2023). Among methods that add memory , we compare with CoMEM (Wu et al., 2025a), HyMEM (Zhu et al., 2026b) and Mem-W (Zhang et al., 2026b), which is the closest to S COPE MEM . The memory baselines retain their method-specific memory in-puts and use S COPE MEM ’s training data and sched-ule. All non-memory baselines receive the same actor context as S COPE MEM .                    
+
+> Benchmark Repairs / harms Only one system Advantage (95% CI) SCOPE MEM Mem-W keeps repairs AndroidControl 57/27 55/36 16/7 13/11 +1.95 [ −0.56, 4.62] GUI-Odyssey 264/36 218/59 33/10 71/25 +4.29 [2.76, 5.84] AITW 87/32 82/44 17/5 15/10 +2.03 [0.36, 3.77]
+
+Table 3: Mem-W breaks more correct decisions than SCOPE MEM . Counts on the main test sets are rela-tive to the plain actor. “Only one system” counts cor-rect steps only one preserves or errors only one repairs (S COPE MEM /Mem-W). Advantage: S COPE MEM ’s ac-curacy minus Mem-W’s (pp, 95% CI).                                                                   
+
+> Second epoch RHRate (%) Acc Gain repair harm
+> Fixed-query prefix
+> cross-entropy alone 196 115 33.6 13.1 65.62 +5.54
+> Task-only encoder
+> cross-entropy alone 246 71 42.1 8.1 72.04 +11.96 scoped 242 58 41.4 6.6 72.66 +12.58
+> History encoder
+> first epoch only 245 74 42.0 8.4 71.77 +11.69 cross-entropy alone 240 68 41.1 7.7 71.84 +11.76 scoped 235 53 40.2 6.0 72.52 +12.44
+> First-opinion encoder
+> first epoch only 244 70 41.8 8.0 71.98 +11.89 cross-entropy alone 243 67 41.6 7.6 72.11 +12.03 unscoped 212 47 36.3 5.3 71.36 +11.28
+> scoped (S COPE MEM )254 49 43.5 5.6 74.09 +14.01
+
+Table 4: Scoped preservation lowers harms for every en-coder. Matched variants on the ablation set ( first epoch only : checkpoint before the second epoch). Rates: R over 584 errors, H over 879 correct steps; Acc: accuracy (%); Gain: over the plain actor (pp). 
+
+5.2 A frozen open-source actor matches GUI-specialised models 
+
+Table 2 shows that, among methods on the frozen actor, only S COPE MEM matches the strongest model trained for GUI control on each benchmark. On GUI-Odyssey, prompting and memory meth-ods other than Self-Reflection already exceed the strongest GUI-trained baseline in EM. CoMEM and Mem-W also exceed the strongest GUI-trained baseline on AITW Macro. On AndroidControl, only S COPE MEM reaches the best GUI-trained model, GUI-Owl (67.91 vs. 67.55 EM). On the held-out AITW, S COPE MEM ties or leads every method on every subset. 
+
+Scaling helps less evenly. Relative to the plain 8B actor, the four-fold larger Qwen3-VL-32B gains 3.1 pp EM on GUI-Odyssey and 3.7 pp Macro on AITW, but loses 0.7 pp EM on AndroidControl. SCOPE MEM ’s 10.5M-parameter module gains 65.0 5.5 6.0 6.5 7.0 7.5 8.0 8.5 36 38 40 42 44  
+
+> Repair rate (%) ↑ Upper left is better
+> Harm rate (%) ↓
+> Both improve
+> vs first-opinion CE
+> Task only First opinion History
+> ScopeMem
+> Unscoped
+> first-opinion encoder
+> CE alone Scoped preservation Unscoped preservation
+
+Figure 4: On the ablation set, arrows compare the same encoder trained with cross-entropy alone and with scoped (solid) or unscoped (dashed) preservation. Only SCOPE MEM lowers harms and raises repairs together, reaching the shaded region. The fixed-query prefix (harm rate 13.1%, repair rate 33.6%) lies outside the plotted range. 
+
+5.3–14.2 pp over the same actor. Against prompting and memory , each of the three S COPE MEM train-ing runs in Appendix C exceeds every other method on the frozen actor. Self-Reflection also reads the actor’s draft and spends a second actor pass, but its revision is prompted rather than learned, and it lowers accuracy on two of the three benchmarks. Reading the first opinion is therefore insufficient without learning which answers to revise (§6.2). 
+
+5.3 Where S COPE MEM gains over latent memory 
+
+Mem-W is the strongest memory method. It writes a prefix for the same frozen actor, using the same data and schedule. The prefix holds retrieved past trajectories and a working snapshot of the current one, and Mem-W trains it with cross-entropy and self-distillation on every step. Table 3 shows the most consistent difference in harms: Mem-W breaks a third to nearly two thirds more correct decisions than S COPE MEM . On AndroidControl and AITW, the methods repair sim-ilar numbers of errors, so S COPE MEM ’s accuracy advantage comes mainly from preserving more correct decisions. The AndroidControl accuracy gap remains within sampling error. The advantage is largest on GUI-Odyssey, where S COPE MEM 
+
+also repairs 46 more errors. GUI-Odyssey has the longest trajectories, where memory of ear-lier steps could be especially useful. However, SCOPE MEM ’s advantage over Mem-W is similar on short and long trajectories, consistent with re-vision as its main source. Much of this advan-tage comes from completion decisions, where our Mem-W reproduction more often ends tasks too early, and from clicks, which account for most er-rors that only S COPE MEM repairs. 
+
+6 Analysis: Testing the Scope 
+
+We test three predictions of scoped revision with matched variants. (i) Preservation outside the scope lowers harms regardless of encoder input. (ii) Pre-serving every step also holds the actor to its er-rors. (iii) Scoping helps the first-opinion encoder most because it observes the decision being re-vised. Each band of Table 4 fixes the prefix’s in-puts and varies only the second epoch. This epoch is skipped ( first epoch only ) or uses cross-entropy alone , scoped preservation or unscoped preserva-tion . The last applies preservation at every step (kt = 1 ). 
+
+6.1 Does preservation remove harms, and at what cost? 
+
+Switching the second epoch from cross-entropy alone to scoped preservation removes 17–27% of each encoder’s harms in every training run, as claim (i) predicts and Figure 4 shows for the main run. Part of the harms in §3.3 therefore comes from the objective, whatever the prefix reads. Preserving every step costs repairs (claim ii). For the first-opinion encoder, unscoped preservation reduces harms about as much as scoped preser-vation. Relative to cross-entropy alone, however, it loses one in eight repairs and lowers accuracy. Preserving outputs at every step also discourages correction of the actor’s mistakes, for instance on completion steps. Under scoped preservation, the task-only and history encoders retain almost all their CE repairs. The first-opinion encoder is the only variant that both lowers harms and raises re-pairs relative to CE alone. Neither more training nor the second actor pass explains the gain. Starting from the first-epoch checkpoint, a second epoch of cross-entropy alone barely changes the first-opinion encoder’s accuracy. Scoped preservation in the second epoch raises accuracy by 2.1 pp over that same checkpoint, be-yond sampling error. With cross-entropy alone, the 7two-pass first-opinion encoder and the one-pass task-only encoder gain similar amounts over the plain actor (12.03 vs. 11.96 pp), with the difference within sampling error. Most of the harms the scope removes are action-type harms, including premature comple-tions, as Appendix A.3 shows. The action type is chosen by the decision tokens, which the preserva-tion term weights most. 
+
+6.2 Why does the scope need the first opinion? 
+
+Appendix Table 5 shows that scoped preservation adds less than one percentage point of accuracy over CE alone for the task-only and history en-coders, but about three times as much for the first-opinion encoder. Appendix Table 6 shows similar reductions in the shares of correct actions and errors changed by the task-only and history en-coders under scoped preservation. Reducing revi-sion overall can avoid harms, but it can also prevent useful corrections. For the first-opinion encoder, scoping reduces changes to correct actions by a similar amount as for the other two encoders. However, the scoped encoder changes as many of the actor’s errors as its CE version and repairs more of them. This selec-tivity supports the motivation in §4.1: the encoder observes the actual answer being revised. Across the three training runs in Appendix C, the accuracy gain from scoped preservation over CE is larger for the first-opinion encoder than for the history encoder. This interaction averages 1.18 pp (95% interval across runs [0.38, 1.99]). For the main run alone, the bootstrap interval for the interaction includes zero. 
+
+What the prefix uses. The interventions on the encoder’s inputs in Appendix Table 7 point the same way. Corrupting the first opinion lowers ac-curacy beyond sampling error, whereas removing history changes it only within sampling error. 
+
+6.3 Case study 
+
+At step 7 of the test task in Figure 5, Mem-W se-lects the second list item, the position of the near-est pharmacy in a recalled episode, and repairs the plain actor’s error. At step 9, Mem-W again fol-lows the recalled interface and selects the first share option. That position held Messages in the old episode but holds WhatsApp in the current task, so Mem-W breaks the plain actor’s correct decision. The same recalled episode repairs one step and Find the nearest open pharmacy in Maps                  
+
+> Send its address to Alice in Messages
+> 16 steps
+> 7Choose nearest 9Share in Messages
+> pharmacy Open now
+> MedPlus Pharmacy
+> 1.2 mi
+> CareWay Pharmacy
+> 0.3 mi
+> 1st 2
+> CareWay Pharmacy
+> 500 Main St
+> Share
+> WhatsApp Messages
+> 11st
+> Mem-W recalls Mem-W recalls
+> Oak Pharmacy 0.9 mi Pine Pharmacy 0.2 mi 2Messages WhatsApp
+> 1
+> Same slot, still the nearest Same slot, different app
+> Method / result Step 7 Step 9
+> Plain actor
+> fails at step 7 MedPlus not reached
+> Mem-W
+> fails at step 9 CareWay WhatsApp
+> ScopeMem
+> completed 16/16 1st: MedPlus
+> 2nd: CareWay
+> revise
+> 1st: Messages
+> 2nd: Messages
+> keep
+
+Figure 5: Case study: one recalled episode repairs step 7 and breaks step 9 for Mem-W, whereas S COPE MEM 
+
+revises step 7 and keeps step 9. 
+
+harms another despite appearing equally relevant at both. S COPE MEM revises the incorrect first opin-ion at step 7, preserves the correct one at step 9 and gets all 16 steps right. 
+
+7 Conclusion 
+
+We study latent memory as a history supplement for frozen GUI agents and show that, when re-cent history is already available, much of its ben-efit comes from revising decisions. Our con-trolled experiments reveal that CE-trained pre-fixes repair errors but also break correct decisions, losses that aggregate accuracy hides. We propose SCOPE MEM to scope this revision. Its encoder reads the actor’s first answer and learns to gen-erate prefixes that revise errors while preserving correct answers. S COPE MEM achieves more re-pairs and fewer harms than CE-trained prefixes in controlled ablations. Across three benchmarks, it outperforms prompting and latent-memory base-lines and enables a frozen 8B actor to match or surpass GUI-specialised models. 8Limitations 
+
+Our experiments are offline and step-level, so online task success, for example on Android-World (Rawles et al., 2025), remains to be tested. Step-level matching may also penalise valid alterna-tives to the reference actions, and noise in these ref-erences mislabels some first opinions during train-ing. We study one actor, Qwen3-VL-8B, on mobile benchmarks, and our analysis of memory concerns an actor that already sees its recent steps. Other actors, platforms and history budgets may behave differently. The memory baselines follow their orig-inal papers under our shared training budget, and our fine-grained analyses come from one training run. S COPE MEM also queries the actor twice per step, which roughly doubles its latency. We leave online evaluation and memories that reach beyond the recent steps to future work. 
+
+Ethical Considerations 
+
+We use existing public GUI benchmarks, without new participant recruitment or online action exe-cution. Screenshots may contain names, account identifiers or other incidental personal information, and we have not completed a de-identification au-dit. Frozen-actor interventions could in principle be used to steer an agent towards unintended ac-tions. Our method changes only a small module and is evaluated offline. 
+
+Assets and intended use. The data and models serve offline research, and our system is a research prototype. GUI-Odyssey is released under CC BY 4.0; Qwen3-VL-4B/8B and Qwen2.5-VL-7B model cards specify Apache 2.0. AndroidControl and AITW are released by Google Research through a repository under the Apache 2.0 li-cence, with no separate data licence, and the third-party rights of individual screenshots lie out-side it. We provide source links and remaining licence-verification limits for these and the other models in the accompanying Responsible NLP statement, and we assert no new redistribution li-cence for third-party screenshots or model weights. 
+
+Use of AI Assistants 
+
+We used generative AI assistants only to polish the wording of this paper. The research questions, the design of the method and the experiments, the analyses, and every figure, table, and number were produced by the authors. 
+
+References 
+
+Saaket Agashe, Jiuzhou Han, Shuyu Gan, Jiachen Yang, Ang Li, and Xin Wang. 2025. Agent S: An open agentic framework that uses computers like a human. In The Thirteenth International Conference on Learn-ing Representations .Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, Wenbin Ge, Zhi-fang Guo, Qidong Huang, Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhaohai Li, Mingsheng Li, and 45 others. 2025. Qwen3-VL technical report. 
+
+arXiv preprint arXiv:2511.21631 .Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Li YanTao, Jianbing Zhang, and Zhiyong Wu. 2024. SeeClick: Harnessing GUI grounding for ad-vanced visual GUI agents. In Proceedings of the 62nd Annual Meeting of the Association for Com-putational Linguistics (Volume 1: Long Papers) ,pages 9313–9332, Bangkok, Thailand. Association for Computational Linguistics. GLM-V Team. 2025. GLM-4.5V and GLM-4.1V-Thinking: Towards versatile multi-modal reasoning with scalable reinforcement learning. arXiv preprint arXiv:2507.01006 .Jie Huang, Xinyun Chen, Swaroop Mishra, Huaixiu Steven Zheng, Adams Wei Yu, Xiny-ing Song, and Denny Zhou. 2024. Large language models cannot self-correct reasoning yet. In The Twelfth International Conference on Learning Representations .Ryo Kamoi, Yusen Zhang, Nan Zhang, Jiawei Han, and Rui Zhang. 2024. When can LLMs actually correct their own mistakes? A critical survey of self-correction of LLMs. Transactions of the Associ-ation for Computational Linguistics , 12:1417–1440. Wei Li, William Bishop, Alice Li, Chris Rawles, Fo-lawiyo Campbell-Ajala, Divya Tyamagundlu, and Oriana Riva. 2024. On the effects of data scale on UI control agents. In Advances in Neural Informa-tion Processing Systems (Datasets and Benchmarks Track) , volume 37, pages 92130–92154. Xiang Lisa Li and Percy Liang. 2021. Prefix-tuning: Optimizing continuous prompts for generation. In 
+
+Proceedings of the 59th Annual Meeting of the As-sociation for Computational Linguistics and the 11th International Joint Conference on Natural Lan-guage Processing (Volume 1: Long Papers) , pages 4582–4597, Online. Association for Computational Linguistics. Quanfeng Lu, Wenqi Shao, Zitao Liu, Lingxiao Du, Fan-qing Meng, Boxuan Li, Botong Chen, Siyuan Huang, Kaipeng Zhang, and Ping Luo. 2025. GUIOdyssey: A comprehensive dataset for cross-app GUI navi-gation on mobile devices. In Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pages 22404–22414. 
+
+9Aman Madaan, Niket Tandon, Prakhar Gupta, Skyler Hallinan, Luyu Gao, Sarah Wiegreffe, Uri Alon, Nouha Dziri, Shrimai Prabhumoye, Yiming Yang, Shashank Gupta, Bodhisattwa Prasad Majumder, Katherine Hermann, Sean Welleck, Amir Yazdan-bakhsh, and Peter Clark. 2023. Self-Refine: Itera-tive refinement with self-feedback. In Advances in Neural Information Processing Systems , volume 36, pages 46534–46594. Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, Wanjun Zhong, Kuanye Li, Jiale Yang, Yu Miao, Woyu Lin, Longxiang Liu, Xu Jiang, Qianli Ma, Jingyu Li, and 16 others. 2025. UI-TARS: Pioneering automated GUI interaction with native agents. arXiv preprint arXiv:2501.12326 .Christopher Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel Toyama, Robert Berry, Di-vya Tyamagundlu, Timothy Lillicrap, and Oriana Riva. 2025. AndroidWorld: A dynamic benchmark-ing environment for autonomous agents. In The Thir-teenth International Conference on Learning Repre-sentations .Christopher Rawles, Alice Li, Daniel Rodriguez, Ori-ana Riva, and Timothy Lillicrap. 2023. Android in the Wild: A large-scale dataset for Android device control. In Advances in Neural Information Pro-cessing Systems (Datasets and Benchmarks Track) ,volume 36, pages 59708–59728. Venus Team, Changlong Gao, Zhangxuan Gu, Yulin Liu, Xinyu Qiu, Shuheng Shen, Yue Wen, Tianyu Xia, Zhenyu Xu, Zhengwen Zeng, Beitong Zhou, Xingran Zhou, Weizhi Chen, Sunhao Dai, Jingya Dou, Yichen Gong, Yuan Guo, Zhenlin Guo, Feng Li, and 8 others. 2026. UI-Venus-1.5 technical report. 
+
+arXiv preprint arXiv:2602.09082 .Junyang Wang, Haiyang Xu, Haitao Jia, Xi Zhang, Ming Yan, Weizhou Shen, Ji Zhang, Fei Huang, and Jitao Sang. 2024. Mobile-Agent-v2: Mobile device operation assistant with effective navigation via multi-agent collaboration. In Advances in Neural Information Processing Systems , volume 37. Weiyun Wang, Zhangwei Gao, Lixin Gu, Hengjun Pu, Long Cui, Xingguang Wei, Zhaoyang Liu, Linglin Jing, Shenglong Ye, Jie Shao, Zhaokai Wang, Zhe Chen, Hongjie Zhang, Ganlin Yang, Haomin Wang, Qi Wei, Jinhui Yin, Wenhao Li, Erfei Cui, and 56 others. 2025a. InternVL3.5: Advancing open-source multimodal models in versatility, reasoning, and effi-ciency. arXiv preprint arXiv:2508.18265 .Zhenhailong Wang, Haiyang Xu, Junyang Wang, Xi Zhang, Ming Yan, Ji Zhang, Fei Huang, and Heng Ji. 2025b. Mobile-Agent-E: Self-evolving mobile assistant for complex tasks. arXiv preprint arXiv:2501.11733 .Zora Zhiruo Wang, Jiayuan Mao, Daniel Fried, and Graham Neubig. 2025c. Agent workflow memory. In Proceedings of the 42nd International Conference on Machine Learning , volume 267 of Proceedings of Machine Learning Research .Sean Welleck, Ximing Lu, Peter West, Faeze Brah-man, Tianxiao Shen, Daniel Khashabi, and Yejin Choi. 2023. Generating sequences by learning to self-correct. In The Eleventh International Confer-ence on Learning Representations .Wenyi Wu, Kun Zhou, Ruoxin Yuan, Vivian Yu, Stephen Wang, Zhiting Hu, and Biwei Huang. 2025a. Auto-scaling continuous memory for GUI agent. 
+
+arXiv preprint arXiv:2510.09038 .Xixi Wu, Kuan Li, Yida Zhao, Liwen Zhang, Litu Ou, Huifeng Yin, Zhongwang Zhang, Xinmiao Yu, Dingchu Zhang, Yong Jiang, Pengjun Xie, Fei Huang, Minhao Cheng, Shuai Wang, Hong Cheng, and Jin-gren Zhou. 2025b. ReSum: Unlocking long-horizon search intelligence via context summarization. arXiv preprint arXiv:2509.13313 .Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, and Yu Qiao. 2025c. OS-ATLAS: Foundation action model for generalist GUI agents. In The Thirteenth Interna-tional Conference on Learning Representations .Haiyang Xu, Xi Zhang, Haowei Liu, Junyang Wang, Zhaozai Zhu, Shengjie Zhou, Xuhao Hu, Feiyu Gao, Junjie Cao, Zihua Wang, Zhiyuan Chen, Ji-tong Liao, Qi Zheng, Jiahui Zeng, Ze Xu, Shuai Bai, Junyang Lin, Jingren Zhou, and Ming Yan. 2026. Mobile-Agent-v3.5: Multi-platform fundamental GUI agents. arXiv preprint arXiv:2602.16855 .Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tian-bao Xie, Amrita Saha, Doyen Sahoo, Tao Yu, and Caiming Xiong. 2025. Aguvis: Unified pure vision agents for autonomous GUI interaction. In Pro-ceedings of the 42nd International Conference on Machine Learning , volume 267 of Proceedings of Machine Learning Research , pages 69772–69805. PMLR. Sijie Yan, Yuanjun Xiong, Kaustav Kundu, Shuo Yang, Siqi Deng, Meng Wang, Wei Xia, and Stefano Soatto. 2021. Positive-congruent training: Towards regression-free model updates. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 14299–14308. Rui Yang, Qianhui Wu, Zhaoyang Wang, Hanyang Chen, Ke Yang, Hao Cheng, Huaxiu Yao, Baolin Peng, Huan Zhang, Jianfeng Gao, and Tong Zhang. 2026. GUI-Libra: Training native GUI agents to reason and act with action-aware super-vision and partially verifiable RL. arXiv preprint arXiv:2602.22190 .Shunyu Yao, Jeffrey Zhao, Dian Yu, Nan Du, Izhak Shafran, Karthik Narasimhan, and Yuan Cao. 2023. 
+
+10 ReAct: Synergizing reasoning and acting in language models. In The Eleventh International Conference on Learning Representations .Ziyun Zeng, Hang Hua, Bocheng Zou, Mu Cai, Rogerio Feris, and Jiebo Luo. 2026. MementoGUI: Learning agentic multimodal memory control for long-horizon GUI agents. arXiv preprint arXiv:2605.18652 .Cheng Zhang, Xuanning Cao, Zhicheng Zheng, and Hui Xiong. 2026a. MemCut: Every secret leaves a trail in the long-term memory of LLM agents. arXiv preprint arXiv:2610.21405 .Chi Zhang, Zhao Yang, Jiaxuan Liu, Yanda Li, Yucheng Han, Xin Chen, Zebiao Huang, Bin Fu, and Gang Yu. 2025. AppAgent: Multimodal agents as smartphone users. In Proceedings of the 2025 CHI Conference on Human Factors in Computing Systems .Guibin Zhang, Yaohui Ling, Fanci Meng, Kun Wang, and Shuicheng Yan. 2026b. Mem-W: La-tent memory-native GUI agents. arXiv preprint arXiv:2605.09317 .Zhuoran Zhang, Bowen Li, Jingcheng Ju, Yang Shi, Qixun Wang, Haotian Wang, Wei Chen, and Tengjiao Wang. 2026c. FocusMem: Factorizing content, read-out, and trust in latent GUI memory. arXiv preprint arXiv:2608.04530 .Longtao Zheng, Rundong Wang, Xinrun Wang, and Bo An. 2024. Synapse: Trajectory-as-exemplar prompting with memory for computer control. In 
+
+The Twelfth International Conference on Learning Representations .Yujie Zheng, Zikang Liu, Xin Zhao, and Ji-Rong Wen. 2026. A task-state representation for long-horizon mobile GUI agents. arXiv preprint arXiv:2607.00502 .Jinchang Zhu, Jindong Li, Cheng Zhang, Jiahong Liu, and Menglin Yang. 2026a. HeLa-Mem: Hebbian learning and associative memory for LLM agents. In 
+
+Proceedings of the 64th Annual Meeting of the As-sociation for Computational Linguistics (Volume 1: Long Papers) , pages 13757–13769, San Diego, Cali-fornia, United States. Association for Computational Linguistics. Sibo Zhu, Wenyi Wu, Kun Zhou, Stephen Wang, and Bi-wei Huang. 2026b. Hybrid self-evolving structured memory for computer-use agents. In Findings of the Association for Computational Linguistics: ACL 2026 , pages 11287–11304, San Diego, California, United States. Association for Computational Lin-guistics. 
+
+A Evidence for Scoped Revision 
+
+The ablation set contains 1,463 held-out steps: 731 from 128 AndroidControl trajectories and 732 from 50 GUI-Odyssey trajectories. These trajectories do not overlap the main test sets. The plain actor gets                                            
+
+> Contrast Steps pp 95% CI
+> Scoped minus cross-entropy alone
+> task-only encoder 9+0.62 [−0.74, 1.89] history encoder 10 +0.68 [−0.59, 1.94] first-opinion encoder 29 +1.98 [0.53, 3.44] interaction 19 +1.30 [−0.38, 3.02]
+> SCOPE MEM minus
+> first opinion, unscoped 40 +2.73 [0.98, 4.55] first epoch only 31 +2.12 [0.85, 3.40] task only, scoped 21 +1.44 [−0.49, 3.56] fixed-query 124 +8.48 [6.46, 10.56]
+> Between prefixes
+> first opinion −history, scoped 23 +1.57 [−0.25, 3.48] first opinion −history, CE 4+0.27 [−1.50, 2.05] task only −history, CE 3+0.21 [−1.62, 1.91]
+
+Table 5: Paired contrasts on the ablation set: differ-ence in correct steps and in accuracy (pp), with 95% trajectory-bootstrap CIs. Interaction: scoping effect of the first-opinion encoder minus that of the history en-coder. 
+
+879 steps right and 584 wrong. Paired 95% inter-vals use 20,000 dataset-stratified whole-trajectory bootstrap resamples. Results in this section use the main run; Appendix C reports repeated runs. CE denotes cross-entropy alone, and scoped and un-scoped denote preservation on correct first opinions and on all steps, respectively. 
+
+A.1 The objective and the first opinion 
+
+Table 5 gives the key paired comparisons behind §6. Scoped preservation improves the first-opinion encoder by 1.98 pp over CE, and by 2.73 pp over unscoped preservation. Its advantage over a scoped task-only encoder and its main-run interaction with the first opinion remain uncertain: both intervals include zero. Table 6 separates how often a prefix changes an action from how often that change succeeds. Scop-ing reduces changes to correct actions for all three encoders. For the first-opinion encoder, it retains the rate of changes to errors and improves their repair yield; the task-only and history encoders instead reduce changes to errors as well. 
+
+A.2 First-opinion interventions 
+
+Table 7 tests whether the encoder uses the first opinion. Perturbing it or replacing it with one from another step lowers accuracy. These interventions keep the encoder fixed; removing history uses a separately trained encoder. The history-ablation interval includes zero. 11 Errors Correct actions                                 
+
+> Variant changed repaired changed harmed Task only, CE 90.58 46.50 71.90 11.23 Task only, scoped 83.90 49.39 63.71 10.36 History, CE 90.07 45.63 71.44 10.83 History, scoped 84.25 47.76 64.05 9.41 First opinion, CE 89.55 46.46 71.67 10.63 First opinion, unscoped 80.14 45.30 58.59 9.13 SCOPE MEM 89.73 48.47 62.46 8.93
+
+Table 6: Share (%) of the plain actor’s errors and correct actions that each prefix changes, and of those changes that repair or harm. Coordinate shifts within tolerance count as changes.                       
+
+> Condition R/H Gain ∆95% CI
+> SCOPE MEM 254/49 14.01 ––
+> Alter the first opinion
+> perturbed 248/58 12.99 −1.03 [−1.90, −0.21] taken from another step 244/63 12.37 −1.64 [−2.74, −0.66]
+> Remove an encoder input
+> history 248/56 13.12 −0.89 [−2.40, 0.60]
+
+Table 7: Interventions on S COPE MEM : repairs/harms against the plain actor, gain (pp), and difference ∆ from SCOPE MEM (pp) with its paired 95% CI. 
+
+A.3 Which errors are avoided? 
+
+Relative to the first-opinion encoder trained with CE, S COPE MEM reduces action-type harms from 35 to 19, while coordinate harms change from 22 to 21. Other-argument harms change from 10 to 8, and parse harms from 0 to 1, giving totals of 67 and 49. Thus, most of the reduction concerns the decision tokens that receive stronger preservation. Completion illustrates why preservation must be scoped. Of 48 reference COMPLETE actions, the CE variant finds 37 with 8 premature comple-tions. Unscoped preservation finds only 30, with 2 premature completions. S COPE MEM finds 38 with the same 2 premature completions, preserving the reduction in false completions without losing recall. 
+
+B Comparison with Mem-W 
+
+The comparisons use sampled test trajectories and the shared actor context; general-purpose and GUI-specialised actors do not use their native his-tory formats. In Table 3, “only one keeps” counts correct plain-actor decisions preserved by only one method, while “only one repairs” counts errors re-paired by only one method. The differences sum to the accuracy advantage. AITW counts pool all 836 steps, so the 2.03 pp advantage differs from the                           
+
+> Run AndroidControl GUI-Odyssey AITW main 67.91 72.90 66.69 second 67.20 72.47 66.11 third 68.44 73.28 67.04 Mean ±SD 67.85 ±0.62 72.88 ±0.40 66.61 ±0.47 95% interval [66.30, 69.40] [71.88, 73.89] [65.45, 67.78]
+
+Table 8: S COPE MEM on the main test sets in each run (EM; macro accuracy for AITW), with mean, SD and 95% t interval across runs. 
+
+macro-average gap in Table 2. Intervals resample whole trajectories, within subsets for AITW. 
+
+Actions and completion. Clicks and long-presses account for 48 of the 80 additional cor-rect steps across AndroidControl and GUI-Odyssey. On GUI-Odyssey, completion decisions account for 24 of the 69-step advantage, partly overlap-ping the click category. Among its 96 reference COMPLETE actions, Mem-W finds 61 with 15 premature completions; S COPE MEM finds 75 with 6. 
+
+Trajectory length. Splitting GUI-Odyssey at its median of 14 steps gives 581 steps in 52 short tra-jectories and 1,028 in 48 long ones. S COPE MEM ’s advantage over Mem-W is similar in both groups: 4.48 pp [1.68, 7.56] and 4.18 pp [2.44, 5.91], re-spectively. This does not suggest that its advantage comes mainly from longer histories. 
+
+C Consistency across Training Runs 
+
+We repeat encoder training three times (seeds 17, 1031 and 2027). Table 8 reports the main benchmark results; Table 9 shows the repair–harm trade-off for the key ablations. Scoped preserva-tion lowers harms for every encoder in every run. The first-opinion encoder has the largest accuracy benefit from scoping in each run (Table 9). Its interaction with scoping averages 1.18 pp [0.38, 1.99]. These 95% t intervals describe variation across three training runs, not test-set sampling uncertainty. 12 Variant Main Second Third Task only, CE 246/71 250/70 241/70 Task only, scoped 242/58 248/57 234/58 History, CE 240/68 243/66 242/67 History, scoped 235/53 236/50 234/54 First opinion, CE 243/67 246/64 249/64 First opinion, unscoped 212/47 217/45 217/48 SCOPE MEM 254/49 250/47 263/52 
+
+Table 9: Scoped preservation reduces harms for every encoder in all three runs. Repairs/harms on the ablation set in each training run. 
+
+13

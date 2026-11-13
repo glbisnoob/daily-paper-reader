@@ -1,0 +1,685 @@
+Title: GUI-JEPA: Candidate-Conditioned JEPA Latents as a Fast Action Policy for Mobile GUI Agents
+
+URL Source: https://arxiv.org/pdf/2610.36877v1
+
+Published Time: Wed, 28 Oct 2026 01:03:04 GMT
+
+Number of Pages: 26
+
+Markdown Content:
+# GUI-JEPA: Candidate-Conditioned JEPA Latents as a Fast Action Policy for Mobile GUI Agents 
+
+Bingchao Wang 1,2 *, Yongcheng Jing 2, Shunyu Liu 2, Chengyu Wang 3, Jun Huang 3,Jie Yang 1† , Wei Liu 1† , Dacheng Tao 2† 
+
+> 1
+
+Shanghai Jiao Tong University 2Nanyang Technological University 3Alibaba Cloud Computing {bc_wang, jieyang, weiliucv}@sjtu.edu.cn, yongcheng.jing@ntu.edu.sg, {shunyu.liu.cs, dacheng.tao}@gmail.com, {chengyu.wcy, huangjun.hj}@alibaba-inc.com 
+
+Abstract 
+
+Mobile GUI agents are typically fine-tuned 7B-scale vision-language models (VLMs) that generate each action as text. However, these VLMs decode every action token by token, and even agents that score candidate actions keep a large language model or VLM in the loop, making them slow and memory-hungry. To ad-dress these issues, we propose GUI-JEPA, to our knowledge the first decoder-free GUI agent policy built on a Joint-Embedding Predictive Architecture (JEPA), which selects actions in the latent space of a JEPA encoder pretrained on unlabelled GUI screenshots. Its action- and region-conditioned latent predictor turns the screen latent into one latent per candidate ac-tion, letting lightweight heads score all candi-dates against the instruction in a single batched pass, without decoding a token. We further show that the scorer relies on this latent path-way and that the predictor is trained for the decision itself: a randomly initialised predictor does just as well as one pretrained on screen dy-namics. On AndroidControl, GUI-JEPA is 2.8– 4.0 × faster on the same GPU than a Qwen2.5-VL-7B agent we fine-tune with the same inputs, while reaching 86–92% of its in-distribution ac-curacy with 6% of its parameters. Code is avail-able at https://github.com/bcwang-sjtu/ GUI-JEPA .
+
+1 Introduction 
+
+A mobile graphical user interface (GUI) agent’s per-step cost is dominated by a 7B+ vision-language model (VLM) decoding its action token by token. On one NVIDIA H20, a Qwen2.5-VL-7B agent (Bai et al., 2025) LoRA-fine-tuned (Hu et al., 2022) on AndroidControl needs 207 ms per step under vLLM (Kwon et al., 2023) and 507 ms under Hug-ging Face (HF) transformers to emit a JSON action of ∼12 tokens (median over 100 real steps, batch 1; Table 3), and 8B-class agents average 2.6–10.6 s 
+
+> *
+
+This work is completed during Bingchao Wang’s research attachment at NTU. †Corresponding Authors. 0 25 50 75 100    
+
+> % of the same-protocol Qwen2.5-VL-7B SFT agent
+> AC-Low AC-High latency/step
+> 2.8–4.0× faster
+> peak GPU memory parameters
+> IDD accuracy
+> 84.1 vs 91.0 (92.4%) 61.0 vs 70.9 (86.1%) 74.3 ms (36%)
+> 51.5 ms (25%)
+> 206.7 ms
+> 3.45 GB (22%)
+> 2.48 GB (16%)
+> 15.9 GB
+> 0.50B (6%) 8.29B GUI-JEPA fp32 bf16 7B SFT = 100%
+
+Figure 1: Same inputs, same GPU: GUI-JEPA reaches 86–92% of the 7B agent’s accuracy at a fraction of its cost. Bars are relative to our same-protocol Qwen2.5-VL-7B SFT agent, fine-tuned with LoRA (IDD AC-Low / AC-High accuracy; latency: me-dians over 100 shared real AC-High steps on one H20 at batch 1; peak memory under HF serving; Table 3). 
+
+per step in a live-device benchmark (Sui et al., 2026). Yet in GUI grounding a VLM fixes its target elements during prefill, with decoding only refining coordinates (Lin et al., 2026a), and decoding on the critical path makes agents correct but late (Dong et al., 2026). Could a GUI agent score its actions in the latent space of a joint-embedding predictive architecture (JEPA; Assran et al., 2023), without decoding them at all? GUI world models generate pixels, code or text and serve an LLM policy as simulator or verifier (Luo et al., 2026; Zheng et al., 2026; Mei et al., 2026; Cao et al., 2026; Xu et al., 2026b), or as a pretraining target (Liu et al., 2026b). On GUIs, JEPAs have so far served understanding and ver-ification: UI-JEPA describes user intent through an LLM decoder (Fu et al., 2025), LGWM verifies GUI transitions (Zhang et al., 2026a), and next-frame feature prediction regularises the training of a VLM agent (Yang et al., 2026b). Candidate scorers over the accessibility tree (a11y) keep an LLM or VLM in the loop (Dai et al., 2026; Zhang, 1arXiv:2610.36877v1 [cs.AI] 27 Oct 2026 2026; Christianos et al., 2025), and Agentic-JEPA, which acts with a JEPA, is text-only with 0% out-of-distribution (OOD) success (Rodrigo-Ginés, 2026). To our knowledge, no GUI agent has yet used a JEPA as the policy that selects its actions. We bring JEPAs from perception and robotics to GUI control, moving action selection from the decoder into the latent space of a frozen JEPA en-coder. GUI-JEPA encodes the screenshot once with a JEPA ViT-L pretrained on GUI screenshots, trans-forms that latent once per candidate (a11y element or global action) with a 39.9M residual predictor conditioned on the candidate’s action and region of interest (ROI), scores the candidate-conditioned latents with a cosine structural head, adds a 33M text-matcher score and takes the argmax, all in one batched pass (Figure 2). As in earlier candidate-scoring agents, the candidates come from the a11y tree, but GUI-JEPA never generates a token, so the cost of a step depends on how many candidates it scores. Under the same inputs, judge and GPU as a Qwen2.5-VL-7B agent that we fine-tune with LoRA (SFT), GUI-JEPA is 2.8–4.0 × faster and reaches 92.4% / 86.1% of its in-distribution (IDD) Low / High accuracy with 6.0% of its parameters and 4.6–6.4 × less GPU memory (Figure 1). Our contributions are: • GUI-JEPA , the first GUI agent whose pol-icy is built on a JEPA. It selects actions by scoring candidate-conditioned JEPA latents, with no decoder, and is 2.8–4.0 × faster than a same-protocol 7B agent that decodes token by token. • Adapting a JEPA policy to GUIs: a11y candidates as actions, ROI- and action-conditioned residual prediction, a structural head whose only candidate-dependent vi-sual input is the conditioned latent, and two text rankers that together add 3.8 out-of-distribution AC-High points (Table 2). • Mechanism: the scorer relies on the JEPA la-tent pathway, which is trained for the decision. A randomly initialised predictor matches a dynamics-pretrained one, so a JEPA policy for GUIs needs no dynamics pretraining. 
+
+2 Related Work 
+
+VLM GUI agents and their cost. The dominant mobile GUI agent is a VLM of 7B+ parameters that emits an action token by token from a screenshot (Wu et al., 2025; Xu et al., 2025; Qin et al., 2025; Zhang et al., 2025; Bai et al., 2025); 3B agents re-port AndroidControl under incompatible protocols (Table 11). On-device agents need seconds per step (Park et al., 2026), and efficiency work cheapens the decoder (Bai et al., 2026); GUI-JEPA removes it altogether. 
+
+Discriminative and candidate-scoring GUI agents. Closest in input are the a11y-text PaLM 2S baselines of AndroidControl (Sec-tion 4.2). LiMAC selects UI elements from screen-shots and UI trees with a small action transformer, calls Florence-2 (Xiao et al., 2024) for text argu-ments and reports its own metric (Christianos et al., 2025); V-Droid verifies a11y candidates with a prefill-only LLM (Dai et al., 2026), Jev-Mobile se-lects a11y identifiers with a typed decision model (Zhang, 2026), and IntentScore verifies a genera-tive policy’s actions (Chen et al., 2026); each keeps a generative LLM or VLM in the loop. GUI-JEPA shares a11y enumeration and argmax but scores a candidate-conditioned JEPA latent plus a 33M text matcher, with no generative model in the loop. 
+
+World models for GUI agents. GUI world mod-els predict the next state as pixels (Luo et al., 2026; Ning et al., 2026), code (Zheng et al., 2026; Xu et al., 2026a), text (Chae et al., 2025; Mei et al., 2026) or textual element sketches (Cao et al., 2026) and serve an LLM policy as simulator, verifier or data synthesiser; none of the four output modalities compared by Xu et al. (2026b) is joint-embedding. STP pretrains forward and inverse GUI dynamics in a unified multimodal model that still decodes actions (Liu et al., 2026b), and Li et al. (2026) train a generative text world model over a11y-tree states by predicted-state matching, whose predic-tions feed a separate reward model that ranks can-didate actions. GUI-JEPA is decoder-free and is 
+
+the policy, trained, like that web world model, for how it is used. 
+
+JEPA and latent world models as policies. 
+
+In robotics, latent world models built on joint-embedding predictive architectures (Assran et al., 2023, 2025) plan (Zhou et al., 2025a; Maes et al., 2026; Zholus et al., 2026) or drive action poli-cies (Sun et al., 2026; Lin et al., 2026b; Zhang et al., 2026b). On GUIs, UI-JEPA feeds a JEPA-pretrained video encoder into a fine-tuned LLM decoder that describes user intent, with a reported 2Input step and candidates                     
+
+> Goal: “I want to add Oats to my shopping cart.”
+> screenshot a11y tree
+> → candidate actions
+> click Add To Cart ✓
+> click Back
+> + 9 more nodes
+> scroll ↑ ↓ ← →
+> back · home · wait
+> open_app
+> 11 a11y + 8 global
+> GUI-JEPA: one batched scoring pass, no token decoded
+> JEPA encoder
+> frozen
+> screen latent zt
+> once per step
+> 1
+> each candidate:
+> action + its region
+> Residual latent predictor
+> conditions the latent on each candidate
+> 2
+> ROI pool
+> action +
+> region feature Transformer
+> skip
+> one latent per candidate ztc
+> Score and select 2
+> goal + action history
+> Structural head
+> candidate latent vs. goal + history
+> MiniLM text matcher
+> goal + history vs. element text
+> action probabilities on this step
+> Add To Cart 0.77 ✓
+> scroll ↓ 0.05
+> icon button 0.04
+> 1JEPA pretraining on GUI screenshots
+> unlabelled
+> screenshots
+> mask half the patches,
+> predict their latents freeze
+> 2Policy training (discriminative)
+> learn to score the recorded action highest
+> trained: predictor, head, matcher
+> frozen: JEPA encoder, CLIP text encoder
+> 3then two text rankers on the fixed policy
+> fill the typed text and re-rank clicks
+> Inference: 2.8–4.0× faster
+> 7B SFT agent (vLLM): prefill, then decode
+> the action token by token
+> prefill
+> 0.50B GUI-JEPA: score all candidates
+> in one pass, take the top one
+> top one
+
+Figure 2: Overview of GUI-JEPA. Top: on a real AndroidControl step, the frozen JEPA encoder embeds the screenshot once, the residual predictor turns it into one latent per candidate in a single batch, and the structural head and the text matcher score every candidate (bars: a trained base policy’s probabilities on this step; grids are schematic). Bottom: the training stages, and scoring in one pass versus decoding token by token (measured in Section 4.5). Circled numbers mark the stage that trains each module (1: JEPA pretraining, 2: policy training, 3: text rankers on the fixed policy); flame = trained, snowflake = frozen; green marks the recorded (correct) action. 
+
+6.6 × lower latency than Claude 3.5 Sonnet on IIW (Fu et al., 2025); the concurrent LGWM, a JEPA over GUI transitions, verifies whether an ob-served transition is expected (Zhang et al., 2026a), RSI-Anything’s world-model predictions rank ac-tions that a separate policy proposes (Cui et al., 2026), and next-frame feature alignment serves as a training-time regulariser discarded at inference (Yang et al., 2026b); the recent Agentic-JEPA picks actions by the cosine between predicted next-state and goal embeddings in synthetic text-only envi-ronments (100% success in distribution, 0% out of distribution) (Rodrigo-Ginés, 2026). Decision-aligned work finds that the latent closest to the goal need not be the best action (Liu et al., 2026a) and that predictors can ignore the action (Gan et al., 2026); value-equivalent models likewise learn la-tents for planning without a reconstruction objec-tive (Schrittwieser et al., 2020). In GUI-JEPA the JEPA is the policy itself: it scores a11y candidates through candidate-conditioned latents of a frozen GUI-pretrained encoder, with no decoder, whereas earlier GUI work uses a JEPA to describe intent, verify transitions or regularise training. Our mech-anism result (Section 5.1) adds a GUI-domain data point to work finding that predictability and action relevance come apart (Gu et al., 2026) and to work that trains world models for the decision (Li et al., 2026). 
+
+3 Method: GUI-JEPA 
+
+GUI-JEPA chooses each action by scoring candi-dates. At every step it enumerates the executable actions from the a11y tree, embeds the screenshot once with a frozen JEPA encoder, transforms that screen latent once per candidate with a residual predictor, scores each candidate-conditioned latent and the candidate’s text against the text condition, and executes the highest-scoring candidate (Fig-ure 2). Since no token, pixel or line of code is generated, a decision is one batched forward pass whose cost grows with the number of candidates. 
+
+Problem and notation. We learn a step-level of-fline policy on AndroidControl (Li et al., 2024) that predicts the recorded action from one step’s inputs and the ground-truth history. A step has a screen-shot xt, an a11y tree Tt, a text condition g (the goal in AC-High, the step instruction in AC-Low) and the ground-truth history ht (the previous action vector and the mean latent change from the previ-ous frame; the text matcher receives the previous actions as text). A frozen encoder gives the screen latent, patch tokens zt = fθ(xt) ∈ R196 ×1024 . The candidate set Ct = enumerate( Tt) ∪ G joins ele-ment candidates (a click per enumerated node, an 
+
+input_text per editable one) with a fixed set G of global actions. A candidate c carries a 16-d action vector ac (type one-hot plus coordinates or scroll 3direction) and, if it has an element, its region roi( c)
+
+(global actions: zero region feature, whole-screen pooling). The policy picks ˆct = arg max c∈C t s(c).
+
+3.1 Input step and candidates 
+
+Element-level candidates are the visible a11y nodes flagged clickable, long-clickable, editable or scrol-lable, capped at the 80 smallest by area, which keeps specific elements and bounds the batch; each carries the text of the node and its descendants, its bounding box and its type. Every enumerated node yields a click candidate, and every editable node also an input_text candidate whose text is filled in by the span ranker (Section 3.4). Global actions act on the whole screen: the four scroll di-rections, navigate_back , navigate_home , wait 
+
+and one open_app , whose argument is the longest training-vocabulary app name in the text condition. The ground-truth element of a click is the smallest enumerated candidate that contains the recorded click point (details and coverage: Section B). 
+
+3.2 JEPA encoder 
+
+fθ is a ViT-L/16 (303M; Dosovitskiy et al., 2021), ImageNet-initialised and pretrained (stage 1) with a JEPA objective adapted from I-JEPA (Assran et al., 2023) on 189K unlabelled mobile (GUI-Odyssey; Lu et al., 2025) and desktop (VideoCUA; Jian et al., 2026) screenshots, without action labels or An-droidControl data. The student encoder sees the screenshot ˜x with a random half M of its patches zeroed and regresses, at the masked positions, the tokens that an exponential-moving-average (EMA) teacher ¯f computes on the full screenshot: 
+
+LJEPA = 1
+
+|M |
+
+X
+
+> i∈M
+
+ℓsL1 
+
+ fθ(˜ x)i, sg[ ¯f (x)i], (1) with ℓsL1 the smooth-L1 loss and sg the stop-gradient. Random masking suits screenshots, whose content is spread over many small elements, and the latent target spares the encoder from repro-ducing fonts or colours that do not matter for acting. After two epochs the encoder is frozen and its patch tokens are cached, so policy training never runs the backbone (recipe and hyperparameters: Section H; pretraining–test overlap: Section G.1). 
+
+3.3 Residual latent predictor 
+
+The predictor gϕ (39.9M) is a JEPA-style action-conditioned latent predictor that maps the screen latent and one candidate to a candidate-conditioned latent. Its action input concatenates ac with the ROI-pooled feature uc = pool roi( c)(zt) ∈ R1024 
+
+of the candidate’s element (zero for global actions), so that two candidates of the same type, such as two buttons, are told apart by what their regions show as well as by their coordinates. An MLP of this pair is added to a learned query token, and a three-layer transformer attends over the 196 patch tokens and the query, giving the candidate-conditioned la-tent ˜zct = zt + ∆( zt, a c, uc). The residual form keeps the content of the current screen and lets the predictor express only a candidate-specific change, which preserves the detail needed to ground an el-ement. All candidates of a step form one batch. 
+
+gϕ is initialised from a dynamics predictor trained on AndroidControl transitions to predict the next step’s latent from zt and the recorded action (Sec-tion D) and is then fine-tuned jointly with the scor-ing heads. Policy training adds no next-latent loss, and the policy loss alone shapes ˜zct into a decision feature (Section 5.1). 
+
+3.4 Score and select Structural head. The head pools the candidate-conditioned latent over the candidate’s region (all 196 tokens for global actions) and over the whole screen, and compares an MLP of the pair by cosine with an MLP of the conditioning vector (learned scale κ, per-type bias): 
+
+slat (c) = κ cos  MLP v(vc), MLP t(cond) 
+
++ btype( c), (2) with vc = [pool roi( c)(˜ zct ); mean(˜ zct )] . cond joins the frozen CLIP embedding (63M; Radford et al., 2021) of g with ht. The head’s only candidate-dependent visual input is ˜zct = zt + ∆ : zt reaches it via the residual skip and, independently of the candidate, through cond . The constraint is deliber-ate. Everything the head sees of a candidate passes through the predictor, and training cannot bypass the JEPA latent pathway (Section 5.2). 
+
+MiniLM text matcher. The text matcher, a MiniLM-L12 cross-encoder (33M; Wang et al., 2020; Reimers and Gurevych, 2019), scores g plus the textual action history against the text of each el-ement candidate ( stext = 0 for global actions); the two scores are summed outside the structural head, 
+
+s(c) = slat (c) + stext (c). The structural head arbi-trates the action type and the eight global actions, which have no text to match, and also contributes at element level, while the text matcher carries most of the grounding among clicks (Section 5.1). 4Text rankers (stage 3). Two small rankers re-fine the arguments without changing which kind of action is taken. The input_text argument is the top span of the goal-source span ranker, a MiniLM-L6 cross-encoder (22.7M) trained to rank spans of the goal, the text it reads at test time in AC-High (Section 4.4). If the argmax is a click, the type-gated click reranker r, a MiniLM-L12 listwise model (33.5M), re-scores the click candidates as 
+
+s(c) + β 1[conf( r) > τ ] ˜ r(c), with ˜r its z-scored logit and β, τ set on validation. 
+
+3.5 Training 
+
+Training has three stages (circled numbers in Fig-ure 2): JEPA pretraining of the encoder (Sec-tion 3.2), policy training, and the two text rankers. The base policy (predictor, structural head and text matcher, trained jointly; encoder and CLIP text encoder frozen) is trained on the 13,594 cached episodes (74,714 steps) of the 13,604-episode An-droidControl training split with a listwise cross-entropy over the candidates of each step, Lt =
+
+−wt log pt(c∗ 
+
+> t
+
+) with pt = softmax c∈C t s(c), where 
+
+c∗ 
+
+> t
+
+is the ground-truth candidate and wt=1 .5 for non-click steps and 1 for clicks, which offsets the predominance of clicks. The objective matches in-ference, where the recorded action must outscore every alternative the policy could take on that screen. We train with AdamW for 6 epochs, one model for both AC-Low and AC-High (hyperpa-rameters: Table 13), and fine-tune the predictor jointly, which outperforms freezing it (Section 5.2). The two rankers are then trained on the fixed base policy. Of the 0.50B parameters, 366M are frozen (303M encoder, 63M CLIP text encoder) and ≈132M trained, including the 22.7M span ranker and the 33.5M click reranker. 
+
+4 Experiments 
+
+4.1 Setup Benchmark and splits. We test on the four offi-cial AndroidControl subsplits (Li et al., 2024): IDD (721 episodes) and the overlapping app_unseen (631), task_unseen (803) and category_unseen (700, contained in task_unseen). The full test set (1,543 episodes, 8,444 steps) and the OOD union (full test minus IDD, 4,586 steps) are the units of ev-idence. IDD results cover 716 of the 721 episodes (3,858 of 3,897 steps), because five IDD episodes also in OOD subsplits count as OOD (Section B). The 137-episode validation split selected the click reranker’s variant, weight β and gate. Systems that state their split report all test subsets together, so we compare them with our full-test result and use IDD only against published IDD numbers. 
+
+Protocol. AC-Low conditions on the step instruc-tion and AC-High on the episode goal, both with the ground-truth action history. Our exact-match judge keeps the original benchmark’s click rule (the chosen candidate’s centre lies inside the ground-truth element box) and departs from the original protocol in four places: it counts no equivalent 
+
+open_app or navigation actions, requires the nor-malised typed text to match, accepts a click for a ground-truth long_press (9 IDD steps), and takes the ground-truth box from the smallest enumerated candidate (originally the smallest a11y node), scor-ing clicks without a candidate (1.6–2.6%) as errors where the original discards them (Section B). Can-didates come from the a11y tree, a privileged input that pixel-only agents do not use. 
+
+4.2 Main results Closest published protocol. The AndroidCon-trol paper’s LoRA-tuned PaLM 2S over a11y text (Li et al., 2024, Tab. 5) shares our a11y input (we add the screenshot), click rule and subsplits, under the original relaxed judge. In distribution, GUI-JEPA matches it on AC-Low (84.06 vs 83.2) and trails on AC-High (60.99 vs 70.8; Tables 6 and 7). 
+
+Exact-match VLM agents. The pixel-only 7–8B exact-match entries of Table 1 decode their actions with 14–16 × more (nominal) parameters than GUI-JEPA. On AC-Low our full-test 78.64 is above OS-Atlas-7B (67.3), MIRAGE-4B (77.6) and Qwen3-VL-8B (77.66), and none of these agents reports a comparable per-step latency. 
+
+Examples. Figure 5 shows GUI-JEPA on three real IDD AC-High steps, one per action kind: it picks a menu entry among 15 candidates, opens the app named in the goal, and types a book title copied from the goal, each with one forward pass. 
+
+4.3 Same-protocol 7B reference 
+
+We also train a same-protocol reference: Qwen2.5-VL-7B-Instruct (Bai et al., 2025) fine-tuned with LoRA (Hu et al., 2022) on 4,000 training episodes for one epoch, one adapter per setting (GUI-JEPA: one model, 13,594 episodes for six; 377-token im-age), given the same screenshot, candidates and ground-truth history as GUI-JEPA and scored by 5System Params Input Judge Split AC-Low AC-High                                                                                     
+
+> EM scores reported by other papers (screenshot input)
+> Aguvis-7B a7B img EM unspec. 89.4 54.2 OS-Atlas-7B a7B img EM unspec. 67.3 56.5 Qwen3-VL-8B m8B img EM ∗all-split 77.7 60.8 Qwen2.5-VL-7B, released a7B img EM unspec. 85.0 62.9 MIRAGE-4B m4B img EM ∗all-split 77.6 64.4 Qwen2.5-VL-72B q72B img EM ∗unspec. 93.7 67.4 AgentCPM-GUI-8B a8B img EM unspec. 90.2 69.2 MIRAGE-8B m8B img EM ∗all-split 83.8 72.4 UI-TARS-7B a7B img EM unspec. 91.8 74.4 UI-Venus-Navi-7B m7B img EM ∗all-split 85.1 75.2
+> Closest published protocol (a11y input, our click rule and split)
+> PaLM 2S, LoRA on a11y text pn/a a11y relaxed IDD 83.2 70.8
+> Same inputs, judge and split (ours)
+> Qwen2.5-VL-7B, LoRA SFT (our reference) 8.29B img+a11y exact IDD 91.0 70.9
+> GUI-JEPA (ours) 0.50B img+a11y exact IDD 84.1 61.0
+> GUI-JEPA (ours) 0.50B img+a11y exact full 78.6 53.8
+
+Table 1: AndroidControl step accuracy under disclosed protocols. img = screenshot; a11y = accessibility tree, a privileged input. Judges: exact = ours (Section 4.1), EM = exact match as reported ( ∗matching rule not defined in the source), relaxed = the original AndroidControl protocol. all-split = MIRAGE’s score over all subsplits; unspec. 
+
+= split not stated. Our 7B reference has one LoRA adapter per setting, same recipe (zero-shot: Table 14; latency: Table 3). Sources: pLi et al. (2024, Tab. 5); avia Zhang et al. (2025, Tab. 2) (its re-evaluations; “released”: the released checkpoint); mvia Yang et al. (2026b, Tab. 1); q Bai et al. (2025, Tab. 9). Other protocols: Tables 11 and 12.          
+
+> Stage IDD full OOD val. Base policy 56.84 49.79 43.85 57.54 + span ranker 59.69 52.44 46.34 60.43 + click reranker 60.99 53.75 47.67 62.46
+> ∆total +4.15 +3.96 +3.82 +4.92
+
+Table 2: Gains from the two text rankers (AC-High step accuracy, %; all stages on the same base-policy checkpoint; AC-Low: Table 7). OOD = full test minus IDD; val. = the 137-episode validation split, on which the reranker’s variant, weight and gate were selected. 
+
+the same judge on the same 716 IDD episodes. It reaches 91.01 / 70.87 Low / High, and GUI-JEPA reaches 84.06 / 60.99, 92.4% / 86.1% of it, with 6.0% of its parameters (0.498B vs 8.29B; 16.6 ×
+
+fewer) and 2.8–4.0 × its vLLM speed (Section 4.5). The gap is 7.0 points when the step instruction is given and 9.9 with the goal alone. Section 4.6 breaks the AC-High gap down by action type. 
+
+4.4 Gains from the two text rankers 
+
+Table 2 isolates the two text rankers. Switching the training data of the 22.7M input_text span ranker from step instructions to goal spans adds no parameters and +2.85 IDD High (+2.49 OOD union) by raising IDD High input_text accuracy from 13.5 to 52.5. The type-gated click reranker then adds +1.30 IDD High (+1.33 OOD union) by re-ordering click candidates only. Together they lift                     
+
+> System Serving p50 p90 Mem. ×ours 7B SFT, merged HF 506.7 588.9 15.9 6.8/9.8 7B SFT, merged vLLM 206.7 247.9 ≥16 2.8 /4.0 GUI-JEPA , fp32 PyTorch 74.3 127.8 3.45 1
+> GUI-JEPA , bf16 PyTorch 51.5 79.7 2.48 1
+
+Table 3: Same-hardware latency per real step (ms; peak GPU memory in GB; same 100 AC-High IDD steps, one H20, batch 1). 7B = Qwen2.5-VL-7B (zero-shot and unmerged-LoRA timings: Section I); 
+
+≥: vLLM pre-allocates at least the weights. × ours: the 7B agent’s p50 divided by our fp32 or bf16 p50. 
+
+OOD-union High from 43.85 to 47.67 and every unseen subsplit by 3.5–4.1 points (Section C), and the span-ranker gain replicates on the validation split (+2.89 vs +2.85 on IDD). 
+
+4.5 Efficiency What the comparison fixes. The timing com-pares a scored step with a decoded step at fixed inputs, hardware and batch size. Both systems receive the same 100 real AC-High IDD screen-shots, candidates and histories on one H20 at batch 1, and differ in model, training data and compu-tation (Section 4.3). GUI-JEPA’s timing starts at JPEG decoding and covers CPU candidate and ROI preparation; the 7B agent’s starts at image prepro-cessing and tokenisation. Screenshot capture, a11y retrieval and GUI-JEPA’s once-per-episode CLIP 60 100 200 300 400 500 
+
+> mean time per step, one H20, batch 1 (ms)
+> 7B SFT HF 7B SFT vLLM Ours fp32 Ours bf16 516 ms 212 ms
+> 87 ms 56 ms
+> preprocess prefill decode (≈12 tokens) image decode ViT-L encoder candidates + ROI predictor + head text matcher + rankers
+
+Figure 3: Where a step’s time goes (segment means, 100 shared real steps, one H20, batch 1; medians: Ta-ble 3). Decoding takes half or more of the 7B step, and its prefill alone outlasts a whole GUI-JEPA step. 
+
+goal embedding (5.6 ms) are excluded. 
+
+Speed. The final GUI-JEPA pipeline (base pol-icy, span ranker and click reranker) needs a median 74 ms per step in fp32 and 51.5 ms with bf16 auto-cast, against 207 ms for the 7B agent with vLLM and 507 ms with HF transformers (merged LoRA; Table 3). GUI-JEPA is thus 2.8 × (fp32) to 4.0 ×
+
+(bf16) faster than vLLM and 6.8–9.8 × faster than HF, with 4.6–6.4 × less peak GPU memory. In bf16 it makes the same predictions as in fp32 on all 200 timed steps, including the typed text (Section I). 
+
+Where the time goes. Figure 3 splits the mean step time on the same 100 steps. Decoding takes 51% (vLLM) to 60% (HF) of the 7B agent’s step, on top of its prefill, and the vLLM prefill alone outlasts a whole fp32 GUI-JEPA step, so the gain comes from both the smaller model and the ab-sence of decoding. About half of a GUI-JEPA step goes to the batched predictor and head, which bf16 speeds up threefold, and its cost grows with the number of candidates (Section I). 
+
+4.6 Error analysis 
+
+Clicks, 63% of the steps, account for 5.8 of the 9.9-point AC-High gap to the 7B agent, shared between choosing the click type and grounding the element, the part the text matcher carries (Section 3.4). On global actions the gap lies mainly in the type de-cision, and on open_app and input_text in the argument (per type: Table 15). The two systems also err on different steps (Figure 10): at least one of them is right on 78.7% of IDD AC-High steps, and the margin between GUI-JEPA’s top two scores flags its errors (AUROC 0.74), so uncertain steps can be routed to a same-protocol 7B agent where accuracy matters more than speed (Section J). 
+
+5 Analysis 
+
+5.1 What the latent pathway does Reliance. We lesion the trained base policy at evaluation time, text matcher untouched (Figure 4a; Table 5). On IDD, shuffling the action vectors across all candidates costs 27.2 Low / 23.4 High, shuffling them within a type 11.2 / 10.8 (mostly scroll directions; about 5 High on clicks), and re-placing the candidate-conditioned latent by the cur-rent latent (no predictor) 24.9 / 14.0, mostly on the global actions, which share the full-screen ROI. The action vector reaches the structural head only through the predictor, and training cannot route around it. Retrained at full scale with the identity map in place of the predictor, the policy reaches 62.36 / 42.33, 21.4 / 14.5 points below the base policy, again on the global actions, which the iden-tity map leaves indistinguishable (Table 8). The pathway thus carries chiefly action type and scroll direction, and also helps select among clicks. 
+
+The pathway is trained for the decision. A ran-domly initialised predictor trained with the identi-cal full-scale recipe does as well as the dynamics-pretrained one (+0.50 High / −1.01 Low; Fig-ure 4c), and predictive auxiliary objectives (per-patch (Sun et al., 2026), pooled, multi-horizon, LeWorldModel-style (Maes et al., 2026)) add noth-ing at 4K-episode scale (Table 8). The predictor thus learns what the decision needs, and forward-model probes show that it forecasts the next latent worse than a copy of the current one (Section D). It acts as an action- and ROI-conditioned transform of the current screen, so a JEPA policy for GUIs needs no dynamics pretraining. This agrees with findings that predictability and action relevance come apart (Gu et al., 2026) and with training world models for the decision (Li et al., 2026). 
+
+5.2 Design choices and the encoder 
+
+At pilot scale without the text matcher, the residual form raises AC-Low from 40.6 to 43.9, whereas a predictor that re-synthesises the whole latent low-ers AC-Low click grounding to 34.8, below the identity map’s 46.8. The structural head makes the policy use the predictor. Replacing the predictor by the identity map costs it 8.9 AC-Low points (40.6 vs 31.7), whereas a concat-MLP head that also sees raw candidate features stays within 1.4 points with or without a predictor (Figure 4b). Conditioning on the previous action and frame change adds 8 High 7as-is within-type shuffle no predictor (̃ zc =zt)all-candidate shuffle 020 40 60 80 100           
+
+> IDD step acc. (%)  83.9 72.7 59.0 56.6 56.8 46.1 42.9 33.4
+> (a) Inference-time lesions
+> AC-Low AC-High
+> (x,y) ROI none
+> predictor conditioning
+> concat head structural head 33.2 34.6 33.3 40.5 40.6 31.7
+> (b) Pilot, AC-Low
+> frozen random init −4 −2 02
+> change vs. fine-tuned, pretrained (points)
+> −3.8 −1.0 −1.9 +0.5
+> (c) Predictor training
+
+Figure 4: The scorer relies on the latent pathway, which needs no dynamics pretraining. (a) Evaluation-time lesions (IDD; OOD and retrained controls in Tables 5 and 8). (b) Pilot AC-Low (an early configuration without the text matcher): only the structural head uses the pathway (orange box: deployed design). (c) Change in IDD accuracy against the jointly fine-tuned, dynamics-pretrained predictor when the predictor is kept frozen or randomly initialised (identical recipe). (a) Element: picks the menu entry     
+
+> Goal: Go to the Google Play Books app & bookmark the currently opened page
+> click “Add bookmark”
+> pt= 1.00 15 candidates, one pass
+> (b) Global action: opens the named app
+> Goal: Open the Mindfulness app, I would like to have a personalized guided meditation to …
+> open app “Mindfulness App”
+> pt= 1.00 25 candidates, one pass
+> (c) Argument: types the title from the goal
+> Goal: Search for my favorite book, "The Road Less Traveled," on the Kobo books app.
+> type “The Road Less Traveled”
+> pt= 1.00 54 candidates, one pass
+> GUI-JEPA
+
+✓ GUI-JEPA ✓ GUI-JEPA ✓
+
+Figure 5: GUI-JEPA on three real AC-High IDD steps , one per action kind: (a) an element click, (b) a global action, (c) a typed argument that the span ranker copies from the goal. Each step takes one scoring pass over all its candidates ( pt: probability of the chosen action; boxes: ground truth in green, GUI-JEPA’s choice in purple). 
+
+points; at full scale, joint fine-tuning beats a frozen predictor by 3.8 AC-Low / 1.9 AC-High IDD points (Figure 4c; alternatives: Table 10). The encoder is cheap to obtain. After 0.76 GPU-hours of JEPA pretraining on unlabelled screenshots, its frozen tokens score 67.22 on a coarse localisation probe over ScreenSpot-Pro (Li et al., 2025) (probe hit@8; random-init ViT-L: 58.8), on par with DINOv3-ViT-L (Siméoni et al., 2026) (65.28; Figure 7, Sec-tion G). In the policy, DINOv2-L (Oquab et al., 2024) features at 518 px instead cost 17.4 / 9.8 points at 4K-episode scale, though it also changes the input resolution (Table 10). 
+
+6 Conclusion 
+
+GUI-JEPA, to our knowledge the first GUI agent whose policy is built on a JEPA, replaces ac-tion decoding with one batched scoring pass over candidate-conditioned JEPA latents. With 0.50B parameters it needs 51.5–74 ms per step, 2.8–4.0 ×
+
+less than a vLLM-served 7B agent on the same inputs, and reaches 92.4% / 86.1% of its IDD Low / High accuracy with 6.0% of its parameters. The JEPA latent pathway is essential to the scorer (lesions cost 10.8–23.4 IDD High points) and is trained for the decision: a randomly ini-tialised predictor does as well as a dynamics-pretrained one. A JEPA used as a GUI action scorer should thus be judged by the decisions it supports, not by next-latent fidelity, and can be trained for them directly. Extending such scorers from steps to tasks is the next step for JEPA-based GUI agents. 
+
+Limitations 
+
+GUI-JEPA consumes the a11y tree, a privileged structured input that pixel-only agents do not use; the 1.6–2.6% of test clicks without a candidate count as errors, and every latency excludes screen capture and a11y retrieval. The policy is a step-level scorer; online task completion, which needs a termination head and a planner, is left to future work, as is using the predictor as a forward model. Design choices other than the reranker’s variant, weight and gate were made on test IDD and re-checked on validation only for the span ranker and overall base-policy accuracy (Section 4.4). Speed-ups are measured at batch 1 against vLLM and HF serving of the 7B agent (Section 4.5). The same-protocol 7B reference is one LoRA adapter per setting trained on 4,000 of 13,594 episodes. The 8method is specialised to mobile a11y candidates; other candidate sources, such as web DOM nodes, need their own candidate texts and action vectors. Non-JEPA encoders are compared through a probe on the frozen tokens (Section G); a comparison inside the full-scale policy is future work. 
+
+Ethical Considerations 
+
+GUI-JEPA lowers the cost of GUI agents that act on a user’s device. A wrong action, such as sending a message, deleting data or confirming a payment, can be hard to undo, and step-level errors remain common; a deployment needs user confirmation before irreversible actions. The speed that makes on-device agents practical also makes it cheaper to automate interactions meant for humans, such as mass account creation. The policy reads the acces-sibility tree, which can contain personal on-screen data; running the 0.50B model on-device keeps that data local. We use only public datasets under their licences (AndroidControl Apache-2.0, GUI-Odyssey CC-BY-4.0, VideoCUA and ScreenSpot-Pro MIT), collect no new data, and involve no hu-man subjects, annotators or crowd workers. 
+
+References 
+
+Mahmoud Assran, Quentin Duval, Ishan Misra, Piotr Bojanowski, Pascal Vincent, Michael Rabbat, Yann LeCun, and Nicolas Ballas. 2023. Self-supervised learning from images with a joint-embedding predic-tive architecture. In 2023 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) ,pages 15619–15629. IEEE. Mido Assran, Adrien Bardes, David Fan, Quentin Gar-rido, Russell Howes, Mojtaba Komeili, Matthew Muckley, Ammar Rizvi, Claire Roberts, Koustuv Sinha, Artem Zholus, Sergio Arnaud, Abha Gejji, Ada Martin, Francois Hogan, Daniel Dugas, Piotr Bojanowski, Vasil Khalidov, Patrick Labatut, and 10 others. 2025. V-jepa 2: Self-supervised video mod-els enable understanding, prediction and planning. 
+
+ArXiv , abs/2506.09985. Bizhe Bai, Jiakang Yuan, Hongming Wu, Xinyue Wang, Jie Ren, Siyao Chen, Yuchen Ya, Fan Bai, Pai Peng, Huafeng Qin, and Tao Chen. 2026. Efficient gui agents: A systems survey of observation, mem-ory, action, and runtime optimization. Preprint ,arXiv:2609.02309. Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wen-bin Ge, Sibo Song, Kai Dang, Peng Wang, Shi-jie Wang, Jun Tang, Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhaohai Li, Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren Fu, Yiheng Xu, and 8 oth-ers. 2025. Qwen2.5-vl technical report. Preprint ,arXiv:2502.13923. Randall Balestriero and Yann LeCun. 2025. Lejepa: Provable and scalable self-supervised learning with-out the heuristics. Preprint , arXiv:2511.08544. Yilin Cao, Yufeng Zhong, Zhixiong Zeng, Siran Dai, Liming Zheng, Jing Huang, Haibo Qiu, Peng Shi, and Wenji Mao. 2026. Mobiledreamer: Genera-tive sketch world model for gui agent. Preprint ,arXiv:2601.04035. Hyungjoo Chae, Namyoung Kim, Kai Ong, Minju Gwak, Gwanwoo Song, Jihoon Kim, Sunghwan Kim, Dongha Lee, and Jinyoung Yeo. 2025. Web agents with world models: Learning and leveraging environ-ment dynamics in web navigation. In International Conference on Learning Representations , volume 2025, pages 63707–63738. Rongqian Chen, Yu Li, Zeyu Fang, Sizhe Tang, Weidong Cao, and Tian Lan. 2026. Intentscore: Intent-conditioned action evaluation for computer-use agents. Preprint , arXiv:2604.05157. Filippos Christianos, Georgios Papoudakis, Thomas Coste, Jianye Hao, Jun Wang, and Kun Shao. 2025. Lightweight neural app control. In International Con-ference on Learning Representations , volume 2025, pages 74161–74178. Taoyong Cui, Pinxian Zeng, Wanghan Xu, Hao Xiao, Shuhan Xue, Qiang Gao, Wanli Ouyang, Pheng Ann Heng, Zhenfei Yin, Yingcheng Wu, and Ling Yang. 2026. Rsi-anything: Unlocking recursive self-improvement with world models. Preprint ,arXiv:2610.13912. Gaole Dai, Shiqi Jiang, Ting Cao, Yuanchun Li, Yuqing Yang, Rui Tan, Mo Li, and Lili Qiu. 2026. V-droid: Advancing mobile gui agent through generative veri-fiers. Zihan Dong, Rui Qian, Qishi Zhan, Dongshen Peng, Kaixin Li, and Yu Li. 2026. Why are gui agents correct but late? decode on the decision-time critical path, tested with pre-compiled policy trees. Preprint ,arXiv:2607.28399. Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn, Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby. 2021. An image is worth 16x16 words: Transformers for image recognition at scale. In ICLR . OpenReview.net. Yicheng Fu, Raviteja Anantha, Prabal Vashisht, Jian-peng Cheng, and Etai Littwin. 2025. Ui-jepa: To-wards active perception of user intent through on-screen user activity. In Proceedings of the 33rd ACM Conference on User Modeling, Adaptation and Per-sonalization , pages 224–233. 
+
+9Zhenfeng Gan, ZiTong Zeng, Jiajun Cheng, Yeke Song, Yongyi Tang, and Xueqian Wang. 2026. Actswm: Action-sensitive world models for long-horizon planning in open-world games. Preprint ,arXiv:2607.26712. Qiwen Gu, Jifan Li, Bingjie Gao, Rui Chen, Jing Tang, Xiangxiang Chu, and Junqiao Zhao. 2026. The right future for action: Learning action-relevant predictive states in world action models. Preprint ,arXiv:2609.23369. Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2022. Lora: Low-rank adaptation of large language models. In ICLR . OpenReview.net. Jing Huang, Zhixiong Zeng, Wenkang Han, Yufeng Zhong, Liming Zheng, Shuai Fu, Jingyuan Chen, and Lin Ma. 2025. Scaletrack: Scaling and back-tracking automated gui agents. Preprint , arXiv:2505.00416. Xiangru Jian, Shravan Nayak, Kevin Qinghong Lin, Aarash Feizi, Kaixin Li, Patrice Bechard, Spandana Gella, and Sai Rajeswar. 2026. Cua-suite: Massive human-annotated video demonstrations for computer-use agents. Preprint , arXiv:2603.24440. Woosuk Kwon, Zhuohan Li, Siyuan Zhuang, Ying Sheng, Lianmin Zheng, Cody Hao Yu, Joseph Gon-zalez, Hao Zhang, and Ion Stoica. 2023. Efficient memory management for large language model serv-ing with pagedattention. In SOSP , pages 611–626. ACM. Kaixin Li, Zi-Yang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. 2025. Screenspot-pro: Gui grounding for pro-fessional high-resolution computer use. Proceedings of the 33rd ACM International Conference on Multi-media .Kelvin Li, Dhruv Pendharkar, Anish Pahilajani, Chuyi Shang, Leon Oks, Leonid Karlinsky, Rogerio Feris, Trevor Darrell, and Roei Herzig. 2026. Discrim-inative world models for web agents. Preprint ,arXiv:2609.02885. Wei Li, William Bishop, Alice Li, Chris Rawles, Fo-lawiyo Campbell-Ajala, Divya Tyamagundlu, and Oriana Riva. 2024. On the effects of data scale on ui control agents. Advances in Neural Information Processing Systems , 37:92130–92154. Jiaping Lin, Fei Shen, Junzhe Li, Ping Nie, Fei Yu, Ming Li, and Haizhou Li. 2026a. What happens before decoding? prefill determines gui grounding in vlms. Preprint , arXiv:2605.12549. Yihan Lin, Jiawei He, Shifeng Bao, Chen Zhao, Yang Li, Xiaobo Wang, Yan Wang, Cheng Chi, and Jing Zhang. 2026b. Jepa-wam: Learning vision-language-action policies with joint-embedding world modeling. 
+
+Preprint , arXiv:2608.09381. Shuaijun Liu, Chengyu Wu, Qifu Wen, Feiyang You, Chenglong Zhang, Shuyang Hao, Xi Lin, and Ningxin Su. 2026a. D-jepa: A decision-aligned la-tent world model. Preprint , arXiv:2609.24749. Xiangyan Liu, Kaixin Li, Haonan Wang, Biao Wu, Meng Fang, Longxu Dou, Chao Du, Michael Qizhe Shieh, and Tianyu Pang. 2026b. Scaling gui agents with visual state transitions. Preprint ,arXiv:2607.24112. Quanfeng Lu, Wenqi Shao, Zitao Liu, Lingxiao Du, Fan-qing Meng, Boxuan Li, Botong Chen, Siyuan Huang, Kaipeng Zhang, and Ping Luo. 2025. Guiodyssey: A comprehensive dataset for cross-app gui navi-gation on mobile devices. In Proceedings of the IEEE/CVF International Conference on Computer Vision (ICCV) , pages 22404–22414. Zhengxi Lu, Yuxiang Chai, Yaxuan Guo, Xi Yin, Liang Liu, Hao Wang, Han Xiao, Shuai Ren, Pengxiang Zhao, Guangyi Liu, Guanjing Xiong, and Hongsheng Li. 2026. Ui-r1: Enhancing efficient action predic-tion of gui agents by reinforcement learning. Pro-ceedings of the AAAI Conference on Artificial Intelli-gence , 40(21):17608–17616. Dezhao Luo, Bohan Tang, Kang Li, Georgios Pa-poudakis, Jifei Song, Shaogang Gong, Jianye HAO, Jun Wang, and Kun Shao. 2026. Vimo: A gener-ative visual GUI world model for app agents. In 
+
+The Fourteenth International Conference on Learn-ing Representations .Lucas Maes, Quentin Le Lidec, Damien Scieur, Yann LeCun, and Randall Balestriero. 2026. Leworld-model: Stable end-to-end joint-embedding pre-dictive architecture from pixels. arXiv preprint arXiv:2603.19312 .Kai Mei, Jiang Guo, Shuaichen Chang, Mingwen Dong, Dongkyu Lee, Xing Niu, and Jiarong Jiang. 2026. R-wom: Retrieval-augmented world model for computer-use agents. In ICLR . proceedings.iclr.cc. Yongxin Ning, Runliang Niu, Qianli Xing, Zhiyi Duan, Qingzu He, Pan Wang, and Qi Wang. 2026. Imagine to act: High-fidelity data synthesis via image editing world model for scalable gui agent training. Preprint ,arXiv:2610.05861. Maxime Oquab, Timothée Darcet, Théo Moutakanni, Huy Vo, Marc Szafraniec, Vasil Khalidov, Pierre Fer-nandez, Daniel Haziza, Francisco Massa, Alaaeldin El-Nouby, Mahmoud Assran, Nicolas Ballas, Wo-jciech Galuba, Russell Howes, Po-Yao Huang, Shang-Wen Li, Ishan Misra, Michael Rabbat, Vasu Sharma, and 7 others. 2024. Dinov2: Learning ro-bust visual features without supervision. Preprint ,arXiv:2304.07193. Taehwan Park, Changmin Lee, Hayeon Lee, and Tae-sik Gong. 2026. Pastforward: Faster on-device gui agents via computational experience reuse. Preprint ,arXiv:2609.32166. 
+
+10 Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, et al. 2025. Ui-tars: Pio-neering automated gui interaction with native agents. 
+
+arXiv preprint arXiv:2501.12326 .Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sas-try, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya Sutskever. 2021. Learn-ing transferable visual models from natural language supervision. In ICML , volume 139 of Proceedings of Machine Learning Research , pages 8748–8763. PMLR. Nils Reimers and Iryna Gurevych. 2019. Sentence-bert: Sentence embeddings using siamese bert-networks. In EMNLP/IJCNLP (1) , pages 3980–3990. Associa-tion for Computational Linguistics. Francisco-Javier Rodrigo-Ginés. 2026. Agentic-JEPA: A Self-Supervised World Model for Planning in Text-Based Agent Environments. Working paper or preprint. Julian Schrittwieser, Ioannis Antonoglou, Thomas Hu-bert, Karen Simonyan, Laurent Sifre, Simon Schmitt, Arthur Guez, Edward Lockhart, Demis Hassabis, Thore Graepel, Timothy Lillicrap, and David Silver. 2020. Mastering atari, go, chess and shogi by plan-ning with a learned model. Nature , 588(7839):604– 609. Oriane Siméoni, Huy V. Vo, Maximilian Seitzer, Fed-erico Baldassarre, Maxime Oquab, Cijo Jose, Vasil Khalidov, Marc Szafraniec, Seung Eun Yi, Michael Ramamonjisoa, Francisco Massa, Daniel HAZIZA, Luca Wehrstedt, Jianyuan Wang, Timothée Darcet, Théo Moutakanni, Leonel Sentana, Claire Roberts, Andrea Vedaldi, and 7 others. 2026. DINOv3. Trans-actions on Machine Learning Research . Featured Certification. Yifan Sui, Xin Huang, Hongbing Li, Fang Xu, Jiahe Lv, Haolong Yan, Yeqing Shen, Litao Liu, Zhimin Fan, Ziyang Meng, Jia Wang, Junbo Qi, Kaijun Tan, Zheng Ge, Xiangyu Zhang, Daxin Jiang, and Osamu Yoshie. 2026. Androiddaily: A verifiable benchmark for mobile gui agents on real-world closed-source applications. Preprint , arXiv:2605.27761. Jingwen Sun, Wenyao Zhang, Zekun Qi, Shaojie Ren, Zezhi Liu, Hanxin Zhu, Guangzhong Sun, Xin Jin, and Zhibo Chen. 2026. Vla-jepa: Enhancing vision-language-action model with latent world model. In 
+
+European Conference on Computer Vision , pages 478–497. Springer. Wenhui Wang, Furu Wei, Li Dong, Hangbo Bao, Nan Yang, and Ming Zhou. 2020. Minilm: Deep self-attention distillation for task-agnostic compression of pre-trained transformers. In NeurIPS .Ziwei Wang, Junjie Zheng, Leyang Yang, Sheng Zhou, Xiaoxuan Tang, Zhou Fang, Zhi-Wei Liu, Da-Jun Chen, Yong Li, and Jia-Jun Bu. 2026. Towards scal-able lightweight gui agents via multi-role orches-tration. In Annual Meeting of the Association for Computational Linguistics .Jason Wu, Siyan Wang, Siman Shen, Yi-Hao Peng, Jef-frey Nichols, and Jeffrey P. Bigham. 2023. Webui: A dataset for enhancing visual UI understanding with web semantics. In CHI , pages 286:1–286:14. ACM. Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, and Yu Qiao. 2025. OS-ATLAS: foundation action model for gen-eralist GUI agents. In ICLR . OpenReview.net. Bin Xiao, Haiping Wu, Weijian Xu, Xiyang Dai, Houdong Hu, Yumao Lu, Michael Zeng, Ce Liu, and Lu Yuan. 2024. Florence-2: Advancing a uni-fied representation for a variety of vision tasks. In 
+
+Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 4818–4829. Yiping Xie, Song Chen, Jingxuan Xing, Wei Jiang, Zekun Zhu, Yingyao Wang, Pi Bu, Jun Song, Yun-ing Jiang, and Bo Zheng. 2026. Secagent: Efficient mobile gui agent with semantic context. Preprint ,arXiv:2603.08533. Weikai Xu, Yunren Feng, Haoxiang Lei, Kun Huang, Yuxuan Liu, Kang Zhao, Xiaolin Hu, Shuo Shang, and Bo An. 2026a. Appdeltaworld: Transition-grounded delta code world model for mobile gui agents. Preprint , arXiv:2608.05891. Weikai Xu, Kun Huang, Yunren Feng, Jiaxing Li, Yuhan Chen, Yuxuan Liu, Zhizheng Jiang, Heng Qu, Pengzhi Gao, Wei Liu, Jian Luan, Xiaolin Hu, and Bo An. 2026b. How mobile world model guides gui agents? Preprint , arXiv:2605.10347. Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tian-bao Xie, Amrita Saha, Doyen Sahoo, Tao Yu, and Caiming Xiong. 2025. Aguvis: Unified pure vision agents for autonomous GUI interaction. In ICML ,volume 267 of Proceedings of Machine Learning Research . PMLR / OpenReview.net. Rui Yang, Qianhui Wu, Zhaoyang Wang, Hanyang Chen, Ke Yang, Hao Cheng, Huaxiu Yao, Baolin Peng, Huan Zhang, Jianfeng Gao, and Tong Zhang. 2026a. Gui-libra: Training native gui agents to rea-son and act with action-aware supervision and par-tially verifiable rl. Preprint , arXiv:2602.22190. Zhichao Yang, Yuanze Hu, Haojie Hao, Longkun Hao, Dongshuo Huang, Hongyu Lin, Gen Li, Lanqing Hong, Yihang Lou, and Yan Bai. 2026b. Mirage: Mobile agents with implicit reasoning and generative world models. arXiv preprint arXiv:2606.04627 .Jiaming Zhang, Xuan Wang, Fuyao Zhang, Yang Cao, Lingjuan Lyu, and Wei Yang Bryan Lim. 2026a. Right screen, wrong transition: World models as verifiers for gui agents. Preprint , arXiv:2610.11942. 
+
+11 Linghua Zhang. 2026. Jev-mobile: Jev as an ex-ecutor for mobile gui agents. arXiv preprint arXiv:2609.30186 .Yang Zhang, Jiangyuan Zhao, Chenyou Fan, Ji-ayu Hu, Xiu Yuan, Chenjia Bai, and Xiu Li. 2026b. V-jepa policy: Building effective world-action models on predictive visual latents. Preprint ,arXiv:2609.37250. Zhong Zhang, Yaxi Lu, Yikun Fu, Yupeng Huo, Shenzhi Yang, Yesai Wu, Han Si, Xin Cong, Haotian Chen, Yankai Lin, et al. 2025. Agentcpm-gui: Building mobile-use agents with reinforcement fine-tuning. In 
+
+Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing: System Demonstrations , pages 155–180. Yuhao Zheng, Li’an Zhong, Yi Wang, Rui Dai, Kaikui Liu, Xiangxiang Chu, Linyuan Lv, Philip Torr, and Kevin Qinghong Lin. 2026. Code2world: A gui world model via renderable code generation. 
+
+Preprint , arXiv:2602.09856. Artem Zholus, Nicolas Beltran-Velez, Jianhao Yuan, Sarath Chandar, Tushar Nagarajan, Daniel Severo, Koustuv Sinha, Michal Drozdzal, Adriana Romero Soriano, Jeannette Bohg, Nicolas Ballas, and Mah-moud Assran. 2026. Robojepa: Scaling robotic latent world models. Preprint , arXiv:2610.10515. Gaoyue Zhou, Hengkai Pan, Yann LeCun, and Lerrel Pinto. 2025a. DINO-WM: world models on pre-trained visual features enable zero-shot planning. In 
+
+ICML , volume 267 of Proceedings of Machine Learn-ing Research . PMLR / OpenReview.net. Hanzhang Zhou, Xu Zhang, Pan-Rong Tong, Jianan Zhang, Liangyu Chen, Qu-Yu Kong, Cheng-Lin Cai, Chen Liu, Yue Wang, Jing-Ren Zhou, and Steven Hoi. 2025b. Mai-ui technical report: Real-world centric foundation gui agents. ArXiv , abs/2512.22047. Xurui Zhou, Gongwei Chen, Yuquan Xie, Zaijing Li, Kaiwen Zhou, Shuai Wang, Shuo Yang, Zhuotao Tian, and Rui Shao. 2026. Hiconagent: History context-aware policy optimization for GUI agents. In 
+
+CVPR , pages 13028–13038. Computer Vision Foun-dation. 
+
+Appendix Contents                        
+
+> AReproducibility statement . . . . . . . . . . . . . . . . . . . . . . . . 12
+> BProtocol details . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 12 B.1 Per-seed results . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13 B.2 Episode-clustered bootstrap intervals . . . . . . . . . . 13
+> CPer-subsplit waterfall . . . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+> DMechanism analyses . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 16
+> EDesign alternatives not adopted . . . . . . . . . . . . . . . . . . . 17
+> FOther-protocol baselines . . . . . . . . . . . . . . . . . . . . . . . . . . 18
+> GEncoder probe . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 19 G.1 Pretraining–test near-duplicates . . . . . . . . . . . . . . . 21
+> HImplementation details and hyperparameters . . . . . . 21
+> ILatency measurement details . . . . . . . . . . . . . . . . . . . . . 23
+> JConfidence routing to the 7B agent . . . . . . . . . . . . . . . . 25
+
+A Reproducibility statement 
+
+The encoder is a ViT-L/16 at 224 px, initialised from ImageNet weights and trained with a JEPA objective adapted from I-JEPA (Assran et al., 2023) on 189,262 unlabelled screenshots from GUI-Odyssey (Lu et al., 2025) and VideoCUA (Jian et al., 2026) for 2 epochs ( ≈0.76 GPU-hour on one H20), with no action labels and no AndroidControl data (Sections 3.2 and H). The policy is trained on the 13,594 cached episodes of the 13,604-episode AndroidControl training split (Li et al., 2024) with a listwise cross-entropy, AdamW and 6 epochs, for three seeds (Section 3.5 and Table 13). We evaluate on the official test subsplits with the exact-match judge of Section 4.1 and time both systems on the same 100 real IDD steps on one H20 at batch 1 (Section I). 
+
+B Protocol details 
+
+Splits and overlap. The official 
+
+test_subsplits.json of AndroidControl (Li et al., 2024) lists 721 IDD, 631 app_unseen, 803 task_unseen and 700 category_unseen episodes, whose union is the full test set of 1,543 episodes and 8,444 steps. The subsplits are not disjoint: every category_unseen episode is also a task_unseen episode, and app_unseen shares 606 episodes with category_unseen and 607 with task_unseen. We therefore treat the full test set and the OOD union (full test minus IDD as evaluated: 827 episodes, 4,586 steps) as the units of evidence and report the three OOD subsplits, each evaluated in full, only as a breakdown (Section C). Five of the 721 IDD episodes also appear in OOD subsplits and count as OOD, so every IDD accuracy in the paper is computed on 716 episodes and 3,858 of the 3,897 steps (99.0%); the coverage analysis below uses all 721 episodes. The 137-episode validation split (690 steps) selected the click reranker’s variant, its weight β and its confidence gate. Every other design choice, including both text rankers, was made on test IDD; the validation row of Table 6 checks how these choices carry over. We train on 13,594 of the 13,604 training episodes of Li et al. (2024, Tab. 3) (74,714 of 74,722 steps). 
+
+Candidate enumeration and coverage. 
+
+Element-level candidates are the visible accessibility-tree (a11y) nodes flagged click-able, long-clickable, editable or scrollable, plus containers that inherit clickability, de-duplicated 12 by bounds and capped at the 80 smallest by area; editable nodes also yield input_text 
+
+candidates. Global actions are the four scroll directions, navigate_back , navigate_home ,
+
+wait and one open_app , whose argument is the longest training-vocabulary app name in the goal or instruction. A ground-truth click or long-press is mapped to the smallest enumerated candidate that contains its coordinate, whereas the original benchmark takes the smallest a11y node of any kind; the click rule itself (the chosen candidate’s centre inside the ground-truth box) is unchanged. When no candidate contains the coordinate the step is unmapped and counts as an error for our policy (the original benchmark discards such steps). The mapped fraction is 97.4–98.4% on the test subsplits (IDD 98.0%, 2,405 of 2,454 click and long-press steps; full test 97.6%, 4,961 of 5,083), 98.8% on validation and 98.4% on the training split. An IDD step has 23.6 a11y candidates on average (median 18, p95 57; 22.2 on the full test set and 23.2 on the training split), and the 80-candidate cap is reached on 16 IDD, 22 full-test and 272 training steps. Per-type IDD step counts are in Table 15. 
+
+Judge. A step is correct under our exact-match judge when the predicted action type equals the ground-truth type and the argument matches: a click when the centre of the chosen candidate lies inside the ground-truth element box, which is the click rule of the original benchmark (Li et al., 2024, App. D.3); an input_text when the typed string equals the ground-truth string after normalisation; 
+
+open_app and scroll when the argument matches exactly. The judge departs from the original pro-tocol in four places, in both directions. (i) It is stricter in accepting no equivalent actions, whereas the original protocol treats open_app and a click on an element bearing the app name as equivalent, and likewise navigate_back and a click on the on-screen Back button. (ii) It is more lenient on 
+
+input_text : it compares the normalised text only, whereas the original protocol scores typing as an element action that also requires the target element to lie inside the ground-truth box and the text to be identical. (iii) It is more lenient in accepting a click for a ground-truth long_press (9 IDD steps). (iv) It takes the ground-truth box from our enumer-ated candidates: a mapped click is judged against a box at least as large as the original’s smallest a11y node (more lenient), while an unmapped click counts as an error, where Li et al. (2024, App. D.1) discard it (stricter). On click steps, 62.7% of IDD steps, both judges thus apply the same centre-in-box rule. Exact-match (EM) re-evaluations in the literature are the closest published protocol; num-bers under the original relaxed protocol are not interchangeable with ours. 
+
+Conditioning and seeds. One trained model serves both settings: AC-Low conditions on the step instruction and AC-High on the episode goal; both receive the ground-truth action history. We train three policy seeds. The main text reports seed 3, the best seed on every test split, at every stage and in both settings; full-scale results in this appendix are means ± sd over the three seeds un-less a seed is named, and Tables 4 and 5 list ev-ery seed. For n=3 the 95% t-interval half-width, 
+
+4.30 sd /√3, is about ±2.4 points (IDD High 
+
+±2.37, full-test High ±2.34, IDD Low ±2.52). Seeds capture training variance only, so external comparisons also use episode-clustered bootstrap intervals (Section B.2). 
+
+B.1 Per-seed results 
+
+Tables 4 and 5 list every seed; the main-text values are the seed-3 columns, which lie 0.87 / 0.90 AC-High points above the three-seed means on IDD / the full test. Out-of-distribution lesion costs of the main-text model are given in Section D. 
+
+B.2 Episode-clustered bootstrap intervals 
+
+Because steps of one episode are correlated, the bootstrap for the external comparisons (Section 4.1, Table 1) resamples test episodes. Each of B=2 ,000 
+
+resamples draws the 716 IDD (or 1,543 full-test) episodes with replacement and keeps every step of a drawn episode; the same resample is applied to the per-step predictions of the three seeds of the final system, whose step accuracies are aver-aged, and the 2.5th and 97.5th percentiles of this seed-averaged accuracy form the 95% interval (the per-step predictions reproduce the reported accu-racies exactly). The intervals are 60.12 [58.45, 61.85] High and 83.09 [81.72, 84.41] Low on IDD, and 52.85 [51.59, 54.04] High and 77.63 [76.62, 78.63] Low on the full test set (77.64 in Table 4 averages per-seed results rounded to two decimals). For seed 3 alone they are 60.99 [58.95, 62.97] High and 84.06 [82.46, 85.47] Low on IDD, and 53.75 [52.40, 55.06] High and 78.64 [77.61, 79.70] Low on the full test set. The bootstrap covers test-13 AC-High AC-Low Split Stage seed 1 seed 2 seed 3 mean ± sd seed 1 seed 2 seed 3 mean ± sd IDD Base policy 56.35 55.21 56.84 56.13 ±0.84 82.71 81.88 83.72 82.77 ±0.92 + span ranker 59.49 58.24 59.69 59.14 ±0.79 82.63 81.78 83.64 82.68 ±0.93 + click reranker 60.26 59.10 60.99 60.12 ±0.95 83.18 82.04 84.06 83.09 ±1.01 Full test Base policy 49.05 48.51 49.79 49.12 ±0.64 78.13 76.65 78.74 77.84 ±1.07 + span ranker 51.79 51.21 52.44 51.81 ±0.62 77.43 75.99 78.06 77.16 ±1.06 + click reranker 52.93 51.87 53.75 52.85 ±0.94 78.01 76.26 78.64 77.64 ±1.23 OOD union Base policy 42.91 42.87 43.85 43.21 ±0.55 74.27 72.24 74.55 73.69 ±1.26 + span ranker 45.31 45.29 46.34 45.65 ±0.60 73.05 71.13 73.35 72.51 ±1.21 + click reranker 46.75 45.79 47.67 46.74 ±0.94 73.66 71.39 74.07 73.04 ±1.44 app_unseen Base policy 41.29 41.04 41.58 41.30 ±0.27 73.55 71.57 73.84 72.99 ±1.24 + span ranker 43.37 43.14 43.65 43.39 ±0.26 72.32 70.33 72.60 71.75 ±1.24 + click reranker 44.95 43.60 45.12 44.56 ±0.83 73.12 70.56 73.44 72.37 ±1.58 task_unseen Base policy 42.63 42.61 43.84 43.03 ±0.70 74.19 72.22 74.57 73.66 ±1.26 + span ranker 45.39 45.41 46.57 45.79 ±0.68 73.16 71.24 73.54 72.65 ±1.23 + click reranker 46.82 45.90 47.89 46.87 ±1.00 73.77 71.48 74.19 73.15 ±1.46 category_unseen Base policy 41.40 41.51 42.23 41.71 ±0.45 73.45 71.19 73.89 72.84 ±1.45 + span ranker 43.74 43.87 44.56 44.06 ±0.44 72.35 70.11 72.78 71.75 ±1.43 + click reranker 45.28 44.33 45.98 45.20 ±0.83 73.04 70.37 73.48 72.30 ±1.68 Validation Base policy 58.99 55.65 57.54 57.39 ±1.67 84.64 83.04 84.06 83.91 ±0.81 + span ranker 62.17 58.70 60.43 60.43 ±1.74 84.20 82.61 83.62 83.48 ±0.80 + click reranker 62.61 58.84 62.46 61.30 ±2.13 84.93 83.19 84.35 84.16 ±0.89 
+
+Table 4: Per-seed step accuracy of the three policy seeds at every stage of the waterfall (exact match; bold: seed 3, reported in the main text). Stages share the base checkpoint of each seed; the span ranker is trained once and shared by the three seeds, the click reranker once per seed. The OOD union is derived per seed from the full-test and IDD step counts. 
+
+IDD AC-Low IDD AC-High Condition s1 s2 s3 s1 s2 s3 
+
+Inference-time lesions (text matcher untouched unless stated) 
+
+Base policy (as is) 82.79 81.80 83.88 56.48 55.39 56.84 no predictor ( ˜zct := zt) 61.79 62.05 59.02 41.16 40.93 42.87 within-type action shuffle 72.01 71.12 72.65 46.47 44.95 46.06 all-candidate action shuffle 55.83 55.81 56.64 35.17 34.63 33.41 swapped, non-fine-tuned predictor 68.33 66.77 64.54 46.03 45.41 45.08 text matcher dropped 39.17 36.39 39.48 30.82 29.32 31.60 
+
+Training-time variants (identical full-scale recipe) 
+
+Jointly fine-tuned predictor (base) 82.71 81.88 83.72 56.35 55.21 56.84 Frozen dynamics-pretrained predictor 80.43 80.38 79.94 54.90 54.80 54.95 Randomly initialised predictor, joint 82.84 82.24 82.71 57.52 56.14 57.34 Identity map in place of the predictor 61.53 62.96 62.36 42.79 41.21 42.33 Matcher only (no latent pathway) 55.60 54.98 55.42 40.51 39.17 40.10 No predictor, action vector into a param.-matched head 82.37 81.96 53.89 56.45 56.82 41.08 
+
+Table 5: Per-seed IDD accuracy of the mechanism controls (s1–s3: training seeds; the main text reports seed 3). Lesion rows apply each intervention to the trained base policies. Means and out-of-distribution cells: Table 8. 
+
+episode sampling and the t-interval over seeds cov-ers training variance; neither covers the protocol differences listed in Table 1. 
+
+C Per-subsplit waterfall 
+
+Tables 6 and 7 and Figure 6 break the waterfall of Table 2 down by subsplit. The AC-High gains trans-fer: on the three OOD subsplits the span ranker adds 2.08–2.76 points, and the click reranker adds 1.04–1.17 on the full test set, the OOD union and every OOD subsplit, at least its 0.98 on IDD. Nei-ther stage changes the action-type decision of the base policy, but AC-Low pays a small cost. The sin-gle span ranker, trained on goals, also supplies the typed argument for AC-Low step instructions and lowers AC-Low on every seed (by 1.18 points on 14 Subsplit Episodes / steps Base + ranker + reranker ∆ PaLM 2S IDD 716 / 3,858 56.13 ±0.84 59.14 ±0.79 60.12 ±0.95 +3.98 70.8 app_unseen 631 / 3,475 41.30 ±0.27 43.39 ±0.26 44.56 ±0.83 +3.25 58.5 task_unseen 803 / 4,464 43.03 ±0.70 45.79 ±0.68 46.87 ±1.00 +3.84 59.6 category_unseen 700 / 3,891 41.71 ±0.45 44.06 ±0.44 45.20 ±0.83 +3.48 57.4 OOD union 827 / 4,586 43.21 ±0.55 45.65 ±0.60 46.74 ±0.94 +3.52 –Full test 1,543 / 8,444 49.12 ±0.64 51.81 ±0.62 52.85 ±0.94 +3.73 –Validation 137 / 690 57.39 ±1.67 60.43 ±1.74 61.30 ±2.13 +3.91 –
+
+Table 6: Per-subsplit waterfall on AC-High, with the a11y-text PaLM 2S cells (closest published protocol). 
+
+Exact-match step accuracy of the base policy, after the goal-source span ranker and after the type-gated click reranker (final system); mean ± sd over 3 training seeds on identical base checkpoints (per seed: Table 4). ∆ is final minus base; ∆ and all differences in the text use unrounded means. The OOD union is derived per seed from the full-test and IDD results; the validation split selected the reranker’s variant, β and gate. PaLM 2S: the LoRA-tuned a11y-text model of Li et al. (2024, Tab. 5) on the same subsplits under the original protocol. The OOD subsplits overlap (Section B). AC-Low: Table 7. 
+
+Subsplit Base + ranker + reranker PaLM 2S IDD 82.77 82.68 83.09 ±1.01 83.2 app_unseen 72.99 71.75 72.37 ±1.58 78.5 task_unseen 73.66 72.65 73.15 ±1.46 77.3 category_unseen 72.84 71.75 72.30 ±1.68 76.8 OOD union 73.69 72.51 73.04 ±1.44 –Full test 77.84 77.16 77.64 ±1.23 –Validation 83.91 83.48 84.16 ±0.89 –
+
+Table 7: Per-subsplit waterfall on AC-Low (same models and conventions as Table 6; sd for the final system, 0.8–1.7 at every stage). The PaLM 2S AC-Low setting also receives the episode goal. IDD app_unseen task_unseen category_unseen full test 40 45 50 55 60 
+
+> AC-High step accuracy (%)
+> 56.1 41.3 43.0 41.7 49.1 59.1 43.4 45.8 44.1 51.8 60.1 44.6 46.9 45.2 52.9
+> base policy + goal-source span ranker + type-gated click reranker
+
+Figure 6: The text rankers’ gains transfer across subsplits. AC-High step accuracy (3 training seeds, mean ± sd) of the base policy, after the span ranker and after the click reranker, on IDD, the three overlapping OOD subsplits and the full test set; increments are computed on identical base checkpoints. Numbers: Table 6. 
+
+the OOD union): on the full test set it raises High 
+
+input_text accuracy from 17.7 to 53.7 (IDD: 12.3 to 53.4) but lowers Low input_text accuracy from 83.4 to 74.4. The click reranker, which raises IDD High click grounding given the type from 71.8 to 73.7, also runs in AC-Low and recovers 0.53 of the 1.18 OOD-union points, leaving OOD-union AC-Low 0.65 below the base policy. On the validation split the waterfall keeps the test ordering and step sizes (+3.04 and +0.87 High). The span-ranker step is thus a held-out replication of a choice made on test IDD. The reranker step is not, because the reranker’s variant, β and gate were selected on this split; its held-out evidence is the test-set gain. The PaLM 2S columns give the only published 15 baseline that consumes the a11y tree (text only, no screenshot) with our click rule and subsplits; its AC-Low setting receives the episode goal together with the step instruction (Li et al., 2024), while ours receives the step instruction only. Averaged over the three seeds, GUI-JEPA matches it on IDD AC-Low (83.09 vs 83.2) and trails by 10.7 AC-High points; out of distribution it trails by 12.2–13.9 High and 4.2–6.1 Low points. 
+
+D Mechanism analyses 
+
+Table 8 collects the evidence on the latent-predictor pathway summarised in Section 5.1; the text below adds only what the table does not show. 
+
+Inference-time lesions. The lesions are applied at evaluation time to the trained full-scale base poli-cies (text rankers off), so they measure how much the trained scorer relies on the pathway; the re-trained controls below test whether it is needed. Removing the predictor ( ˜zct := zt) hurts mainly the global actions: of its 21.9 AC-Low / 14.6 AC-High IDD points, 19.0 / 14.1 fall on scroll, open_app and 
+
+navigate_back (19.6 / 15.6 with wait ). These share the full-screen ROI, so without the predictor their action vectors no longer reach the score and the three types are never chosen correctly, while click accuracy barely moves (83.9 to 83.2 Low, 58.4 to 60.6 High). The within-type shuffle, which permutes the four scroll directions, costs 8.6 / 6.3 points on scroll steps and 2.3 / 4.2 on clicks. With-out the text matcher the structural head’s click grounding is 30.9 Low / 31.8 High against 89.8 / 71.8 for the full scorer: the matcher carries most of the click grounding, while the head alone still grounds about a third of the click steps whose type it gets right. The reliance holds on every OOD subsplit; for the main-text model, removing the pre-dictor costs 21.7–23.1 Low / 7.9–9.7 High points there, the within-type shuffle 10.5–11.5 / 8.5–9.0 and the all-candidate shuffle 24.4–25.0 / 15.4–16.7 (means: Table 8). 
+
+Training-time variants. Freezing the dynamics-pretrained predictor costs 2.52 AC-Low / 1.25 AC-High IDD points on average (3.78 / 1.89 for seed 3; Table 5). A randomly initialised predictor trained jointly with the identical full-scale recipe matches the dynamics-pretrained one: its High is higher for every seed (+0.50 to +1.17) and its Low within 1.01 points. At pilot scale, the identity map gives 31.73 Low vs 40.59 for the ROI-conditioned pre-dictor (structural head, no text matcher; Figure 4b), and training on shuffled dynamics with a frozen predictor gives 47.33 / 28.46 vs 62.70 / 38.96. 
+
+Retrained controls. Retrained from scratch at full scale with the identical recipe, the identity map in place of the predictor again never chooses scroll, 
+
+open_app or navigate_back correctly ( −11 .3,
+
+−5.1 and −2.6 Low points), while clicks change by −1.8 Low / +0 .2 High points. The matcher-only policy scores 0–12% on scroll, open_app ,
+
+navigate_back , wait and input_text , and its click grounding is 88.4 / 68.2 against the base policy’s 89.8 / 71.8. A no-predictor control tests whether the predictor is needed at all once the action reaches the score: its structural head re-ceives [pool roi( c)(zt); mean( zt); ac] through an MLP matched in parameters to the predictor and the original projection (41.09M against 39.91M + 1.18M), with matcher, history, type bias and recipe unchanged. It matches the base policy in two of three seeds (Table 5; within 1.4 points on app- and category-unseen) and collapses on clicks in the third (click grounding 48.3 Low against 89.6 for its base seed). Given the action vector directly, a parameter-matched head on the same JEPA latents thus reaches the base policy’s accuracy when its training succeeds, whereas the predictor trains sta-bly in all three seeds; either way the action is scored on the JEPA latent, consistent with the predictor’s role as an action- and ROI-conditioned transform of it (Section 5.1). 
+
+Predictive objectives. The bottom block of Ta-ble 8 gives the predictive auxiliary objectives as AC-High changes against the matched 4K refer-ence; none improves on it (Section E). 
+
+Forward-model probes. Table 9 shows that the deployed predictor is a poor forward model: its out-put is further from the true next latent than a copy of the current latent, and its predicted change has near-zero cosine to the true change and points the right way at chance rate. Feeding a shuffled action leaves the predicted latent at cosine 0.86 to the true-action prediction (IDD). The randomly initialised predictor of Table 8 (150 IDD episodes, 782 steps) is no more action-sensitive: its predicted change has cosine 0.002 to the true change, its ground-truth AUC equals the deployed predictor’s (0.5426 vs 0.5425; chance 0.5), and a shuffled action leaves its output at cosine 0.887 (0.954 for a within-type shuf-fle, probed for this predictor only). Free-running 16 IDD app_unseen task_unseen category_unseen Condition AC-Low AC-High Low / High Low / High Low / High Base policy (as is) 82.8 ±1.0 56.2 ±0.8 72.9 / 40.8 73.6 / 42.6 72.7 / 41.3 no predictor ( ˜zct := zt) 61.0 ±1.7 −21.9 41.7 ±1.1 −14.6 53.8 / 32.6 53.7 / 33.1 52.8 / 32.2 within-type action shuffle 71.9 ±0.8 −10.9 45.8 ±0.8 −10.4 62.1 / 32.3 63.5 / 34.5 61.9 / 32.7 all-candidate action shuffle 56.1 ±0.5 −26.7 34.4 ±0.9 −21.8 49.9 / 26.7 50.3 / 27.6 49.3 / 26.8 swapped, non-fine-tuned predictor 66.5 ±1.9 −16.3 45.5 ±0.5 −10.7 – – –text matcher dropped (structural head alone) 38.4 ±1.7 −44.5 30.6 ±1.2 −25.7 – – –Frozen dynamics-pretrained predictor 80.3 ±0.3 −2.5 54.9 ±0.1 −1.3 – – –Jointly fine-tuned predictor (base) 82.8 ±0.9 56.1 ±0.8 – – –Randomly initialised predictor, joint 82.6 ±0.3 −0.2 57.0 ±0.8 +0.9 – – –Identity map in place of the predictor, retrained 62.3 ±0.7 −20.5 42.1 ±0.8 −14.0 55.0 / 31.6 55.5 / 32.2 54.3 / 31.2 Matcher only (no latent pathway), retrained 55.3 ±0.3 −27.4 39.9 ±0.7 −16.2 47.7 / 29.6 47.2 / 30.5 46.8 / 29.6 No predictor, action vector into a param.-matched head (per seed) 82.4 / 82.0 / 53.9 56.5 / 56.8 / 41.1 72.4 / 40.4 § 73.2 / 41.9 § 72.4 / 40.9 §
+
+Per-patch next-latent loss – +0 .26 (mean) – – –Pooled next-latent MSE – +0 .6 / −13 .4 / +1 .3 – – –Multi-horizon InfoNCE – +0 .7 / −1.2 – – –SIGReg-style (LeWorldModel loss) pretrained predictor – −1.0 – – –
+
+Table 8: Ablations of the latent-predictor pathway on the full-scale base policy (exact-match step accuracy; IDD mean ± sd, OOD cells means AC-Low / AC-High; subscripts: change against the as-is row (top) or the jointly fine-tuned base (middle)). Top: inference-time lesions on all steps of each split, text matcher untouched except in the last row; the as-is row is an independent evaluation of the same policies (on IDD within 0.2 of Table 4). Middle: training-time variants (base-policy OOD: the as-is row); the two retrained rows use the identical full-scale recipe (OOD on all steps); the parameter-matched row lists its three training runs on IDD, and §marks the mean of the two that train stably (the third collapses on clicks: 45.5–47.7 Low / 28.8–31.4 High out of distribution). Bottom: predictive objectives at 4K-episode scale (auxiliary losses with λ=0 .1; multi-horizon InfoNCE 0.2), AC-High change against the matched 4K reference, paired per seed unless a mean is stated. Per-seed IDD values: Table 5; concat-MLP head (pilot scale): Table 10. 
+
+IDD app_unseen task_unseen Probe steps / episodes 1,579 / 300 116 / 24 1,671 / 300 cos(prediction, true next latent) 0.467 0.467 0.460 cos(copy zt, true next latent) 0.788 0.773 0.786 cos(predicted change, true change) 0.006 0.003 0.004 Right direction (%) 52.6 47.4 51.6 
+
+Table 9: Next-latent probes of the deployed (jointly fine-tuned) predictor. “Copy” keeps the current latent zt as the prediction; direction is the share of steps on which the predicted latent change points the same way as the true change (chance 50%). 
+
+K-step rollouts of the dynamics-pretrained predic-tor that initialises the deployed one (400 episodes; 1,500 / 1,500 / 1,349 queries at K=1 / 2 / 3), scored by cosine to the true latent K steps ahead, never beat persistence (keeping zt): 0.745 against 0.793 at K=1 (0.733 with shuffled actions), 0.510 against 0.749 at K=2 and 0.322 against 0.741 at K=3 .The rollout beats persistence on 39 / 10 / 2% of steps and a shuffled-action rollout on only 43 / 48 / 49%; only within-episode retrieval of the true frame at K=1 slightly favours it (R@5 79.7 vs 77.2 for persistence). Its one-step cosine (0.745) exceeds the deployed predictor’s 0.467, consistent with joint fine-tuning on the policy loss moving the predictor away from next-latent prediction; both are below copying (0.793 / 0.788). 
+
+E Design alternatives not adopted 
+
+Table 10 lists the design alternatives not adopted; the paragraphs below add what it does not show. 
+
+Scoring head. The concat-MLP head trades AC-Low for AC-High accuracy: against the structural head it loses AC-Low and gains AC-High points 17 Variant Setting Reference Variant Reading               
+
+> Scoring head
+> Concat-MLP head over [zt,˜zct, c ]
+> replacing the structural head (ROI-conditioned predictor) pilot, 2 ep 40.59 / 19.62 34.58 / 26.88 −6.0Low, +7 .3High; its scores do not depend on the predictor
+> Encoder and resolution
+> DINOv2-L at 518 px as main features 4K, 4 ep 77.32 / 47.12 59.88 / 37.35 encoder and resolution change together
+> Table 10: Design alternatives not adopted (AC-Low / AC-High exact-match step accuracy). Each variant is compared with a reference model that differs from it only in the stated factor and shares its scale, epochs and evaluation split. Setting: pilot = early pilot configuration (no text matcher); 4K = 4,000-episode training subset; ep = policy training epochs; evaluation on IDD (3,858 steps). Predictive objectives for the predictor: Table 8.
+
+with the ROI-conditioned predictor, and likewise loses 7.3 Low and gains 8.8 High with an (x, y )-conditioned predictor (40.51 / 18.43 vs 33.18 / 27.19). Its AC-Low accuracy is the same with either predictor or none (Figure 4b), so whatever it gains does not come through the predictor, whereas the structural head drops from 40.59 to 31.73 when the predictor is replaced by the identity map. We keep the structural head because it forces the pol-icy through the candidate-conditioned latent; the higher pilot-scale High of the concat head shows that this constraint has a cost at that scale. Con-ditioning the structural head on the previous ac-tion and frame change (implicit action history) was adopted: it gains 8.0 High at pilot scale without the text matcher (23.35 to 31.39, at a cost of 4.4 Low) and 7.1 High with it (31.91 to 38.96, −1.6
+
+Low), and the final system uses it together with the textual action history in the matcher query. 
+
+Encoder and resolution. Swapping in DINOv2-L features (Oquab et al., 2024) changes the encoder and the resolution (518 px) together, so this com-parison does not isolate the effect of resolution. 
+
+Predictor objectives. Predictive auxiliary losses on the predictor do not help (Table 8, bottom). The leakage-free pooled next-latent MSE has a low mean because one of its three runs collapses; the other two are within 1.3 points of their paired controls. Our SIGReg-style regulariser simplifies SIGReg (Balestriero and LeCun, 2025): where LeJEPA uses the Epps–Pulley statistic, it penalises the mean and variance of 256 random projections of the pooled predicted latents, and it acts on frozen encoder features, whereas LeWorldModel (Maes et al., 2026) trains end to end. 
+
+F Other-protocol baselines 
+
+Tables 11 and 12 list the AndroidControl results of small models and of larger or zero-shot systems reported under protocols that Table 1 does not in-clude; their judge, split and input columns show why none except LiMAC is set against our num-bers. None of the larger models is evaluated on the full test set we use. LiMAC (Christianos et al., 2025) is the closest small agent that also consumes the UI tree: an ac-tion transformer (AcT, ≈520M) over UI-element embeddings combined with Florence-2 (Xiao et al., 2024) (820M as deployed by LiMAC), which re-ceives the screenshot annotated with numbered el-ement boxes and the goal. Its overall accuracy is a goal-conditioned per-step action accuracy, the analogue of our AC-High setting, under its own judge (a predicted element whose box lies within the target element is correct, typed text is accepted at a Jaccard index of at least 0.5) on “the test set”, with no sub-split or size given; its confusion matrix sums to 3,708 steps, matching none of the official sub-splits. LiMAC and Florence-2 alone are 10.3 and 4.2 points above our 3-seed mean full-test High (9.3 and 3.2 above seed 3) with 2.7 × and 1.6 × our parameters, and its fine-tuned Qwen2-VL-2B base-line is 0.65 below our mean with 4.0 × our parame-ters; LiMAC’s more lenient text rule and unstated split keep the comparison approximate. LiMAC reports 0.34 s per step (Florence-2 alone: 0.50 s) on unspecified hardware, against our 51.5–74 ms per real step on one H20 (Section I). With the three-seed mean full-test AC-Low (77.64; seed 3: 78.64), GUI-JEPA is level with Qwen3-VL-8B (77.7) and MIRAGE-4B (77.6) of Table 1. 18 System (source) Params Input Judge Split AC-Low AC-High HiconAgent-3B (Zhou et al., 2026, Tab. 1) 3B img OS-Atlas unspec. (“OOD setting”) – 52.40 UI-TARS-2B (Qin et al., 2025, Tab. 8) 2B img OS-Atlas 7,708 (in-ferred) 89.3 68.9 LAMO-3B (Wang et al., 2026, Tab. 2) 3B img own (type +value match) unspec. 92.1 65.5 SecAgent-3B (Xie et al., 2026, Tab. 3) 3B img unspec. unspec. – 69.5 GUI-Libra-3B (Yang et al., 2026a, Tab. 3) 3B img own AC-v2 (398) 85.9 57.3 Qwen2.5-VL-3B, re-run by GUI-Libra (Yang et al., 2026a, Tab. 3) 3B img own AC-v2 (398) 71.1 36.4 UI-R1-3B (Lu et al., 2026, Tab. 3) 3B img SR, clicks within 14% of screen unspec. 66.4 –LiMAC (AcT + Florence-2) (Christianos et al., 2025, Tab. 1)                      
+
+> ≈1.34B img + UI tree own (text Jac-card ≥0.5) unspec. –63.1 †
+> Florence-2 alone (LiMAC base-line) (Christianos et al., 2025, Tab. 1) 0.82B img + UI-tree boxes own (text Jac-card ≥0.5) unspec. –57.0 †
+> Qwen2-VL-2B, LoRA (LiMAC baseline) (Christianos et al., 2025, Tab. 1) 2B img + UI-tree boxes own (text Jac-card ≥0.5) unspec. –52.2 †
+
+Table 11: Small-model AndroidControl results not in Table 1 (larger and zero-shot models under other protocols: Table 12). Every cell is copied from the cited table. Apart from LiMAC and its two baselines, discussed in the text, none is set against our numbers because input, judge or split differ (ours for reference: 77.64 / 52.85 Low / High on the full test and 83.09 / 60.12 on IDD as 3-seed means, 78.64 / 53.75 and 84.06 / 60.99 for seed 3, under the exact-match judge with a11y input). Judge: relaxed = original protocol; OS-Atlas = a click within 14% of the screen width counts and typed text at F1 >0.5 (Wu et al., 2025, App. D); own = the paper’s own definition. Split: 7,708 = OS-Atlas test samples; r500 / r800 = a random 500- / 800-step test subset; r500-IDD = IDD part of Random-500; unspec. = not stated in the source; AC-v2 (398) = the 398-example cleaned subset of GUI-Libra (its Pass@1 columns). †Goal-conditioned per-step action accuracy (“overall accuracy”), the analogue of AC-High. Parameter counts are nominal. 
+
+G Encoder probe 
+
+Probe. Figure 7 compares pretraining recipes for the frozen encoder by a localisation probe on its patch tokens: a linear scorer per patch, a softmax over the 14 ×14 grid and a soft-argmax give a point that is regressed (MSE) onto the centre of the tar-get box; the encoder is fixed and only the probe is trained. hit@ k is the fraction of held-out examples whose predicted point lies within k/ 14 of the image side (normalised Euclidean distance) of the target centre, so hit@8 accepts errors of up to 128 px on the 224-px input. The probe is lenient: on the 1,581 held-out ScreenSpot-Pro (Li et al., 2025) examples the policy encoder’s hit@8 of 67.22 ± 0.91 comes with a hit@3 of 10.36 ± 0.36, a hit@1 of 0.92 ±
+
+0.36 and a mean error of 0.509 of the image side (114 px); on 255 ScreenSpot-v2 (Wu et al., 2025) examples it reaches 90.59 ± 1.00 hit@8 with a mean error of 0.378 of the side (85 px). For calibra-tion, under the same probe a randomly initialised ViT-L reaches 87.8 hit@8 on the same ScreenSpot-v2 split and 58.8 [56.4, 61.2] on ScreenSpot-Pro, and an ImageNet-initialised ViT-L without GUI pretraining 58.1. The probe thus measures coarse localisation. 
+
+Recipes. Under this probe the mixed recipe, I-JEPA-style pretraining (Assran et al., 2023) of an ImageNet-initialised ViT-L on 119K GUI-Odyssey (Lu et al., 2025) mobile and 70K VideoCUA (Jian et al., 2026) desktop frames for 2 epochs, scores at least as high as every other recipe in Figure 7: either domain alone, a web anchor trained for 60 epochs on the 76,838 viewport and full-page screenshots of the class-balanced 7K split (Web-7k-Resampled) of WebUI (Wu et al., 2023), and DINOv3-ViT-L (Siméoni et al., 2026), trained on 1.7B images. DINOv3’s 95% bootstrap interval over probe examples, [62.9, 67.6], contains the policy encoder’s 67.22 (95% t-interval over probe seeds [66.1, 68.3]): under this probe the policy 19 System (source) Params Input Judge Split AC-Low AC-High GPT-4o, zero-shot (Wu et al., 2025, Tab. 5) n/a img OS-Atlas 7,708 28.4 21.2 OS-Atlas-7B, zero-shot (Wu et al., 2025, Tab. 5) 7B img OS-Atlas 7,708 50.9 29.8 M3A (GPT-4-Turbo, text-only), zero-shot (Li et al., 2024, Tab. 4) n/a a11y relaxed r500-IDD 55.0 42.1 Aguvis-7B, SFT (Xu et al., 2025, Tab. 3) 7B img relaxed (in-ferred) r500 80.5 61.5 Aguvis-72B, SFT (Xu et al., 2025, Tab. 3) 72B img relaxed (in-ferred) r500 84.4 66.4 OS-Atlas-7B, SFT (Wu et al., 2025, Tab. 5) 7B img OS-Atlas 7,708 85.22 71.17 UI-TARS-7B, SFT (Qin et al., 2025, Tab. 8) 7B img OS-Atlas 7,708 (in-ferred) 90.8 72.5 MAI-UI-8B / 32B (Zhou et al., 2025b, Tab. 7) 8B / 32B img unspec. unspec. – 69.1 / 75.5 ScaleTrack-7B (Huang et al., 2025, Tab. 3) 7B img unspec. r800 (“out-of-domain”) 86.6 77.9 
+
+Table 12: Zero-shot and larger models under other protocols, or with AC-High only (conventions and judge / split definitions as in Table 11). Every cell is copied from the cited table; none is set against our numbers. MAI-UI reports exact match on an unstated split and no AC-Low. web 77K 60 ep mobile 119K 2 ep desktop 70K 2 ep mixed 189K 2 ep (policy encoder) mixed 189K 2 ep (replicate) replicate, 4 ep replicate, 6 ep DINOv3 ViT-L (1.7B images) 62 64 66 68 70   
+
+> ScreenSpot-Pro hit@8 (%)
+> DINOv3 95% bootstrap interval 65.4 66.1 65.1
+> 67.2
+> 67.8 65.9 64.4 65.3
+> Frozen-encoder localisation probe (mean ±sd over 5 probe seeds)
+
+Figure 7: Lenient frozen-encoder localisation probe across pretraining recipes. ScreenSpot-Pro hit@8 of a soft-argmax localisation probe on frozen patch tokens (our encoders: mean ± sd over 5 probe seeds); hit@8 accepts errors up to 57% of the image side. Points, left to right: a web anchor ( ≈77K web screenshots, 60 epochs); mobile-only (119K GUI-Odyssey screenshots, 2 epochs); desktop-only (70K VideoCUA screenshots, 2 epochs); the policy encoder (blue; the mixed 189K mobile and desktop recipe, 2 epochs); a replicate pretraining of the same recipe after 2 epochs and, continued, after 4 and 6 epochs; DINOv3-ViT-L with its 95% bootstrap interval over probe examples (band). The recipes also differ in data size and training length, and the probe measures coarse localisation only (see text). 
+
+encoder is at DINOv3’s level, and since the two intervals cover different sources of variance (probe seeds against probe examples), they do not order the encoders. The replicate uses the same data, batch size and learning-rate schedule and contin-ues to 6 epochs: after 2 epochs (JEPA loss 0.668 against 0.677 for the policy encoder) it gives 67.82, and its 4- and 6-epoch scores show that training longer does not help. The 0.6-point gap between the two 2-epoch encoders is a rough measure of pretraining variance, which the per-recipe sds, com-puted over probe seeds, do not capture. The recipes also differ in data size (189K / 119K / 70K / ≈77K screenshots) and training length (2 to 60 epochs), so the comparison does not identify which ingre-dient matters. Two further recipes do not lift the probe mean: initialising JEPA pretraining from DI-NOv3 lowers it, and action-conditioned pretraining in the style of V-JEPA 2-AC (Assran et al., 2025) on VideoCUA stays at the level of the web anchor. The probe measures frozen localisation features: the recipe is a 0.76 GPU-hour route to frozen GUI 20 features that localise as well as the alternatives. In the policy, the 4K-scale swap to DINOv2-L at 518 px (Table 10) changes the encoder and the res-olution together. 
+
+G.1 Pretraining–test near-duplicates 
+
+We hashed the 9,987 screenshots of the 1,543 An-droidControl test episodes (pHash and dHash, 64 bits) against the 189,262 pretraining screenshots (118,791 GUI-Odyssey, 70,471 VideoCUA). 58 test frames (0.58%) in 43 episodes have a verified near-duplicate (pHash distance ≤ 8 and normalised cross-correlation ≥ 0.9), all from GUI-Odyssey and showing generic system screens. For calibra-tion, the same pHash threshold matches 35.0% of test frames to the frames of 4,000 AndroidControl training episodes (different episodes of the same benchmark) and 9.5% to the pretraining set; ran-dom pairs have a median distance of 32. Removing the 43 episodes changes final High and Low by 
+
+−0.2 (High 59.90 vs 60.12 on IDD, 52.64 vs 52.85 on the full test). Removing every episode with any pHash match within distance 8 (549 episodes), a criterion that also flags generic layouts, gives 58.74 IDD and 51.14 full-test High. At the app level, 29 app names match exactly and 26% of test episodes touch a package that also appears in GUI-Odyssey, with different devices and tasks and no shared screenshots. Pretraining–test leakage is thus negligible for the reported numbers. 
+
+H Implementation details and hyperparameters 
+
+Table 13 lists every component with its measured parameter count and the settings of the reported models; the paragraphs below add only what the table does not state. 
+
+Encoder. The encoder is the ViT-L/16 of Doso-vitskiy et al. (2021) from the timm library. Where I-JEPA (Assran et al., 2023) uses multi-block masks, our student sees the screenshot with a random half of its patches zeroed and regresses the tokens that the EMA target computes on the full image at the masked positions. The encoder is frozen and its 196 patch tokens per frame are cached; the policy never updates it. 
+
+Predictor, head and matcher. All candidates of a step form one predictor batch. The residual form was chosen in IDD pilots without the text matcher: a predictor that re-synthesises the whole latent erases local detail, lowering AC-Low click grounding to 34.8 against 46.8 for the identity map, and the residual form raises pilot AC-Low from 40.59 to 43.93. At pilot scale (IDD) the structural head’s constraint, that its only candidate-dependent visual input is the candidate-conditioned latent, decides whether the pathway is used: a concat-MLP head over [zt, ˜zct , cand] ignores the predic-tor (within 1.4 AC-Low points), while the struc-tural head gains 8.8 points (Figure 4b; Section E). The conditioning vector uses the frozen CLIP text embedding (Radford et al., 2021). The MiniLM-L12 text matcher (Wang et al., 2020; Reimers and Gurevych, 2019) carries most of the click ground-ing: in the pilot, grounding rose from 37.4 to 70.2 when it was added. The input_text argument is copied as a goal span, which can be correct on at most 81.6% of IDD input_text steps. 
+
+Training. Training skips the 1.6% of training click steps whose ground-truth element is not enu-merated. Neither text ranker changes the action-type decision of the base policy, but both act in AC-Low as well as AC-High (Section C). 
+
+Same-protocol 7B reference. Qwen2.5-VL-7B-Instruct (Bai et al., 2025) (8.29B parameters, mea-sured) is fine-tuned with LoRA (Hu et al., 2022) on 4,000 of the 13,594 cached training episodes for one epoch, with one adapter per setting (3.5 / 4.4 GPU-h for High / Low on one H20); the AC-Low adapter’s prompt adds the step instruction to the goal and shares every other setting, whereas GUI-JEPA serves both settings with one model. It is prompted with the same screenshot (377 im-age tokens; at most 384 visual tokens), the same enumerated candidate list and the same ground-truth history as GUI-JEPA, decodes a JSON action greedily, and is scored by the byte-identical judge on the same 716 IDD episodes. Beyond Table 14, the High adapter reaches a click top-5 recall of 95.3, and the AC-Low adapter reaches 91.01 Low with type accuracy 97.4 (GUI-JEPA: 84.06, 92.4% of it). We report click grounding in two forms because the conditional form alone rewards pre-dicting fewer clicks: our seed with the lowest type accuracy (74.9) has the highest conditional ground-ing (76.1). The 7B agent leads on every action type of Table 14 except wait ; Table 15 converts the per-type differences into contributions to the overall gap. The fine-tuned number is close to published 7B SFT results on AndroidControl (69.7–71.2 High for Qwen2-VL-7B and OS-Atlas-7B fine-tuned on 21 Component Params Setting 
+
+Encoder pretraining (frozen afterwards) 
+
+JEPA encoder, ViT-L/16 303.3M vit_large_patch16_224 , 224 px, 14 × 14 = 196 patch tokens; ImageNet initialisation; JEPA objective after I-JEPA with random-patch masking at ratio 0.5 (the student sees the screenshot with the masked patches zeroed and regresses the EMA target’s tokens at those positions, smooth-L1); 189,262 unlabelled screenshots (118,791 GUI-Odyssey mo-bile, 70,471 VideoCUA desktop); 2 epochs at batch 96, 3,942 optimiser steps (the policy uses the epoch-2 check-point); EMA target decay 0.996; peak learning rate 5×10 −5
+
+with warm-up; JEPA loss 1.28 → 0.68; target-token std 1.8–2.2 (min 1.82, final 2.17; no collapse); 2,739 s ≈ 0.76 GPU-hour on one H20 
+
+Policy (trained end to end with the listwise loss) 
+
+Action code ac – 16-d: action-type one-hot plus normalised coordinates or scroll direction Residual latent predictor 39.9M ROI-pooled encoder feature uc (1,024-d) ⊕ ac → MLP →
+
+added to a learned query token; 3 transformer layers over the 196 patch tokens and the query, 2-D sine–cosine posi-tional embeddings; residual output ˜zct = zt+∆( zt, a c, uc);initialised from a dynamics predictor trained on Android-Control transitions, then fine-tuned with the policy loss Structural head 2.1M cosine, with a learned scale, between an MLP of 
+
+[pool roi( c)(˜ zct ); mean(˜ zct )] and an MLP of the condition-ing vector, plus a learned per-type bias; its only candidate-dependent visual input is ˜zct
+
+Conditioning vector 63.2M frozen CLIP text encoder: embedding of the goal (High, once per episode) or of the step instruction (Low, once per step), joined with the previous action code and the mean latent difference between the previous and the current frame Text matcher 33.4M MiniLM-L12 cross-encoder over the instruction (with the textual action history appended) and the candidate text; its score is added outside the structural head 
+
+Post-hoc modules 
+
+Goal-source span ranker 22.7M MiniLM-L6 cross-encoder over spans of the goal, on which it is also trained; supplies the input_text argument in both settings Type-gated click reranker 33.5M MiniLM-L12 listwise reranker over the click candidates; 
+
+final = base + β ˜r where ˜r is the z-scored reranker logit, applied only when the base argmax is a click and the reranker confidence exceeds the gate, in both settings; vari-ant, β=1 and gate = 1 selected on the validation split 
+
+Optimisation of the base policy 
+
+Data – AndroidControl training split as cached, 13,594 of 13,604 episodes / 74,714 of 74,722 steps (Section B); cached frozen features; candidates capped at 80 per step Loss – listwise cross-entropy over the enumerated candidates with the ground-truth candidate as positive; weight 1.5 on non-click ground-truth types, 1 on clicks Optimiser – AdamW; learning rate 10 −4 for predictor and heads, 2 ×
+
+10 −5 for MiniLM; weight decay 0.01; no dropout; 6 epochs; 3 training seeds; one model for Low and High Total 0.50B 498.0M: ViT-L 303.3M, CLIP text 63.2M, predictor 39.9M, head 2.1M, matcher 33.4M, click reranker 33.5M, span ranker 22.7M; 366.5M frozen (ViT-L and CLIP text) and 131.6M trained 
+
+Table 13: Components and hyperparameters of GUI-JEPA. Parameter counts are measured. The encoder and the CLIP text encoder are frozen and their outputs cached before policy training; the span ranker and the click reranker are trained after the base policy with the base policy fixed. 
+
+22 Qwen2.5-VL-7B Qwen2.5-VL-7B GUI-JEPA GUI-JEPA zero-shot LoRA SFT (ours, seed 3) (ours, 3 seeds) Parameters 8.29B 8.29B 0.50B 0.50B ms/step (H20, batch 1, 100 real steps) 505 (HF) 207 (vLLM) / 507 (HF) 74 (fp32) / 51.5 (bf16) Overall step acc. 43.2 70.9 61.0 60.1 ±1.0 share of SFT (High / params) – – 86.1% / 6.0% 84.8% / 6.0% Type accuracy 72.1 87.0 80.6 78.8 ±3.4 Click type recall 93.5 91.6 87.1 83.1 ±7.7 Click grounding (all) 54.3 73.4 64.1 61.1 ±4.1 Click grounding | type 58.0 80.1 73.5 73.7 ±2.3 click ( n=2419 ) – 72.0 62.8 60.0 scroll (505) – 71.7 59.8 62.2 input_text (282) – 67.0 52.5 53.4 wait (273) – 57.9 59.3 62.4 open_app (253) – 81.0 68.0 68.0 navigate_back (117) – 64.1 38.5 49.9 
+
+Table 14: Same-protocol comparison with a 7B VLM agent on AC-High (IDD). All systems see the same screenshots, enumerated candidates and ground-truth history and are scored with the same step-accuracy rules. The click rows use the 2,379 click and long-press steps whose ground-truth element is enumerated: type recall is the share predicted as a click, grounding (all) the share answered correctly with type errors counted as misses, and 
+
+grounding | type the share correct among the steps predicted as a click. ms/step: median over the 100 real IDD steps timed for all systems (Section 4.5). Ours: seed 3, reported in the main text, and the mean ± sd over three seeds. 
+
+Step acc. Type acc. Action type n 7B ours 7B ours Gap All 3,858 70.9 61.0 87.0 80.6 9.9 click 2,419 72.0 62.8 91.3 86.3 5.8 scroll 505 71.7 59.8 83.8 64.4 1.6 
+
+input_text 282 67.0 52.5 92.2 87.6 1.1 
+
+open_app 253 81.0 68.0 87.7 92.9 0.9 
+
+navigate_back 117 64.1 38.5 64.1 38.5 0.8 
+
+wait 273 57.9 59.3 57.9 59.3 −0.1 
+
+long_press 9 44.4 66.7 100 88.9 −0.1 
+
+Table 15: Where the same-protocol 7B agent leads 
+
+(AC-High, IDD; same inputs and judge). Step and type accuracy (%) of the model reported in the main text by ground-truth action type; Gap: points of the overall 9.9-point gap each type contributes ( n× step-accuracy difference / 3,858). 
+
+AndroidControl, Wu et al., 2025, Tab. 5), which use the OS-Atlas judge on 7,708 test samples; under our judge and split it serves as the same-protocol reference. 
+
+I Latency measurement details 
+
+Common protocol. All latencies are measured on one NVIDIA H20 at batch 1 with a single re-quest and no concurrent load on the GPU, with CUDA synchronisation before and after each timed step, and reported as medians. GUI-JEPA timing includes JPEG decoding and CPU candidate and ROI preparation, and 7B timing includes image preprocessing and tokenisation; screenshot capture, 0 20 40 60 80 100     
+
+> scored actions per step N
+> 0100 200 300 400 500 600
+> median ms per step (H20, batch 1)
+> 29 54 96 151 19 28 44 64 Qwen2.5-VL-7B SFT, vLLM: 207 ms Qwen2.5-VL-7B SFT, HF transformers: 507 ms GUI-JEPA fp32, synthetic fixed-N
+> GUI-JEPA bf16, synthetic fixed-N
+> real steps, fp32 (p50 74 ms) real steps, bf16 (p50 51.5 ms)
+
+Figure 8: Same-hardware per-step latency (median, one H20, batch 1). Stars: the deployed GUI-JEPA pipeline on the 100 real AC-High IDD steps timed for both systems, placed at their median of 28 scored actions (18 a11y candidates plus global actions). Lines: the syn-thetic fixed-N micro-benchmark with random inputs and N scored actions (Table 16), a scaling illustration only. Horizontal lines: the same-protocol Qwen2.5-VL-7B SFT agent (merged LoRA) on the same steps with vLLM and HF transformers. Measurement boundaries: see the common protocol in the text. 
+
+accessibility-tree retrieval and parsing, and action execution on the device are excluded for every sys-tem. Every latency and speed ratio in the main text comes from the 100 real IDD steps on which both systems were timed (Tables 3 and 16). The 200-step medians include steps the 7B agent never 23 Configuration Steps p50 ms p90 ms mean ms peak mem vs 7B vLLM vs 7B HF (merged) Real steps, fp32 (precision of all accuracy tables) shared 100 74.3 127.8 86.9 3.45 GB 2.8 × 6.8 ×                                             
+
+> Real steps, bf16 autocast shared 100 51.5 79.7 56.2 2.48 GB 4.0 ×9.8 ×
+> Real steps, fp32 all 200 74.8 134.0 87.5 3.45 GB ––Real steps, bf16 autocast all 200 48.0 79.0 53.4 2.48 GB ––Synthetic fixed N, fp32, N=5 / 23 / 57 / 100 –28.6 / 53.9 / 95.8 / 151.5 ––1.9–3.3 GB ––Synthetic fixed N, bf16, N=5 / 10 / 23 / 57 / 100 –19.4 / 22.2 / 28.3 / 43.6 / 63.8 ––1.8–2.4 GB ––
+
+Table 16: Real-step serving path of the deployed GUI-JEPA pipeline and the synthetic micro-benchmark (one NVIDIA H20, batch 1). Real-step rows: the deployed pipeline, timed end to end on real AC-High IDD test steps; “shared 100” are the steps on which the 7B agent was also timed (identical screenshots, candidates and history), a subset of the “all 200” steps timed for GUI-JEPA. Ratios use the shared 100 steps only, against the same-protocol 7B SFT agent (merged LoRA) timed end to end: 206.7 ms with vLLM ( ≥16 GB peak memory) and 506.7 ms with HF transformers (15.9 GB). Synthetic rows: random image tensors and candidate vectors at a fixed number N of scored actions, 100-iteration median, a scaling illustration only. Measurement boundaries: see the common protocol below. 0 20 40 60 80 100 120 
+
+> per-step latency on one NVIDIA H20, batch 1 (ms) 11.0 ms
+> ViT-L encode (224 px)
+> 73.0 ms
+> JEPA-style predictor + structural head (57 scored actions, batched) MiniLM text matcher: 7.2 ms click reranker, amortised (7.3 ms when it fires): 4.6 ms
+> GUI-JEPA, synthetic fixed-N micro-benchmark (fp32, N = 57): 95.8 ms per step (amortised), no decoding
+
+Figure 9: Latency decomposition in the synthetic fixed-N micro-benchmark (one NVIDIA H20, batch 1, fp32 eager, N =57 scored actions, random image tensors and candidate vectors, 100-iteration median). The click-reranker segment is amortised over the action mix; a click step takes 98.4 ms. The benchmark excludes JPEG decoding, CPU ROI pooling and the span ranker and is a scaling illustration only; real-step medians are in Table 16. 
+
+ran and are given for reference only. 
+
+7B agent on real steps. The Qwen2.5-VL-7B agent is timed on the first 110 AC-High IDD test steps in test-set order (10 warm-up, 100 measured) with the prompt of its accuracy evaluation: the screenshot at a 377-token image budget, the goal, the ground-truth history and the enumerated can-didate list in the Qwen chat template, 931 input tokens on average. It decodes greedily until the end-of-sequence token and emits 11.75 new to-kens on average, its most favourable configuration. End to end, including CPU prompt preparation (chat template, image processor, tokenisation), HF transformers 4.57 in bf16 with flash-attention 2 needs 506.7 ms per step for the merged LoRA-SFT model (generation alone 499.1 ms; prefill 189 ms, decode 28.3 ms per token), 504.6 ms for the zero-shot base model (p90 580.6; prefill 187 ms, 27.5 ms per token; 15.9 GB peak) and 753.6 ms for the un-merged LoRA model used in the accuracy evalua-tion (p90 889.3; prefill 229 ms, 47.8 ms per token; 16.2 GB). Merging is the deployment configuration, so our ratios use the merged model. With vLLM 0.11.2 (Kwon et al., 2023) in bf16 the merged model needs 206.7 ms end to end (generation alone 206.5 ms; prefill 96 ms, 10.2 ms per token) with pre-fix caching off, and 211.9 ms (p90 250) with prefix caching on, where the 15 ms prefill and 18.5 ms per token reflect the cached system prefix. 
+
+GUI-JEPA real-step serving path. We time the final pipeline end to end on the first 210 AC-High IDD test steps in test-set order (10 warm-up, 200 measured, 46 episodes), so the 7B agent’s 100 mea-sured steps are a subset of ours. Each step exe-cutes the full pipeline, with the span ranker only on steps predicted as input_text (10% of steps) and the click reranker only on steps predicted as click (63.5%). The 200 steps have 24.4 a11y candidates on average (median 18, p90 49) and 33.0 scored actions (median 28.5, p90 58). The served policy is the evaluated policy: its base-policy action matches the offline evaluation, which uses precomputed en-coder features, on 198 of the 200 steps (99.0%), and on all 200 when both receive the same prepro-24 cessed frames. On the 200 steps the bf16 and fp32 pipelines make identical predictions, including the typed text. On all IDD steps, the base policy (base stage of Table 2) changes by +0 .18 Low / −0.07 
+
+High in bf16 relative to fp32, with 99.8% step-level agreement on type, candidate and direction. The typed string agrees on 151 of the 322 High steps where both predict input_text ; that ranker is rarely right in High, and High input_text accu-racy moves from 15.6 to 14.2 (4 of 282 steps). 
+
+Where the GUI-JEPA step time goes. Over the 200 steps, the fp32 p50 decomposes into 8.3 ms JPEG decoding and resizing (9.6% of the mean), 11.4 ms ViT-L (13.0%), 1.2 ms candidate construc-tion, 1.2 ms ROI encoding, 39.7 ms predictor and structural head (51.4%), 8.8 ms matcher (12.7%), 8.1 ms click reranker when it fires (6.8%) and 21.5 ms span ranker when it fires (3.3%); in bf16 the p50 components are 7.0 ms decoding, 7.7 ms ViT-L, 11.8 ms predictor and head and 10.4 ms matcher. By a11y candidate count the fp32 p50 is 58.9 ms below 15 candidates, 74.5 at 15–29, 125.1 at 30–59 and 168.7 at 60 or more. The CLIP goal embedding runs once per episode and is not in-cluded: its median is 5.6 ms (mean 10.8 ms, raised by one 245 ms first call), about 1.3 ms per step amortised at the median and 2.4 ms at the mean. In AC-Low the step instruction changes at every step, so the CLIP call recurs per step; all real-step timings are AC-High. 
+
+GUI-JEPA synthetic fixed-N micro-benchmark. 
+
+The synthetic rows of Table 16 and the lines of Fig-ure 8 time the final pipeline in eager PyTorch on a random 224-px image tensor with random action and ROI vectors and dummy candidate texts and bounds, 100-iteration median. N counts the scored actions in the predictor batch, that is, a11y candi-dates plus global actions. N =23 and 57 equal the mean and p95 a11y candidate counts of IDD, but a real step scores more actions than it has a11y can-didates (33.0 against 24.4 on average on the timed steps), so the synthetic N =23 point understates a typical step and the real-step rows are the operating point. The encoder cost is fixed, and the predictor batch grows by about 1.2 ms per scored action in fp32 and 0.37 ms in bf16; torch.compile on top of bf16 lowers the bf16 times by a further 0.7–6.6%. The benchmark’s inputs are not real screenshots, so it only shows the linear scaling in N .
+
+Literature latencies. 8B-class GUI agents aver-age 2.6–10.6 s per step in a live-device benchmark (Sui et al., 2026, Tab. 2; means over valid sessions, BF16 on H20 GPUs with the GPU count and serv-ing engine not stated, each model under its official inference protocol where one is released). V-Droid reports 0.7 s per decision, covering all candidates of a step (0.44 s batched prefill verification plus 0.30 s action completion), and 4.3 s per step end to end, 3.03 s of it in a GPT-4 working-memory update (verifier on two RTX 4090 GPUs; Dai et al., 2026). Neither shares our measurement boundary or statistic (means over live-device sessions with model-specific prompts and outputs, against our median over 100 real test steps). 
+
+J Confidence routing to the 7B agent 
+
+GUI-JEPA and the same-protocol 7B agent err on different steps (Figure 10): on IDD AC-High at least one of them is right on 78.9% of steps on average over the three GUI-JEPA seeds (78.7– 79.2), against 70.87 for the 7B agent and 60.12 for GUI-JEPA. We therefore test GUI-JEPA as the cheap first stage of a cascade: a step is an-swered by GUI-JEPA when the margin between its top two final scores is at least τ and escalated to the 7B SFT agent otherwise. The margin predicts whether GUI-JEPA is correct with AUROC 0.74– 0.77, and on its most confident half of the steps GUI-JEPA alone is 77.6–79.2% accurate. Setting 
+
+τ at coverage quantiles (the share of steps kept by GUI-JEPA) traces the curve of Figure 11 (main-text model). At 50% coverage the cascade reaches 69.48 High on average over seeds, 98% of the 7B agent’s 70.87, at 0.91 × its mean vLLM latency with fp32 GUI-JEPA and 0.76 × with bf16 (with HF serving, 86 .9 + 0 .5 × 515 .7 ≈ 345 ms against 515.7 ms, 0.67 ×). Because τ is set on coverage quantiles of the same IDD steps, we report the cas-cade as a deployment mode. For the main-text model the margin AUROC is 0.74, at least one system is right on 78.7% of steps, and the 50%-coverage cascade reaches 69.67 (98% of 70.87) at the same expected latency, with GUI-JEPA 78.1% accurate on the steps it keeps. 25 (a) GUI-JEPA right and confident: the cascade keeps its answer 
+
+> Goal: In the Wallet app, add the House rent budget of Rs 10000 in the rent category, then save it.
+
+click the “1” key 
+
+pt = 0.97, margin 4.26 (τ = 2.53) 
+
+> {"action_type":"click","target":17}
+
+→ the “0” key, decoded token by token 50%-coverage cascade: keeps its answer 
+
+(b) GUI-JEPA wrong but unsure: the cascade escalates the step 
+
+> Goal: I need to travel to Madinah for some personal reasons. I need to find a one way train from Makkah to Madinah on November 15 in the HHR train app.
+
+click “AIRPORT - JEDDAH” 
+
+pt = 0.62, margin 1.14 (τ = 2.53) 
+
+> {"action_type":"click","target":3}
+
+→ “Madinah”, decoded token by token 50%-coverage cascade: asks the 7B ground truth GUI-JEPA 7B SFT 
+
+GUI-JEPA (0.50B) ✓
+
+Qwen2.5-VL-7B SFT ✗✓
+
+GUI-JEPA (0.50B) ✗
+
+Qwen2.5-VL-7B SFT ✓✓Figure 10: Complementary errors behind the cascade on two real AC-High IDD steps (GUI-JEPA with both rankers and the same-protocol 7B SFT agent, given the same candidates). (a) GUI-JEPA is right with a margin above the 50%-coverage threshold τ (the median margin), so the cascade keeps its answer, while the 7B agent presses the wrong key. (b) GUI-JEPA picks the wrong destination with a margin below τ , so the cascade escalates the step to the 7B agent, which is right. Boxes: ground truth (green), GUI-JEPA (purple), 7B (rose). 50 100 150 200 250 
+
+mean ms per step (one H20, batch 1) 
+
+60 65 70 75 80 
+
+> AC-High step acc., IDD (%)
+
+100% 80% 50% 30% cheaper than the 7B alone 98% of its accuracy at 0.91× / 0.76× its latency per-step oracle over the two systems (78.7) cascade, GUI-JEPA fp32 cascade, GUI-JEPA bf16 7B SFT alone (vLLM) 
+
+Figure 11: GUI-JEPA as the cheap first stage of a cascade (AC-High, IDD). Steps with a large top-two margin are answered by GUI-JEPA, the rest by the 7B SFT agent; labels: share of steps kept by GUI-JEPA. Latency: the mean GUI-JEPA step plus, on escalated steps, the mean vLLM 7B step (same 100 real steps). 
+
+26
