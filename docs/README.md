@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-11-12 06:00 ~ 2026-11-13 06:00 (UTC+8)</span>
+      <span class="dpr-home-dashboard-kicker">2026-11-13 06:00 ~ 2026-11-14 06:00 (UTC+8)</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 17 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 0 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>6</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>11</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-13 02:24:49 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-14 01:56:17 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今天精读6篇、速读11篇共17篇，重点关注GUI智能体如何借助用户手册适应新软件，以及GUI世界模型的决策价值。最值得看的方向是智能体对新软件的迁移适应和超越下一屏预测的决策建模。普通读者可先读这两篇8.0分精读，再结合速读中的个性化失败诊断和交互轨迹重建，把握GUI智能体的训练与评估脉络。</p>
+<p>今日无新推荐，系统未产出可展示论文。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +78,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">6 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Adaptation of Computer Use Agents to New Software with User Manuals">Adaptation of Computer Use Agents to New Software with User Manuals</span></li><li><span class="dpr-home-dashboard-paper-title" title="Beyond Next-Screen Prediction: The Decision Value of GUI World Models">Beyond Next-Screen Prediction: The Decision Value of GUI World Models</span></li><li><span class="dpr-home-dashboard-paper-title" title="ScopeMem: Latent Memory That Learns Where to Revise Frozen GUI Agents">ScopeMem: Latent Memory That Learns Where to Revise Frozen GUI Agents</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>6</strong></span></div>
+
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -91,12 +91,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">11 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Diagnosing Personalization Failures in Mobile GUI Agents">Diagnosing Personalization Failures in Mobile GUI Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Trace2World: Reconstructing App Worlds from Real Interaction Traces for Scalable GUI Agent Training">Trace2World: Reconstructing App Worlds from Real Interaction Traces for Scalable GUI Agent Training</span></li><li><span class="dpr-home-dashboard-paper-title" title="Subgoal-aware Memory Graph for GUI Agent">Subgoal-aware Memory Graph for GUI Agent</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>11</strong></span></div>
+
 </section>
 </div>
 
