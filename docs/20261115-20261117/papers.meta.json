@@ -1,0 +1,24 @@
+{
+  "label": "2026-11-15 06:00 ~ 2026-11-17 06:00 (UTC+8)",
+  "date": "2026-11-15 ~ 2026-11-17",
+  "generated_at": "2026-11-17T04:25:56",
+  "count": 1,
+  "papers": [
+    {
+      "paper_id": "20261115-20261117/2611.20145v1-rank-dont-regress-a-279m-text-ranker-beats-2b-and-7b-vlms-on-referential-urdu-gui-grounding",
+      "section": "deep",
+      "title_en": "Rank, Don't Regress: A 279M Text Ranker Beats 2B and 7B VLMs on Referential Urdu GUI Grounding",
+      "authors": "Hamza Raziq Khan, Aimal Khan",
+      "date": "2026-11-15",
+      "pdf": "https://arxiv.org/pdf/2611.20145v1",
+      "score": "9.0",
+      "evidence": "用候选元素排序替代坐标回归，将指令定位到GUI元素",
+      "tldr": "UI grounding（界面元素定位）多由视觉语言模型直接回归像素坐标，乌尔都语移动网页上尚无公开结果。作者改为从页面DOM中抽取候选元素，用279M参数的mDeBERTa-v3-base交叉编码器进行排序并选出其中一个，点击点取选中元素框的中心。在304条乌尔都语新闻指令的冻结测试集上，point-in-box准确率为73.4%，远超零样本UI-TARS-2B（29.6%）与Qwen2.5-VL-7B（23.7%）；指代性指令切片为65.8%，加入元素几何信息后达到75.7%。这表明采用排序方式的小模型可胜过大型VLM，而坐标回归在同等规模下仅为1.6%。",
+      "tags": "query:gui-agents",
+      "abstract_en": "UI grounding asks a model to find the screen element that a user instruction refers to. Most current systems use a vision-language model (VLM) that reads a screenshot and outputs pixel coordinates. We study this task on Urdu mobile web pages, a setting with no published UI grounding results. Instead of regressing coordinates, we take the candidate elements from the page DOM and train a 279M-parameter cross-encoder (mDeBERTa-v3-base) to pick one. The click point is the centre of the picked element's box, so it is exact whenever the right element is picked. We built a frozen test set of 304 instructions from six Urdu news sites; 149 of them (49%) are referential and never quote the full target text. Test domains were banned from training data before collection started. The ranker scores 73.4% point-in-box accuracy, against 29.6% for UI-TARS-2B and 23.7% for Qwen2.5-VL-7B, both zero-shot. On the referential slice the ranker scores 65.8%, against 30.2% for a string-matching baseline that needs no training. In a controlled comparison at small scale, with training data drawn from the same pages, a coordinate-regression model of similar size scores 1.6%. Adding element geometry as input tokens gives the best variant, at 75.7%. The ranker's errors concentrate in two places: elements that share identical text, and ordinal instructions such as \"the fourth link\".",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "errors": []
+}

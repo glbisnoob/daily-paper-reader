@@ -1,0 +1,208 @@
+Title: Rank, Don't Regress: A 279M Text Ranker Beats 2B and 7B VLMs on Referential Urdu GUI Grounding
+
+URL Source: https://arxiv.org/pdf/2611.20145v1
+
+Published Time: Tue, 17 Nov 2026 03:48:49 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# Rank, Don’t Regress: A 279M Text Ranker Beats 2B and 7B VLMs on Referential Urdu GUI Grounding 
+
+## Hamza Raziq Khan Aimal Khan 
+
+## FAST NUCES, Peshawar, Pakistan 
+
+## hamza.raziq@nu.edu.pk aimalkhan9247@gmail.com 
+
+## Abstract 
+
+UI grounding asks a model to find the screen element that a user instruction refers to. Most current systems use a vision-language model (VLM) that reads a screenshot and outputs pixel coordinates. We study this task on Urdu mo-bile web pages, a setting with no published UI grounding results. Instead of regressing coor-dinates, we take the candidate elements from the page DOM and train a 279M-parameter cross-encoder (mDeBERTa-v3-base) to pick one. The click point is the centre of the picked element’s box, so it is exact whenever the right element is picked. We built a frozen test set of 304 instructions from six Urdu news sites; 149 of them (49%) are referential and never quote the full target text. Test domains were banned from training data before collection started. The ranker scores 73.4% point-in-box accuracy, against 29.6% for UI-TARS-2B and 23.7% for Qwen2.5-VL-7B, both zero-shot. On the ref-erential slice the ranker scores 65.8%, against 30.2% for a string-matching baseline that needs no training. In a controlled comparison at small scale, with training data drawn from the same pages, a coordinate-regression model of similar size scores 1.6%. Adding element geometry as input tokens gives the best variant, at 75.7%. The ranker’s errors concentrate in two places: elements that share identical text, and ordinal instructions such as “the fourth link”. 
+
+## 1 Introduction 
+
+A computer-use agent acts through a screen. Before it can click, it has to ground: given an instruction such as “open the sports section”, it must find the element the instruction means. The current default is a vision-language model that reads a screenshot and generates a point (Cheng et al., 2024; Qin et al., 2025; Bai et al., 2025). Grounding accuracy is the ceiling on everything the agent does next, and it is usually the weakest part of the pipeline (Zheng et al., 2024). Two facts pushed us away from that default. First, coordinate regression is fragile under layout change. In pilot runs for this project, Qwen2.5-VL-7B scored 34.1% zero-shot on an 82-item pilot set of mobile pages; the same model fine-tuned on desktop screenshots fell to 11.0%, because training and test pages laid out the same content at different widths. The readout itself is part of the problem: on COCO photos, Qwen3-VL-4B picks the correct cell 68.5% of the time when the cells are named options, and 20.0% when it must answer with pixel coordinates (Frontera Del Valle, 2026). Second, the language we care about has no grounding data at all. Public grounding benchmarks cover English and Chinese interfaces (Cheng et al., 2024; Li et al., 2025); for Urdu, a right-to-left language with tens of millions of speakers, we found no published UI grounding result, and hand-labelling click points for a new language is slow work. A web page removes the labelling problem. Its DOM lists every clickable element with its text, attributes, and bounding box. The supervision is al-ready there. The open question is the output space: should a model regress a point from pixels, or se-lect one element from the page’s own candidate list? Selection is not a new idea. MindAct (Deng et al., 2023) trains a small DeBERTa ranker over DOM candidates, but uses it as a pre-filter: the ranker shortlists elements and a large language model makes the final pick. Deng et al. report that the ranker on its own is not competitive on Mind2Web. Their pages are English desktop pages with about 1,135 candidate elements per page on average. Our pages are Urdu mobile pages with a median of 25 candidates. We test whether the con-clusion survives the change of regime: a trained ranker, alone, as the complete grounder. Our contributions are three: 1. First UI grounding results for Urdu. We arXiv:2611.20145v1 [cs.CL] 15 Nov 2026 report the first UI grounding (element local-ization) results for Urdu, measured on real mobile websites: a frozen test set of 304 instructions over six Urdu news sites, col-lected and locked before any training, with test domains excluded from training at the registrable-domain level. Half of the items are referential: the instruction describes the target without quoting its full text. 2. The ranker alone is enough on mobile web. 
+
+A 279M cross-encoder used as the complete grounder, with no downstream model, scores 73.4% against 29.6% for UI-TARS-2B and 23.7% for Qwen2.5-VL-7B. This reverses the ranker-alone finding of Mind2Web in the mo-bile regime. 3. A controlled rank-versus-regress study at small scale. Training data for both models comes from the same pages: DOM ranking scores 73.4% and pixel coordinate regression scores 1.6%. The difference is the output space, not the data source. (Wu et al., 2026) run the VLM-scale version of this comparison in pixel space; Section 2 separates the two. Section 2 places this work against prior ground-ing systems. Section 3 defines the task and the frozen protocol. Sections 4 and 5 describe the ranker and the comparison systems. Section 6 gives results, Section 7 takes the failures apart, and Sec-tions 8 and 9 state limits and ethics. 
+
+## 2 Related Work 
+
+Visual grounding with VLMs. SeeClick (Cheng et al., 2024) showed that a VLM fine-tuned for grounding can drive GUI agents, and released the ScreenSpot benchmark. CogAgent (Hong et al., 2024) added a high-resolution image encoder. UGround (Gou et al., 2025) trained a grounder on large-scale web data. UI-TARS (Qin et al., 2025) trains a native agent model end to end, and Qwen2.5-VL (Bai et al., 2025) is a general VLM with strong built-in grounding. All of these systems output coordinates. Their benchmarks are desktop, English or Chinese, and screenshot-based: ScreenSpot-Pro (Li et al., 2025) targets high-resolution professional software, while OS-World (Xie et al., 2024), AndroidWorld (Rawles et al., 2024), WebArena (Zhou et al., 2024), and VisualWebArena (Koh et al., 2024) evaluate full tasks. Our zero-shot VLM baselines are UI-TARS-2B and Qwen2.5-VL-7B, the strongest open coor-dinate grounders available to us when the build ran, plus one recent mobile-focused grounder, MAI-UI-2B (Zhou et al., 2025) (Section 5). A second recent mobile grounder, Ferret-UI Lite (Yang et al., 2025b), has no released code or weights and could not be evaluated (Section 5). 
+
+Coordinate-free and structured grounding. 
+
+GUI-Actor (Wu et al., 2025) removes coordinate tokens and instead attends over image patches with a learned action head. It is coordinate-free, but it stays in pixel space and at VLM scale (7B). Mind2Web (Deng et al., 2023) works from the DOM: a fine-tuned DeBERTa ranker (MindAct) keeps the top candidates and an LLM picks among them. The final decision in MindAct belongs to the LLM, and the paper reports that the small ranker alone performs far below the full pipeline. Prune4Web (Zhang et al., 2025) has an LLM write small programs that prune the DOM before a down-stream model acts; again, the structured step filters and something else decides. WinDOM (Li-Chen et al., 2026) reads its training labels off the DOM for free, as we do, but spends them on a 2B re-gression grounder for a desktop web clone. Two 2026 studies set the terms for this paper. (Chen and Jacucci, 2026) recast grounded steps from Android-Control, MoTIF, and Mind2Web as same-screen ranking and showed that a fine-tuned ranker stays tied to visible labels: masking the target element’s text drops its R@1 from 0.694 to 0.151. Their rankers are diagnostics run on existing English benchmarks; none is deployed as the grounder. (Wu et al., 2026) compare output spaces under con-trol: at 7B VLM scale, on an identical 100K train-ing set, a coordinate-free attention model beats a coordinate-based one by about 3.7 points across En-glish desktop and web benchmarks. That compari-son runs in pixel space at VLM scale. Ours runs in the DOM at 279M parameters, on data drawn from the same pages, and the gap is 71.8 points. Cross-encoder ranking itself is standard in text retrieval since monoBERT (Nogueira and Cho, 2019): score each candidate against the query with full attention, take the best. We take the ranking mechanism from MindAct, credit it in full, and change its role and regime: mobile web, Urdu, roughly 25 candidates per page, and the ranker’s top-1 is the answer. 
+
+Low-resource interfaces. Multilingual agent evaluation has reached low-resource languages, at coarser grains than element localization. LoWA-gent (Monjur et al., 2026) evaluates web agents in English, Hindi, Bengali, Urdu, and Amharic on synthetic localized websites, and reports multi-step task success. VLURes (Atuhurra et al., 2026) benchmarks grounding in Urdu, but the task there is matching long texts to natural images, not inter-face elements. macOSWorld (Yang et al., 2025a) ships genuinely mirrored Arabic right-to-left inter-faces, on desktop, scored by task success. A Per-sian vision-language-action dataset (Pourasghari et al., 2026) covers instruction-to-plan grounding over photographs, an embodied setting. None of these reports UI grounding accuracy for Urdu, and none runs on real mobile websites. The blocker for UI grounding in a new language is annotation cost: each item needs a person to read an instruction and mark a box. For web pages, the DOM gives the boxes for free, which is what makes this study possible without an annotation budget. 
+
+## 3 Task and Data 
+
+3.1 Task definition 
+
+One item consists of a mobile page view (a 390 ×844 screenshot and its DOM candidate list) and one Urdu instruction. A system outputs one point. The item is a hit if the point falls inside the gold element’s box (point-in-box accuracy). For the ranker, the output point is the centre of the top-ranked candidate’s box, so a hit is the same event as ranking the gold element first. For the VLMs and the coordinate control, the output point is whatever the model generates. 
+
+3.2 Candidate extraction 
+
+Candidates are the visible clickable elements of the view: links, buttons, inputs, and elements with button or link roles, filtered by the same visibility rules across all items. Each candidate record holds the element text, tag, aria-label, placeholder, title, link target, an id/class snippet, the heading of the nearest ancestor section, and the bounding box. The frozen views carry a median of 25 candidates. 
+
+3.3 The frozen protocol 
+
+Test domains were fixed and banned from training before any test page was collected. The ban is at registrable-domain level: if a domain is a test domain, none of its pages, subdomains, or sibling properties may appear in training. Domains that                     
+
+> Generator Type Items Share Explicit quotes text 155 51.0% Ordinal referential 101 33.2% Partial referential 31 10.2% Section referential 13 4.3% Function referential 41.3% Total 304 100%
+> Table 1: Frozen test set by instruction generator. Refer-ential items never quote the full target text; partial items quote a three-word prefix.
+
+were tried as test sites but yielded zero usable items stayed banned. Each view was captured once: screenshot and DOM in the same page load, stored together, write-once. News homepages change within hours, and a gold box collected on a later visit would point at a different page. Paired capture is what keeps the gold labels valid. The frozen set holds 160 views from six sites: Siasat (75 items), Dawn (75), Express (75), Daily Khabrain (67), Daily Mashriq (11), and Ummat (1). No site contributes more than 25% of the items. 
+
+3.4 Instruction generators 
+
+Instructions come from five rule-based generators, listed in Table 1. The explicit generator quotes the element’s full text (“click «X»”). The other four are referential: they describe the target without quoting its full text. Ordinal items name a position among same-tag candidates in DOM order (“the fourth link”). Partial items quote only the first three words of a long headline. Section items name the heading the element sits under. Function items refer to a control by its job (search box, menu button, login link, home link), found by deterministic attribute rules. Every referential item passes an automatic uniqueness check: exactly one candidate in the view may satisfy the description under the genera-tor’s own rule, or the item is discarded. Each item records which generator produced it. The referen-tial slice makes up 149 of 304 items (49.0%). In 64 items, some other candidate in the view carries the same text as the target; those items are the source of the duplicate failures in Section 7. 
+
+3.5 Training pool 
+
+Training pages come from 12 Urdu sites outside the ban list: 532 views and 4,216 positive items (2,774 explicit, 1,442 referential), produced by the same generators and the same uniqueness checks. Explicit items are capped at 16 per view so that easy quoted-text items do not swamp the pool. The pool is skewed: ARY News supplies 2,179 posi-tives (51.7%) and Urdu Wikipedia 1,049 (24.9%), with BBC Urdu (381), Jang (282), and Geo Urdu (224) behind them. Validation holds out whole sites, never random rows; the validation split has 419 positives. A separate coordinate file holds the 1,539 explicit positives for which a screenshot was stored, with their gold centres, drawn from the same pages, for the control model in Section 5. 
+
+3.6 Independent verification 
+
+After the build, a separate script recomputed ev-ery number in this paper from the raw files rather than from stored summaries. It recounted all items, rechecked oracle presence for all 304 items (304/304 gold boxes match their frozen candidates exactly), confirmed zero registrable-domain over-lap between training and test data and zero shared screenshot paths, and recounted every accuracy cell in Table 3 from the per-item outputs. Eight items, spread across sites and generators, were also checked by eye against their screenshots. Every check passed. 
+
+## 4 Method 
+
+4.1 The ranker 
+
+The ranker is a cross-encoder. For one item, it scores every candidate in the view against the in-struction and returns the argmax. Each score comes from one forward pass over the pair (instruction, candidate string), encoded jointly by mDeBERTa-v3-base (He et al., 2023) with a single-logit classifi-cation head. The model has 278.8M parameters. It reads no pixels: the screenshot exists for the VLM baselines and for human checking, and the ranker never sees it. 
+
+4.2 Candidate strings 
+
+A candidate is rendered as its text followed by bracketed fields. Table 2 defines the four variants we trained. The MINDACT _TEXT variant is the MindAct-style representation: text and tag only. The FULL variant adds the attribute fields when they carry information the text does not, plus the parent section heading. FULL _NOPARENT removes the section heading. FULL _GEO adds the box as four numbers normalised by the viewport size.                           
+
+> Variant Candidate string Max len
+> MINDACT _TEXT text [tag] 160
+> FULL text [tag] +[ARIA] 224
+> [PH] [TITLE] [SEC]
+> FULL _NOPARENT FULL without [SEC] 224
+> FULL _GEO FULL +[BOX xywh] 224
+> Table 2: Candidate representations. Attribute fields are included only when present and different from the element text. [SEC] is the parent section heading;
+> [BOX] holds the normalised box coordinates.
+
+4.3 Training 
+
+For each positive item, the gold candidate gets la-bel 1 and up to eight other candidates from the same view, sampled at random, get label 0. One exception: for explicit items, a candidate whose normalised text equals the gold text is never used as a negative. It is a defensible answer to the quoted text, and punishing the model for it would teach the wrong lesson; Section 7 shows the cost of this ambiguity at test time. We train with AdamW (Loshchilov and Hutter, 2019) at learning rate 1e-5, weight decay 0.01, a linear schedule with 10% warmup, two epochs, and seed 13. The effective batch is 32 (batch 32 at max length 160; batch 16 with two accumulation steps at max length 224). One practical detail cost us two early runs: the mDeBERTa-v3 checkpoint loads in fp16 by default in our stack, and fp16 training drove the loss to NaN. All reported models are loaded and trained in fp32, with steps skipped when the loss is non-finite. 
+
+## 5 Experiments 
+
+5.1 Systems compared String-match heuristic. No training. The rule extracts the quoted text from the instruction, picks a candidate whose normalised text matches it exactly (ties broken by larger area), and otherwise falls back to the candidate with the highest token overlap with the quote (ties by overlap ratio, then area). For referential instructions, which carry no quote, the rule has almost nothing to work with. This baseline prices the value of the quoted text alone. 
+
+Ranker variants. The four variants of Section 4, all trained on the same training split of the pool in Section 3.5 (validation sites held out) with the same recipe. 
+
+UI-TARS-2B. ByteDance’s GUI-specialised VLM (Qin et al., 2025), zero-shot. It receives the screenshot and the instruction in its standard prompt format and outputs a point in 0-to-1000 coordinates. All 304 outputs parsed. 
+
+Qwen2.5-VL-7B. Alibaba’s general VLM (Bai et al., 2025), zero-shot, outputting pixel coordinates for the 390 ×844 view. 253 of 304 outputs parsed; the other 51 produced no usable point and count as misses. 
+
+MAI-UI-2B. The 2B grounder from Alibaba’s MAI-UI family (Zhou et al., 2025), a GUI foun-dation model line released in December 2025 and built for real-world mobile and desktop interfaces. Zero-shot. We ran it in its native grounding mode: the documented MAI-UI grounding prompt, with the final point read from the model’s answer block and its coordinates converted from the model’s doc-umented 0-to-999 grid, exactly as the official agent code normalises them. 220 of 304 outputs con-tained a usable point; the other 84 produced no coordinates at all and count as misses. 
+
+Ferret-UI Lite. Apple’s 3B on-device GUI agent (Yang et al., 2025b) could not be evaluated: Apple has released no code and no weights for it, and no official model repository exists, so there was nothing openly available to run zero-shot. 
+
+Coordinate control. SmolVLM-500M-Instruct (Marafioti et al., 2025) fine-tuned with LoRA (Hu et al., 2022) (rank 16, learning rate 2e-4, two epochs, effective batch 32) on the 1,539 coordinate rows from the same training pages. It reads the screenshot and generates the gold centre as text. This is the rank-versus-regress control: same pages, similar size, pixel input, coordinate output. All 304 outputs parsed. 
+
+5.2 Metric and compute 
+
+Every system is scored by point-in-box accuracy on the same 304 frozen items. We report overall accuracy, the explicit slice (155 items), the refer-ential slice (149 items), and per-generator accu-racy. Ranker training, the ablations, both VLM evaluations, and the control training ran as separate jobs on a single Tesla T4: about 1.1 hours for the headline ranker, 2.0 hours for the two ablation vari-ants, 52 minutes for both VLM evaluations, and 4.2 hours for the coordinate control. The MAI-UI-2B evaluation ran later, as a separate job on the same GPU.                                        
+
+> System Overall Explicit Referential Heuristic (no training) 57.9 84.5 30.2
+> MINDACT _TEXT ranker 74.0 80.6 67.1
+> FULL ranker 73.4 80.6 65.8
+> FULL _NOPARENT 72.7 80.6 64.4
+> FULL _GEO 75.7 86.5 64.4 UI-TARS-2B 29.6 40.0 18.8 Qwen2.5-VL-7B 23.7 32.9 14.1 MAI-UI-2B 11.8 13.5 10.1 SmolVLM-500M control 1.6 0.0 3.4
+> Table 3: Point-in-box accuracy (%) on the frozen test set: 304 items, 155 explicit and 149 referential. All VLM rows are zero-shot. Hit counts: heuristic 176,
+> MINDACT _TEXT 225, FULL 223, FULL _NOPARENT
+> 221, FULL _GEO 230, UI-TARS-2B 90, Qwen2.5-VL-7B 72, MAI-UI-2B 36, coordinate control 5. MAI-UI-2B parsed 220 of its 304 outputs; the rest contained no point and count as misses. Ferret-UI Lite has no row: it could not be evaluated, for the reason given in Section 5.
+
+## 6 Results 
+
+Table 3 gives the main result. The full ranker scores 73.4% overall. UI-TARS-2B scores 29.6% and Qwen2.5-VL-7B 23.7%. The gap to the stronger VLM is 43.8 points. MAI-UI-2B, the newest VLM we tested, scores 11.8%, below both older VLMs; Section 5 gives its protocol and parse rate. One property of the test set must be stated next to these numbers. Half of the items are referential by design, and the VLMs are weakest exactly there: on ordinal items they score 4.0% and 2.0% (Table 4). On the explicit slice, where the instruction quotes the text, they reach 40.0% and 32.9%. Their low overall scores partly reflect the slice mix, and we report the slices so the reader can see that split directly. The comparison that does not depend on the mix is the control: a coordinate model trained on the same pages scores 1.6% overall and 0 of 155 on the explicit slice, where the answer is printed on the screen in the instruction itself. For scale, Wilson 95% confidence intervals on the headline numbers are [68.1, 78.0] for the full ranker overall, [24.8, 35.0] for UI-TARS-2B, and [19.3, 28.8] for Qwen2.5-VL-7B. On the referen-tial slice the full ranker sits at [57.8, 72.9] against the heuristic’s [23.4, 38.0]. None of the intervals behind the three main claims overlap. 
+
+6.1 Where the win comes from 
+
+The heuristic wins the explicit slice outright, 84.5% against 80.6% for the rankers. That is expected: the instruction quotes the target text, and exact matching is the right tool. The ranking claim rests on the referential slice. There, the full ranker scores 65.8% against the heuristic’s 30.2%, a gap of 35.6 points on items that never quote the full answer. On ordinal items the heuristic scores 1.0% and the ranker 49.5%. A model that had only learned to match strings could not produce these numbers; the ranker learned to use tag, attributes, section context, and position cues that the heuristic cannot read. Figure 1 shows the two ends of the difficulty range: one explicit item and one ordinal item. 
+
+6.2 Ablations 
+
+The richer candidate string did not help. MIN -
+
+> DACT
+
+_TEXT , with text and tag only, scores 74.0% overall and 67.1% on the referential slice, slightly ahead of FULL at 73.4% and 65.8%. On 304 items a 0.6-point difference is two items, and we do not read anything into it beyond this: attributes and section headings added no measurable gain on this data. Removing the section heading from FULL 
+
+(FULL _NOPARENT , 72.7%) costs 0.7 points, con-sistent with that reading. Geometry did help, in one place. FULL _GEO 
+
+scores 75.7% overall, the best result in the study, and the gain sits in the explicit slice: 86.5% against 80.6%, while the referential slice stays at 64.4%. Explicit errors are mostly duplicate picks (Section 7), and a box position is exactly the signal that separates two elements with the same text. Held-out-site validation during training tells a different ordering: ranking accuracy on held-out training sites is 68.5% for FULL , 61.1% for FULL _GEO , 60.1% for MINDACT _TEXT , and 58.7% for FULL _NOPARENT (419 validation posi-tives). The validation ranking and the frozen-test ranking disagree, so we report all four variants and base our claims on the FULL configuration fixed before the ablation runs, not on the test-set winner. 
+
+6.3 Latency and cost 
+
+Table 5 lists measured per-item times, with the hard-ware stated for each row, because the rows were not measured on the same machine. The rankers ran in fp32 on a shared 2-core VM CPU; the VLMs and the control ran on a Tesla T4 GPU. On this hard-ware the full ranker, at a median of 7.44 seconds per query over 31 candidates, is slower per item than UI-TARS-2B served on a GPU (2.61 seconds). We make no wall-clock claim. What the ranker offers is 279M parameters, text-only input, training in about an hour on one GPU, and inference that runs on a CPU at all. A phone-class agent that cannot host a 2B or 7B VLM can host this ranker; whether it is fast enough there is a separate measurement we have not done. 
+
+## 7 Analysis 
+
+We classified all 81 failures of the full ranker from its per-item outputs. The failures fall into exactly two groups. 
+
+Same-text duplicates (30 failures). Every ex-plicit failure picked a different element carrying the same text as the target. News navigation re-peats labels across a page (a section name appears in the top bar, the side rail, and the footer), and 64 of the 304 items have a duplicated target text. When the duplicates also share a section context, the candidate strings are near-identical and the pick is close to a coin flip. The geometry variant cuts these errors, as Section 6 shows, because position is one signal the duplicates do not share. One cata-logued case (item it0275, Express): the instruction quotes the label “Business”, and the element the ranker picked carries the identical label. Only the position is wrong. 
+
+Ordinal confusion (51 failures). Every referen-tial failure is an ordinal item: the ranker got 50 of 101 ordinal items right and spread the other 51 over wrong positions. Partial, section, and func-tion items are error-free (48 of 48). The cause is structural. Each candidate is scored in a separate forward pass, so the model never sees the list as a list; nothing in a candidate string says “I am the fourth link”. Position has to be inferred from the box coordinates and the surrounding fields, and 
+
+> FULL
+
+_GEO does not fix it either (47.5% on ordinal items). In item it0290 (Express), the instruction asks for the third link; the target is the “Live TV” link, and the ranker picked a different link, labelled “Aap Ka Din”. Ordinal grounding needs the candi-dates scored jointly, or an explicit position feature that means something. We did neither in this build. 
+
+The lexical-coupling test. (Chen and Jacucci, 2026) showed that a fine-tuned ranker on English benchmarks is, to a large degree, recovering visible labels: mask the target element’s text and R@1 falls from 0.694 to 0.151. If our ranker worked that way, it should collapse on instructions that never contain the label. The referential slice is built to be exactly that test, and the ordinal slice is its hardest part, since the instruction carries a number and a System Explicit (155) Ordinal (101) Partial (31) Section (13) Function (4) Heuristic 84.5 1.0 100 100 0.0                                         
+
+> MINDACT _TEXT 80.6 51.5 100 100 100
+> FULL 80.6 49.5 100 100 100
+> FULL _NOPARENT 80.6 50.5 100 100 25.0
+> FULL _GEO 86.5 47.5 100 100 100 UI-TARS-2B 40.0 4.0 48.4 46.2 75.0 Qwen2.5-VL-7B 32.9 2.0 48.4 7.7 75.0 MAI-UI-2B 13.5 1.0 41.9 7.7 0.0 Coord. control 0.0 3.0 6.5 0.0 0.0
+
+Table 4: Accuracy (%) by instruction generator. The function slice has four items, so its percentages move in steps of 25. The ordinal slice is where the systems separate. 
+
+(a) Explicit item, Dawn (b) Ordinal item, Siasat 
+
+Figure 1: Two frozen test items: one the string-matching baseline can solve, one it cannot. The screenshots are cropped to the top half so the gold boxes stay legible; both targets sit in the page header, marked by the red boxes. (a) The instruction quotes the target text (“click ‘Latest”). (b) The instruction (“click the fourth link”) quotes no text, and the count runs over links in DOM order.                      
+
+> System Params Device s/item
+> MINDACT _TEXT 279M CPU, 2-core VM 6.07
+> FULL 279M CPU, 2-core VM 7.44 UI-TARS-2B 2B GPU, Tesla T4 2.61 Qwen2.5-VL-7B 7B GPU, Tesla T4 5.68 MAI-UI-2B 2B GPU, Tesla T4 13.20 Coord. control 500M GPU, Tesla T4 2.39
+
+Table 5: Median seconds per item. Ranker times are medians over 49 frozen items with a median of 31 candi-dates per view, fp32, no batching or quantisation. VLM and control times are per screenshot on GPU. The de-vices differ, so read this table as a cost profile, not a race. 
+
+tag word and nothing else. Pure label recovery is in the table: the string-match heuristic scores 30.2% on the referential slice and 1.0% on ordinal items. The full ranker scores 65.8% and 49.5%. Between the full set and the referential slice, the ranker’s accuracy drops 7.6 points (73.4 to 65.8); the heuristic’s drops 27.7 (57.9 to 30.2). We do not claim the ranker is free of lexical coupling. It still loses the explicit slice to exact string matching (80.6% against 84.5%), and its duplicate failures are lexical at root. The narrower claim is what the slices support: when the instruction withholds the label, learned ranking keeps most of its accuracy and label matching keeps almost none of its. 
+
+One hard site. Express contributes 75 items and the full ranker gets 26 of them (34.7%), against 82.7% on Dawn, 85.3% on Siasat, and 95.5% on Daily Khabrain. Table 6 gives accuracy by site for every system. The site’s item mix stacks both failure modes: 40 of its 75 items are ordinal and 31 have a duplicated target text. The per-site gap is a property of the items, not a site-specific bug we found: the VLMs collapse on the same site (UI-TARS-2B 4.0%, Qwen2.5-VL-7B 0.0%). 
+
+The control’s failure mode. The coordinate con-trol parsed cleanly (304 of 304 outputs) and still scored 1.6%. Its errors are spread points: with 1,539 training rows it did not learn where Urdu page elements sit, and its 0 of 155 on the explicit slice shows the problem is not instruction under-standing. Given the screenshot and the exact text to find, it cannot point at the text. That is the re-gression task failing on its own terms, at the same data scale where ranking reaches 73.4%. 
+
+## 8 Limitations 
+
+The test set covers six sites, all news. Forms, shops, banking, and government portals have different layouts and different element mixes, and we have no numbers for them. The instructions are rule-generated. Five genera-tors produce clean, unambiguous Urdu, and every referential item passed a uniqueness check by con-struction. Instructions written by people will be messier, and our accuracy on them is unmeasured. The test set is small. At 304 items, one item is worth about 0.33 points, and differences between ranker variants of under two points should be read as noise. The claims we make rest on gaps of 35 points or more. Two weaknesses are measured, not hypothetical. When two elements carry identical text and similar context, the ranker often picks the wrong copy (30 of its 81 failures). Ordinal instructions stay near 50% for the ranker and under 5% for both VLMs, because no system we tested represents list position well. The method needs the DOM. It applies to web pages rendered in a browser or webview. It does not apply to native apps, canvas interfaces, or a bare screenshot, and in those settings coordinate models remain the only option of the two. The training pool is skewed. Two sites supply 76.6% of the positives, so the ranker may be fitted to ARY News and Wikipedia layouts more than to Urdu pages in general. The frozen test sites are disjoint from training, which limits how much this can inflate the test numbers, but it can still narrow what the model learned. Latency was measured on a shared 2-core VM in fp32, with no batching, quantisation, or distillation. Those numbers describe our measurement setup, not a deployment. 
+
+## 9 Ethics 
+
+All pages came from public news sites, fetched without accounts or logins. The records hold page structure, element text, and boxes; they contain no personal data, no user accounts, and no tracking of any person. Ad and tracker requests were blocked during collection. The instructions are machine-generated; no human subjects took part and no annotation labour was used. Grounding models are components of web au-tomation, and automation can be misused, for ex-ample to operate accounts or submit content at scale. Our study is read-only: the systems predict points on saved pages, and no action was performed on any live site during data collection or evaluation. Page text and layout belong to the publishers. We use short element strings and bounding boxes for research evaluation, and the figures show single elements in context for the same purpose. 
+
+## 10 Conclusion 
+
+On a frozen Urdu mobile-web test set, a 279M text ranker used on its own scores 73.4%, against 29.6% and 23.7% for 2B and 7B VLMs. Min-dAct’s ranking mechanism is not ours; what the numbers show is that its role can change when the page carries about 25 candidates instead of about a thousand, and when the interface language is Urdu, where both VLMs score under 30%. The ranker then needs no LLM behind it and no GPU in front of a user. The controlled comparison makes the same point from the other side: at small scale, with both models trained on data from the same pages, regressing coordinates scores 1.6% where DOM ranking scores 73.4%. What is left open is clear from the failures: score candidates jointly so list po-sition exists, use local context to separate same-text duplicates, and test on human-written instructions, other genres, and a second right-to-left language. 
+
+## References                                                              
+
+> Jesse Atuhurra, Iqra Ali, Tomoya Iwakura, Hidetaka Kamigaito, and Tatsuya Hiraoka. 2026. VLURes: System Siasat (75) Dawn (75) Express (75) Khabrain (67) Mashriq (11) Ummat (1) Heuristic 42.7 76.0 32.0 83.6 63.6 0.0
+> MINDACT _TEXT 85.3 81.3 37.3 95.5 63.6 100
+> FULL 85.3 82.7 34.7 95.5 63.6 0.0
+> FULL _NOPARENT 85.3 78.7 36.0 95.5 63.6 0.0
+> FULL _GEO 90.7 82.7 36.0 95.5 81.8 0.0 UI-TARS-2B 29.3 49.3 4.0 34.3 45.5 0.0 Qwen2.5-VL-7B 25.3 42.7 0.0 28.4 18.2 0.0 MAI-UI-2B 13.3 16.0 2.7 14.9 18.2 0.0 Coord. control 0.0 4.0 1.3 1.5 0.0 0.0
+
+Table 6: Accuracy (%) by test site, item counts in parentheses. Mashriq and Ummat are too small to read on their own; the four large sites carry the comparison. Express is the hardest site for every system, including both VLMs. Benchmarking long-text grounding and cross-lingual robustness in vision language models. In Findings of the Association for Computational Linguistics: ACL 2026 , pages 27426–27481. Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wen-bin Ge, Sibo Song, Kai Dang, Peng Wang, Shi-jie Wang, Jun Tang, Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhaohai Li, Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren Fu, Yiheng Xu, and 8 others. 2025. Qwen2.5-VL technical report. arXiv preprint arXiv:2502.13923 .Qijia Chen and Giulio Jacucci. 2026. Lexical coupling in GUI element grounding: Sentence embeddings track labels across mobile and web. arXiv preprint arXiv:2608.21794 .Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Yantao Li, Jianbing Zhang, and Zhiyong Wu. 2024. SeeClick: Harnessing GUI grounding for advanced visual GUI agents. In Proceedings of the 62nd An-nual Meeting of the Association for Computational Linguistics (ACL) .Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Samuel Stevens, Boshi Wang, Huan Sun, and Yu Su. 2023. Mind2Web: Towards a generalist agent for the web. In Advances in Neural Information Processing Systems (NeurIPS) .Alfredo F. Frontera Del Valle. 2026. What looks like a capability limit in vision-language models is a read-out limit. arXiv preprint arXiv:2609.27408 .Boyu Gou, Ruohan Wang, Boyuan Zheng, Yanan Xie, Cheng Chang, Yiheng Shu, Huan Sun, and Yu Su. 2025. Navigating the digital world as humans do: Universal visual grounding for GUI agents. In In-ternational Conference on Learning Representations (ICLR) .Pengcheng He, Jianfeng Gao, and Weizhu Chen. 2023. DeBERTaV3: Improving DeBERTa us-ing ELECTRA-style pre-training with gradient-disentangled embedding sharing. In International Conference on Learning Representations (ICLR) .Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yuxiao Dong, Ming Ding, and Jie Tang. 2024. Co-gAgent: A visual language model for GUI agents. In 
+
+Proceedings of the IEEE/CVF Conference on Com-puter Vision and Pattern Recognition (CVPR) , pages 14281–14290. Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. 2022. LoRA: Low-rank adaptation of large language models. In International Conference on Learning Representations (ICLR) .Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Chong Lim, Po-Yu Huang, Graham Neubig, Shuyan Zhou, Ruslan Salakhutdinov, and Daniel Fried. 2024. VisualWebArena: Evaluating multimodal agents on realistic visual web tasks. In 
+
+Proceedings of the 62nd Annual Meeting of the Asso-ciation for Computational Linguistics (ACL) .Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. 2025. ScreenSpot-Pro: GUI grounding for professional high-resolution computer use. arXiv preprint arXiv:2504.07981 .Chengheng Li-Chen, Zhiqian Zhou, Hao Chen, and Nicolas Chauvin. 2026. WinDOM: Self-family dis-tillation for small-model GUI grounding. arXiv preprint arXiv:2606.25964 .Ilya Loshchilov and Frank Hutter. 2019. Decoupled weight decay regularization. In International Confer-ence on Learning Representations (ICLR) .Andrés Marafioti, Orr Zohar, Miquel Farré, Merve Noyan, Elie Bakouch, Pedro Cuenca, Cyril Zakka, Loubna Ben Allal, Anton Lozhkov, Nouamane Tazi, Vaibhav Srivastav, Joshua Lochner, Hugo Larcher, Mathieu Morlon, Lewis Tunstall, Leandro von Werra, and Thomas Wolf. 2025. SmolVLM: Redefin-ing small and efficient multimodal models. arXiv preprint arXiv:2504.05299 .Ocean Monjur, Daud Ahmad Nisar, Shahriar Kabir Nahin, Tadesse Destaw Belay, Sushruti Mishra, Is-rael Abebe Azime, and Anshuman Chhabra. 2026. LoWAgent: A low-resource multilingual benchmark for web agents. arXiv preprint arXiv:2610.27205 .Rodrigo Nogueira and Kyunghyun Cho. 2019. Pas-sage re-ranking with BERT. arXiv preprint arXiv:1901.04085 .Abdollah Pourasghari, Saeedeh Sadat Sadidpour, and Mohammad Roustaei. 2026. A Persian vision-language-action dataset and benchmark for ambiguity- and infeasibility-aware instruction-to-plan grounding. arXiv preprint arXiv:2610.15666 .Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, Wanjun Zhong, Kuanye Li, et al. 2025. UI-TARS: Pioneering automated GUI interaction with native agents. arXiv preprint arXiv:2501.12326 .Christopher Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel Toyama, Robert J. Berry, Divya Tya-magundlu, Timothy Lillicrap, and Oriana Riva. 2024. AndroidWorld: A dynamic benchmarking environment for autonomous agents. arXiv preprint arXiv:2405.14573 .Kaiyu Wu, Beichen Zheng, Weiyao Huang, and Keze Wang. 2026. Recurrent latent visual search for GUI grounding. arXiv preprint arXiv:2610.05185 .Qianhui Wu, Kanzhi Cheng, Rui Yang, Chaoyun Zhang, Jianwei Yang, Huiqiang Jiang, Jian Mu, Baolin Peng, Bo Qiao, Reuben Tan, Si Qin, Lars Liden, Qing-wei Lin, Huan Zhang, Tong Zhang, Jianbing Zhang, Dongmei Zhang, and Jianfeng Gao. 2025. GUI-Actor: Coordinate-free visual grounding for GUI agents. arXiv preprint arXiv:2506.03143 .Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhou-jun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao Yu. 2024. OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer environments. In Advances in Neural Information Processing Systems (NeurIPS) .Pei Yang, Hai Ci, and Mike Zheng Shou. 2025a. ma-cOSWorld: A multilingual interactive benchmark for GUI agents. arXiv preprint arXiv:2506.04135 .Zhen Yang, Zi-Yi Dou, Di Feng, Forrest Huang, Anh Nguyen, Keen You, Omar Attia, Yuhao Yang, Michael Feng, Haotian Zhang, Ram Ramrakhya, Chao Jia, Jeffrey Nichols, Alexander Toshev, Yinfei Yang, and Zhe Gan. 2025b. Ferret-UI Lite: Lessons from building small on-device GUI agents. arXiv preprint arXiv:2509.26539 .Jiayuan Zhang, Kaiquan Chen, Zhihao Lu, Enshen Zhou, Qian Yu, and Jing Zhang. 2025. Prune4Web: DOM tree pruning programming for web agent. 
+
+arXiv preprint arXiv:2511.21398 .Boyuan Zheng, Boyu Gou, Jihyung Kil, Huan Sun, and Yu Su. 2024. GPT-4V(ision) is a generalist web agent, if grounded. In Proceedings of the 41st Inter-national Conference on Machine Learning (ICML) .Hanzhang Zhou, Xu Zhang, Panrong Tong, Jianan Zhang, Liangyu Chen, Quyu Kong, Chenglin Cai, Chen Liu, Yue Wang, Jingren Zhou, and Steven Hoi. 2025. MAI-UI technical report: Real-world centric foundation GUI agents. arXiv preprint arXiv:2512.22047 .Shuyan Zhou, Frank F. Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, Uri Alon, and Gra-ham Neubig. 2024. WebArena: A realistic web en-vironment for building autonomous agents. In In-ternational Conference on Learning Representations (ICLR) .

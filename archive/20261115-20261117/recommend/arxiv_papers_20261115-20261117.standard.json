@@ -1,0 +1,52 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-17T04:24:05.081373+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 1,
+    "deep_cap": 6,
+    "deep_selected": 1,
+    "quick_candidates": 0,
+    "quick_skim_target": 11,
+    "quick_selected": 0
+  },
+  "deep_dive": [
+    {
+      "id": "2611.20145v1",
+      "source": "arxiv",
+      "title": "Rank, Don't Regress: A 279M Text Ranker Beats 2B and 7B VLMs on Referential Urdu GUI Grounding",
+      "abstract": "UI grounding asks a model to find the screen element that a user instruction refers to. Most current systems use a vision-language model (VLM) that reads a screenshot and outputs pixel coordinates. We study this task on Urdu mobile web pages, a setting with no published UI grounding results. Instead of regressing coordinates, we take the candidate elements from the page DOM and train a 279M-parameter cross-encoder (mDeBERTa-v3-base) to pick one. The click point is the centre of the picked element's box, so it is exact whenever the right element is picked. We built a frozen test set of 304 instructions from six Urdu news sites; 149 of them (49%) are referential and never quote the full target text. Test domains were banned from training data before collection started. The ranker scores 73.4% point-in-box accuracy, against 29.6% for UI-TARS-2B and 23.7% for Qwen2.5-VL-7B, both zero-shot. On the referential slice the ranker scores 65.8%, against 30.2% for a string-matching baseline that needs no training. In a controlled comparison at small scale, with training data drawn from the same pages, a coordinate-regression model of similar size scores 1.6%. Adding element geometry as input tokens gives the best variant, at 75.7%. The ranker's errors concentrate in two places: elements that share identical text, and ordinal instructions such as \"the fourth link\".",
+      "authors": [
+        "Hamza Raziq Khan",
+        "Aimal Khan"
+      ],
+      "primary_category": "cs.CL",
+      "categories": [
+        "cs.CL"
+      ],
+      "published": "2026-11-15 17:26:42+00:00",
+      "link": "https://arxiv.org/pdf/2611.20145v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "ranks DOM candidate elements to ground instructions to GUI elements instead of VLM coordinate regression",
+      "llm_evidence_cn": "用候选元素排序替代坐标回归，将指令定位到GUI元素",
+      "llm_evidence": "用候选元素排序替代坐标回归，将指令定位到GUI元素",
+      "canonical_evidence": "用候选元素排序替代坐标回归，将指令定位到GUI元素",
+      "llm_tldr_en": "UI grounding normally uses VLMs to regress click coordinates. This work instead ranks DOM candidate elements with a 279M cross-encoder for Urdu mobile web pages, beating 2B and 7B VLMs with exact click points.",
+      "llm_tldr_cn": "现有界面元素定位多让视觉语言模型读取截图并回归像素坐标，在乌尔都语移动网页等缺乏结果的场景效果不明。本文改为从页面DOM中提取候选元素，训练279M参数的mDeBERTa交叉编码器对候选进行排序，以选中元素框中心作为点击点。作者在六家乌尔都语新闻网站构建了304条指令的冻结测试集，其中近半为不直接引用目标文本的指代性表述，结果显示该小型排序器在定位准确率上超过2B与7B视觉语言模型。这表明以候选排序替代坐标回归可为低资源语言GUI定位提供轻量而精确的新范式。",
+      "llm_tldr": "现有界面元素定位多让视觉语言模型读取截图并回归像素坐标，在乌尔都语移动网页等缺乏结果的场景效果不明。本文改为从页面DOM中提取候选元素，训练279M参数的mDeBERTa交叉编码器对候选进行排序，以选中元素框中心作为点击点。作者在六家乌尔都语新闻网站构建了304条指令的冻结测试集，其中近半为不直接引用目标文本的指代性表述，结果显示该小型排序器在定位准确率上超过2B与7B视觉语言模型。这表明以候选排序替代坐标回归可为低资源语言GUI定位提供轻量而精确的新范式。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "How can vision language models ground natural language instructions to GUI elements and plan reliable actions?",
+      "matched_requirement_id": "req-7",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": []
+}

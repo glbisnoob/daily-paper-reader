@@ -1,0 +1,25 @@
+{
+  "date": "20261115-20261117",
+  "date_label": "2026-11-15 06:00 ~ 2026-11-17 06:00 (UTC+8)",
+  "generated_at": "2026-11-17 04:25:54 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.20145v1",
+      "route": "20261115-20261117/2611.20145v1-rank-dont-regress-a-279m-text-ranker-beats-2b-and-7b-vlms-on-referential-urdu-gui-grounding",
+      "title": "Rank, Don't Regress: A 279M Text Ranker Beats 2B and 7B VLMs on Referential Urdu GUI Grounding",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "用候选元素排序替代坐标回归，将指令定位到GUI元素",
+      "first_seen_at": "2026-11-17 04:25:54 UTC",
+      "updated_at": "2026-11-17 04:25:54 UTC"
+    }
+  ]
+}

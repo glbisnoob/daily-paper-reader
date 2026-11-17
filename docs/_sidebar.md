@@ -1,6 +1,9 @@
 * <a class="dpr-sidebar-root-link" href="#/">首页</a>
 * <a class="dpr-sidebar-root-link dpr-sidebar-noactive-link" href="javascript:void(0)" data-dpr-hash="#/tutorial/README">使用教程</a>
 * Daily Papers
+  * 2026-11-15 06:00 ~ 2026-11-17 06:00 (UTC+8) <!--dpr-date:20261115-20261117-->
+    * 精读区
+      * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/20261115-20261117/2611.20145v1-rank-dont-regress-a-279m-text-ranker-beats-2b-and-7b-vlms-on-referential-urdu-gui-grounding" data-sidebar-item="{&quot;title&quot;: &quot;Rank, Don&#x27;t Regress: A 279M Text Ranker Beats 2B and 7B VLMs on Referential Urdu GUI Grounding&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2611.20145v1-rank-dont-regress-a-279m-text-ranker-beats-2b-and-7b-vlms-on-referential-urdu-gui-grounding&quot;, &quot;score&quot;: &quot;9.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gui-agents&quot;}], &quot;evidence&quot;: &quot;用候选元素排序替代坐标回归，将指令定位到GUI元素&quot;}">Rank, Don&#x27;t Regress: A 279M Text Ranker Beats 2B and 7B VLMs on Referential Urdu GUI Grounding</a>
   * 2026-11-12 06:00 ~ 2026-11-13 06:00 (UTC+8) <!--dpr-date:20261113-->
     * 精读区
       * <a class="dpr-sidebar-item-link dpr-sidebar-item-structured" href="#/202611/13/2610.23012v1-adaptation-of-computer-use-agents-to-new-software-with-user-manuals" data-sidebar-item="{&quot;title&quot;: &quot;Adaptation of Computer Use Agents to New Software with User Manuals&quot;, &quot;link&quot;: &quot;https://arxiv.org/abs/2610.23012v1-adaptation-of-computer-use-agents-to-new-software-with-user-manuals&quot;, &quot;score&quot;: &quot;8.0&quot;, &quot;tags&quot;: [{&quot;kind&quot;: &quot;query&quot;, &quot;label&quot;: &quot;gui-agents&quot;}], &quot;evidence&quot;: &quot;基于视觉观察与指令通过GUI操作软件的计算机使用智能体&quot;}">Adaptation of Computer Use Agents to New Software with User Manuals</a>
