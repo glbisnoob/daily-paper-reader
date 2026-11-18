@@ -1,0 +1,2401 @@
+PACT: Plan-Action Consistency Training by Preserving Correct Plans and
+Repairing Actions in GUI Agents
+Zhuohan Cai1,2,∗
+Zhangxuan Gu2,†
+Runze Li2
+Beitong Zhou2
+Ming Wen2
+Hongbo Yu1,†
+Shuheng Shen2
+Changhua Meng2
+1Tsinghua University
+2Ant Group
+caizh24@mails.tsinghua.edu.cn
+guzhangxuan.gzx@antgroup.com
+yuhongbo@mail.tsinghua.edu.cn
+∗This work was done during an internship at Ant Group.
+†Corresponding authors: Zhangxuan Gu and Hongbo Yu.
+Abstract
+GUI agents can formulate a correct immediate plan in their
+reasoning yet emit an action that fails to execute it, creat-
+ing an execution gap. This recurring mismatch undermines
+reliable task completion, as a single execution error can
+derail a multi-step workflow. In outcome-supervised rein-
+forcement learning, broadcasting a negative response-level
+advantage across all generated tokens risks penalizing valid
+planning together with erroneous execution. To address this
+credit-assignment conflict, we introduce PACT (Plan–Action
+Consistency Training), a training framework that combines
+reference-aligned plan protection and plan-aligned action
+repair without altering the original scalar action reward.
+Using annotated reference actions to identify execution gaps,
+PACT protects the verified plan by masking negative policy-
+gradient contributions across its token span. Keeping the
+generated reasoning unchanged as context, it then favors the
+reference action over the emitted erroneous action through a
+preference surrogate with stop-gradient pair weights. Com-
+pared with the outcome-only baseline, PACT raises Android-
+World task success from 60.34% to 68.97% (+8.63 pp), while
+improving rule-based plan–action consistency on Android-
+Control High from 83.71% to 89.74% (+6.03 pp). Adapting
+PACT to desktop agents also improves task success from
+40.92% to 44.17% (+3.25 pp) on the full 369-task OSWorld
+benchmark. Together, these results establish PACT as an
+effective credit-assignment framework for bridging execu-
+tion gaps and improving task completion across mobile and
+desktop GUI environments.
+1. Introduction
+GUI agents must translate visual interfaces and user goals
+into executable interactions. Yet formulating a correct imme-
+diate plan in generated reasoning does not guarantee that the
+emitted action executes it. For example, an agent may state
+that it will tap a visible + button, yet emit an application-
+launch command instead (Figure 1). This execution gap is
+distinct from a planning error: the response already contains
+a valid immediate plan, but the final action fails to realize it.
+Building on prior diagnostic studies of reasoning–execution
+gaps in mobile agents [5], we investigate how training can
+preserve valid plans within failed responses while repairing
+their execution.
+In reinforcement learning (RL), such execution gaps cre-
+ate a credit-assignment problem. Several GUI-agent meth-
+ods use Group Relative Policy Optimization (GRPO) or its
+variants to learn from action feedback [7, 9]. In implemen-
+tations that broadcast one response-level advantage across
+reasoning and action tokens [17], a negative advantage penal-
+izes valid planning alongside erroneous execution. A scalar
+thought–action consistency reward [9] does not determine
+the direction of correction: higher agreement can result from
+adapting a plan to justify an incorrect action, and a flawed
+plan can be executed consistently. Effective correction there-
+fore requires identifying which component the annotated
+reference action supports preserving.
+Our central principle is to preserve a reference-
+supported plan and repair the action that fails to im-
+plement it. Here, a plan denotes the intended next GUI in-
+teraction expressed in the generated reasoning, and the plan
+span denotes the tokens expressing it. Verifying reference
+support for parameterized GUI actions requires checking
+spatial or textual arguments beyond action type alone, en-
+abling selective credit assignment that shields valid plans
+while repairing failed actions.
+We present PACT, which instantiates this principle within
+a group-relative RL pipeline while leaving the original scalar
+action reward intact. First, a conservative rule-based selector
+1
+arXiv:2611.22591v1  [cs.AI]  17 Nov 2026
+
+
+Fixed-plan continuation
+Same input and fixed reasoning prefix
+Plan (fixed prefix)
+According to the user's instruction,
+I need to click on the + icon to
+start creating content.
+Erroneous action
+LaunchApp(app='Pinterest')
+App launch
+No click performed
+Free generation
+Same state; independent reasoning and action
+Plan (verbatim excerpt)
+Let me swipe down to
+reveal more content.
+Erroneous action
+Swipe(start=(500, 750),
+      end=(500, 350))
+start
+Finger motion: UP
+Opposes the stated downward swipe
+Training principle (schematic): ne
+Other reasoning
+−
+Valid plan
+−
+Action
+−
+Shared negative policy-gradient credit
+(a) Original GRPO baseline (O)
+Current step: click on the + icon
+Plan (fixed prefix)
+According to the user's instruction,
+I need to click on the + icon to
+start creating content.
+Correct action
+Click(box=(500, 950))
+CLICK LOCATION: bottom +
+Current step: swipe down to read about
+the first quarter moon phase
+Plan
+Swipe downward to follow
+the current step.
+Correct action
+Swipe(start=(500, 250),
+      end=(500, 750))
+start
+Finger motion: DOWN
+Follows the current instruction
+egative response advantage 
+0 < 0
+Other reasoning
+−
+Valid plan
+0
+Action
+−
+Reference-Aligned
+Plan Protection
+Plan-Aligned
+Action Repair
+(b) PACT
+Figure 1. Execution gaps and targeted correction. Top: Both models continue the same supplied Pinterest reasoning; O launches the app,
+while PACT clicks the intended + control. Bottom: With independently generated reasoning and actions on Moon, O states a downward
+swipe but emits upward finger motion, while PACT executes the downward swipe. On-screen circles mark the click or gesture start; swipe
+arrows show finger motion. The separate training schematic illustrates reference-aligned plan protection of selected plans and additional
+action repair under a negative response advantage.
+identifies responses featuring a reference-supported plan but
+an incorrect, inconsistent final action. Second, reference-
+aligned plan protection masks negative policy-gradient con-
+tributions within the plan span, leaving the advantages on
+action tokens and the remaining reasoning unchanged. Third,
+plan-aligned action repair pairs a reference-derived positive
+action suffix with the model’s emitted erroneous suffix under
+the same decoded reasoning trace via a stop-gradient pair-
+weight preference surrogate in the spirit of direct preference
+optimization (DPO) [15], outside the original GRPO rollout
+group. Both mechanisms operate strictly during training;
+inference retains the standard single-pass reasoning–action
+interface without extra reflection or re-planning.
+PACT improves interactive task completion over the
+original GRPO baseline, reaching 68.97% success on
+AndroidWorld [16] (+8.63 pp) and 44.17% on the full
+OSWorld benchmark [21] (+3.25 pp).
+It also achieves
+89.74% rule-based plan–action consistency on AndroidCon-
+trol High [12] (+6.03 pp), alongside improved visual ground-
+ing on ScreenSpot-v2 Mobile [20].
+Three complementary diagnostics examine why these
+gains arise. Fixed-plan continuation isolates action gen-
+eration, showing that plan-aligned action repair improves
+execution of a valid plan. Aligned-state retention analyses
+demonstrate that reference-aligned plan protection reduces
+regressions on baseline-correct actions. Free-generation
+comparisons further show that protecting plans preserves
+more valid plans and enables more joint repairs, supporting
+the complementary roles of protection and repair beyond
+surface plan–action agreement.
+Our main contributions are threefold:
+• Reference-aligned plan protection and plan-aligned
+action repair. PACT uses reference-supported plans to
+decouple plan preservation from action correction without
+altering the scalar action reward.
+• Task improvements across mobile and desktop environ-
+ments. Comparisons against outcome-only and two repair
+baselines demonstrate consistent gains in dynamic task
+completion on AndroidWorld and OSWorld, supported by
+consistency and grounding evaluations on AndroidControl
+and ScreenSpot-v2 Mobile.
+• Mechanistic evidence on repair and retention. Through
+2
+
+
+fixed-plan continuation, free-generation, and baseline-
+correct retention analyses, we characterize the repair–
+retention trade-off while disentangling plan correctness,
+action validity, and plan–action consistency.
+2. Related Work
+Reasoning–execution alignment in GUI agents. Reliable
+GUI interaction demands both sound planning and faithful
+execution, motivating fine-grained evaluation beyond ag-
+gregate task success. VenusBench-Mobile [6] decomposes
+user-centric agent evaluation across perception, understand-
+ing, decision, action, and memory capabilities, while Dong
+et al. [5] specifically diagnose reasoning–execution gaps by
+separating the correctness of stated plans from that of emitted
+actions. On the training side, Faithful-Agent [9] combines
+evidence-grounded supervision, thought–action consistency
+rewards, and a guided advantage estimator, whereas Mo-
+bileIPL [10] derives thinking-level preferences by propa-
+gating action feedback through reasoning trees to improve
+planning. In contrast, PACT uses reference-supported plans
+within unsuccessful responses to determine the direction of
+correction—preserving valid plans while repairing only their
+failed execution.
+Fine-grained preference learning and action correc-
+tion. Building on the pairwise objective of DPO [15], Step-
+DPO [11] targets individual reasoning steps conditioned on
+a correct prefix, whereas Agentic-DPO [2] contrasts expert
+actions against sampled mistakes at expert states. From a
+rollout-augmentation perspective, Octopus [4] recombines
+sampled trajectories and masks specific segments to separate
+self-correction from direct reasoning. PACT instead retains
+the model’s own decoded reasoning trace as the shared con-
+ditioning context to contrast the reference-derived action
+suffix against the emitted erroneous suffix.
+Credit assignment within failed responses. Localized
+supervision also raises a credit-assignment question: which
+parts of an unsuccessful response should be penalized? In
+standard GRPO [17], a single group-relative advantage is
+broadcast across every token of a sampled response. Re-
+cent methods refine this assignment based on intermediate
+correctness, ranging from retrieval-calibrated negative advan-
+tages in CalibAdv [19] to teacher-identified first-error bound-
+aries in Cliff [8]. In GUI agent training, UI-Venus-2 [18]
+introduces structured action-aware distillation to condition
+token-level supervision on action correctness and distinguish
+action-type errors from parameter errors. Within outcome-
+supervised GRPO, PACT masks negative policy-gradient
+contributions on reference-supported GUI plan spans and
+repairs failed action suffixes under the same plan, while
+keeping the scalar action reward intact.
+Table 1. Step-level judgments and training implications in PACT.
+(a) Definitions (1: satisfied; 0: otherwise)
+Metric
+Success criterion
+T
+The current plan is correct for the task.
+A
+The action is valid for the current task and state.
+C
+The action implements the model’s stated plan.
+Joint repair
+T = A = C = 1 for the same plan–action pair.
+(b) Correctness regimes
+T
+A Training implication
+1
+1
+Original action-reward objective.
+1
+0
+Protect the plan; repair the action.
+0
+1
+Original objective; no forced plan alignment.
+0
+0
+Original objective; no reward for error agreement.
+Protection and repair apply only to eligible gaps in Eq. (2) ( bCi = 0).
+3. Problem Formulation
+Let x denote the agent’s observable input context, compris-
+ing a user instruction, the current interface screenshot, and
+the available interaction history. Given x, the policy πθ au-
+toregressively generates a reasoning trace z followed by a
+GUI action a:
+πθ(z, a | x) = πθ(z | x)πθ(a | x, z).
+(1)
+During training, each context x is paired with an annotated
+reference action a⋆.
+The plan span in z expresses the next intended GUI in-
+teraction. Building on reasoning–execution diagnostics [5],
+Table 1 defines T, A, C and joint repair, and summarizes the
+four correctness regimes and their training implications in
+PACT.
+All sampled responses remain in outcome-supervised
+GRPO. PACT adds protection and repair for reference-
+supported plans whose actions fail to implement them. For
+incorrect plans, correction instead requires revising the rea-
+soning; valid actions should not be redirected to follow an
+incorrect plan.
+During training, a rule-based selector evaluates each sam-
+pled response i relative to its reference action a⋆
+i . Let Ji ∈
+{0, 1} indicate whether the response admits the required
+reference-based judgments, and let bTi, bAi, bCi ∈{0, 1} de-
+note the resulting proxies for T, A, C. The execution-gap
+eligibility flag is
+Ei = Ji 1
+h
+bTi = 1, bAi = 0, bCi = 0
+i
+.
+(2)
+Unjudgeable responses (Ji = 0) remain in the base RL objec-
+tive without auxiliary supervision. These reference-relative
+proxies govern training-time selection, whereas benchmark
+evaluation and mechanism diagnostics use independent rule-
+consistency and screenshot-based semantic assessments.
+3
+
+
+4. PACT
+Figure 2 summarizes the original GRPO path and PACT’s
+two complementary training mechanisms.
+4.1. Retaining the original action reward
+PACT retains the original scalar action reward without intro-
+ducing any plan-consistency bonus. For a sampled response
+y = (z, a), the standard parseable branch of the mobile
+scorer combines a format score, an action-type match indi-
+cator, and an action-specific parameter score:
+R0(y, a⋆)=rfmt(y)+1[τ(a)=τ(a⋆)]
+ 1+P0(a, a⋆)
+
+, (3)
+where τ(a) denotes the action type. All original parsing,
+missing-action, and grounding branches remain unchanged,
+with action-specific scoring rules and coordinate tolerances
+detailed in the supplementary material.
+For each prompt, the pre-update policy πold samples K
+responses. Outcome-supervised GRPO [17] computes the
+group-standardized advantage
+A0
+i = R0,i −µg(i)
+sg(i) + 10−6 ,
+(4)
+where g(i) is the prompt group of response i, and µg(i) and
+sg(i) are its reward mean and sample standard deviation. The
+baseline broadcasts A0
+i to valid response tokens in a clipped
+token-mean policy loss regularized by a KL term against
+the fixed supervised fine-tuned (SFT) reference πref. Only
+sampled rollouts enter these groups; repair suffixes never
+affect group statistics (µg(i), sg(i)) or base rollout rewards.
+4.2. Reference-verified execution-gap selection
+The selector evaluates the eligibility flag Ei in Eq. (2). In
+the mobile implementation, it scans the final four sentences
+of zi in reverse order for an explicit immediate plan, reject-
+ing negation, multi-step ambiguity, and conflicting action
+types. Candidate plans are extracted solely from the rea-
+soning text zi prior to reference comparison, never inferred
+retrospectively from the emitted action ai.
+Judgeability (Ji = 1) requires a parseable reference, a
+unique emitted action block, comparison metadata, and a
+non-terminal plan with checkable parameters: pointing ac-
+tions require a unique explicit coordinate; scrolling actions
+require a single direction; text-entry and app-launch actions
+require a unique quoted argument; and supported parameter-
+free system actions require a valid action type. Grounding-
+only examples, terminal references, and unverifiable plans
+(Ji = 0) remain active in the base RL objective but are
+excluded from auxiliary selection.
+For judgeable responses, bTi checks the plan parameters
+against a⋆
+i , bAi tests whether the base content score reaches
+the configured full-credit threshold, and bCi checks whether
+the emitted action ai matches the plan under distinct com-
+patibility tolerances. When Ei = 1, span localization and
+pair construction proceed independently, with extraction and
+fallback rules in the supplement.
+4.3. Reference-aligned plan protection
+Let M D
+i,t ∈{0, 1} indicate tokens within the localized plan
+span. PACT modifies the token-level policy advantage as
+e
+Ai,t =
+(
+max(A0
+i , 0),
+Ei = 1 and M D
+i,t = 1,
+A0
+i ,
+otherwise.
+(5)
+Without renormalizing group advantages, this clamp zeroes
+out negative policy-gradient coefficients on the reference-
+supported plan span while leaving positive advantages, ac-
+tion tokens, and the remaining reasoning tokens untouched.
+Crucially, protection acts strictly on local policy-gradient
+coefficients rather than freezing shared model parameters or
+masking the KL regularizer.
+4.4. Plan-aligned action repair
+For an eligible response y−
+i = (zi, a−
+i ), we construct a pos-
+itive response y+
+i = (zi, a+
+i ) by replacing only the action
+block with the training reference a⋆
+i formatted in the model’s
+native action syntax and coordinate space, preserving the
+input xi and decoded reasoning text zi. Let P denote the
+retained constructible pairs, where y+
+i is scored via teacher
+forcing; unconstructible or overlength replacements are omit-
+ted from P, while their original rollouts remain in the rollout
+batch B.
+Let M A,±
+i,t
+∈{0, 1} select the action tags and action
+tokens, excluding reasoning and trailing tokens. We define
+the summed action-span log probability as
+s±
+θ,i =
+X
+t
+M A,±
+i,t
+log πθ
+ y±
+i,t | xi, y±
+i,<t
+
+,
+(6)
+so that only action-span tokens enter the auxiliary objective
+while the decoded reasoning trace zi serves as their shared
+conditioning context.
+We evaluate the log-ratio margin using πold and πref, and
+define the pair weight as
+wi = λβ
+B0
+σ
+ β[s−
+old,i −s−
+ref,i −s+
+old,i + s+
+ref,i]
+
+,
+(7)
+where λ is the repair weight, β is the preference scale, σ is
+the sigmoid function, and B0 = |B| is the original rollout
+batch size (rather than |P|). The suffix-repair surrogate is
+Lsur
+repair(θ) =
+X
+i∈P
+stopgrad(wi)
+ s−
+θ,i −s+
+θ,i
+
+.
+(8)
+Minimizing Eq. (8) favors the reference-derived suffix a+
+i
+over the erroneous suffix a−
+i under the same decoded rea-
+soning trace. With pairs and masks fixed, its gradient at θold
+4
+
+
+Original GRPO
+Original rollouts
+Input
+Task / screen / history
+Sample rollouts
+Current policy
+Reward
+Group advantages
+Reference-Verified
+Execution-Gap Selection
+9:41
+Browse
+Plan
+Tap + at (500, 950).
+Emitted action
+LaunchApp(...)
+Reference action
+Click(box=(500, 950))
+Plan
+Action
+Mismatch
+Reference-Aligned Plan Protection
+Other
+Plan span
+Action
+GRPO
+PACT
+0
+Positive coefficients unchanged
+Action Repair
+Same input & plan
+Emitted action
+LaunchApp(...)
+Reference-derived action
+Click(box=(500, 950))
+Reference action
+>
+Preference
+training
+Plan-Aligned Action Repair
+Actor Update
+Figure 2. PACT training framework. Reference-verified execution-gap selection identifies reference-supported plans paired with incorrect,
+inconsistent actions. Reference-aligned plan protection zeros negative policy-gradient coefficients on the plan span. Plan-aligned action
+repair favors reference-derived over erroneous action suffixes under the same input and reasoning trace. Both feed the GRPO actor update.
+matches that of the corresponding conditional logistic pref-
+erence objective [15] when both suffix terms are evaluated
+at that parameter point; reusing frozen weights wi across
+actor minibatches yields a linear log-probability surrogate
+rather than a repeatedly recomputed logistic loss, with the
+derivation and full rule specifications in the supplementary
+material.
+Collecting all actor terms yields the complete objective:
+Lactor(θ)=LPG(θ; e
+A, B)+ηLKL(θ; B)+Lsur
+repair(θ), (9)
+where η is the unchanged KL coefficient, and λ is absorbed
+into wi. Constructed positive responses contribute exclu-
+sively to Lsur
+repair, without entering the rollout batch B, the
+modified policy loss LPG(θ; e
+A, B), or the KL term. At infer-
+ence, PACT uses the standard single-pass reasoning–action
+interface.
+4.5. Training configurations
+We compare four cumulative GRPO configurations in Ta-
+ble 2. In these configuration names, O denotes Original
+GRPO, A denotes Action Repair, and R denotes Reference-
+Verified Execution-Gap Selection.
+• O (Original GRPO): no action repair or plan protection.
+• OA (O + A): adds action repair to O on supported,
+parseable, non-terminal actions below full credit ( bAi = 0),
+without execution-gap selection or plan protection.
+• OAR (O + A + R): adds reference-verified execution-gap
+selection (Ei = 1) to OA, yielding plan-aligned action
+repair without advantage clamping ( e
+Ai,t = A0
+i ).
+• PACT: adds reference-aligned plan protection to OAR.
+Table 2. Cumulative training configurations.
+Configuration
+Action
+Repair
+Reference-Verified
+Execution-Gap
+Selection
+Reference-Aligned
+Plan Protection
+O
+×
+×
+×
+OA
+✓
+×
+×
+OAR
+✓
+✓
+×
+PACT
+✓
+✓
+✓
+All variants retain the original reward and reference KL.
+Repair variants construct pairs from their own rollouts using
+the same reference-action constructor and suffix surrogate.
+Optimization settings are in Section 5 and the supplement.
+5. Experimental Setup
+Training. In our primary mobile study, O, OA, OAR, and
+PACT share the same Qwen3.5-9B vision–language model
+SFT initialization, whose frozen copy serves as the refer-
+ence policy πref, along with 10,000 mobile GUI state–action
+training examples with pixel-space reference coordinates.
+Each variant is trained for 1,250 training iterations over
+two epochs, sampling 16 prompts and K = 8 responses
+per prompt at each step to yield B0 = 128 original rollout
+responses before auxiliary rows are added. Optimization
+uses one PPO epoch per rollout batch, a learning rate of
+10−6, rollout temperature 1.0, KL coefficient η = 0.01,
+and 32 accelerators with FSDP2; repair-enabled variants set
+λ = β = 0.1 and retain at most 64 repair pairs per itera-
+tion. To evaluate cross-platform generality, we also train
+desktop-adapted counterparts of O, OA, OAR, and PACT.
+Platform-specific training settings, action-space adaptations,
+5
+
+
+Table 3. Main benchmark results. (A) Published GUI-agent context. (B) Matched RL comparisons.
+(A) Published benchmark results: representative 7B–9B GUI agents
+Model
+Size
+AndroidWorld SR (%)
+OSWorld SR (%)
+ScreenSpot-v2 Mobile (%)
+UI-TARS-7B-SFT [13]
+7B
+33.0
+17.7
+93.61 [13]
+UI-TARS-1.5-7B [1]
+7B
+30.0 [25]
+27.5
+91.23 [26]
+UI-Venus-Navi-7B [7]
+7B
+49.1
+–
+–
+GUI-Owl-7B [23]
+7B
+66.4
+29.5 [3]
+–
+Qwen3-VL-8B-Instruct [25]
+8B
+47.6
+–
+92.38 [25]
+Step-GUI-8B [22]
+8B
+67.7
+40.2
+–
+Qwen3.5-9B [14]
+9B
+57.8
+41.8
+93.01 [24]
+PACT (ours)
+9B
+68.97
+44.17
+96.01
+SR: task success rate. “–”: not listed. Published-result settings and aggregation details are provided in the supplement.
+(B) Main benchmark results under matched settings within each platform
+Configuration
+Task success ↑
+Plan–action consistency ↑
+Grounding ↑
+AndroidWorld
+OSWorld
+AC High Crule
+AC Low Crule
+ScreenSpot-v2 Mobile
+O
+60.34
+40.92
+83.71
+86.39
+91.82
+OA
+61.21
+41.19
+80.04
+78.47
+96.01
+OAR
+62.93
+42.55
+86.43
+88.14
+95.41
+PACT
+68.97
+44.17
+89.74
+87.56
+96.01
+∆(PACT−O), pp
++8.63
++3.25
++6.03
++1.17
++4.19
+AC: AndroidControl; Crule: rule consistency over judgeable states. Scores: %; ∆: pp.
+and optimization details are provided in the supplementary
+material.
+Benchmarks and roles. Our evaluation separates inter-
+active task completion, plan–action consistency, and visual
+grounding. On AndroidWorld [16], we report the task suc-
+cess rate across its 116 interactive tasks for each checkpoint.
+On AndroidControl [12], we evaluate 8,444 states from
+1,543 episodes in each of the High and Low settings: along
+with the current screenshot and available history, High pro-
+vides only the task goal, whereas Low additionally supplies
+the step instruction. In both settings, we measure rule-based
+plan–action consistency and reference-action matching for
+retention and mechanism diagnostics. ScreenSpot-v2 Mo-
+bile [20] measures point-in-target hit rate across 501 exam-
+ples (290 text and 211 icon targets). For desktop interaction,
+we report task success for each desktop checkpoint on the
+full 369-task OSWorld benchmark [21], counting a task as
+successful strictly when its native score equals 1.0.
+Generation and measurement. Mobile evaluation uses
+greedy decoding (temperature 0), a 4,096-token output limit,
+and up to ten prior interaction steps. On AndroidControl,
+models observe recorded screenshots, with non-initial states
+conditioned on each model’s own generated history. OS-
+World uses the same environment configuration, greedy de-
+coding (temperature 0), a 100-step limit, and the official
+native evaluator. Distinct from the training-time selector, our
+AndroidControl consistency evaluator extracts a function-
+style or keyword-based action intent from the reasoning
+trace and compares the inferred action type and recover-
+able parameters with those of the emitted action. We report
+Crule = Nconsistent/Njudgeable with consistent and judge-
+able counts provided in the supplementary material. For
+action retention, we measure the proportion of O’s reference-
+matched states on which a compared variant also matches
+the reference.
+In mechanism diagnostics, fixed-plan continuation con-
+ditions each model on the same input and the exact valid
+reasoning prefix generated by O to isolate action generation,
+whereas free generation requires each model to produce
+both reasoning and action from scratch. On these subsets,
+screenshot-based semantic assessments use language-model
+assistance and human verification to separately evaluate
+plan correctness (T), action validity (A), and semantic plan–
+action consistency (C), complementing benchmark-wide
+rule-based scores; the supplementary material details sample
+selection, annotation protocols, and execution.
+6. Results and Analysis
+6.1. Mobile task completion, consistency, and
+grounding
+PACT improves interactive task completion. On Android-
+World, PACT leads the matched RL configurations in Ta-
+ble 3(B) at 68.97% task success: +8.63 pp over O (60.34%),
++6.04 pp over OAR, and +7.76 pp over OA. Table 3(A) pro-
+vides published context. In a file-copy task, PACT selects
+the target folder, confirms copying, and finishes in 15 steps.
+OAR repeatedly types the folder name until the step limit
+(Supplement Figure S2).
+Task gains are accompanied by stronger plan–action
+6
+
+
+Table 4. Reference-action retention on aligned AndroidControl
+states. |K0|: High 5,270; Low 6,580. Non-initial states use each
+model’s own generated history. W/R: wrong/right. Net error change
+vs. O: ∆E = (R→W) −(W→R).
+Setting
+Model Ret. (%) W→R ↑R→W ↓
+Net ∆E ↓
+AC High
+OA
+87.89
+669
+638
+−31
+OAR
+86.34
+591
+720
++129
+PACT
+89.51
+631
+553
+−78
+AC Low
+OA
+90.03
+436
+656
++220
+OAR
+89.07
+380
+719
++339
+PACT
+92.37
+476
+502
++26
+consistency. On AndroidControl High, PACT leads in Crule
+at 89.74% (+6.03 pp over O, +3.31 pp over OAR, +9.70 pp
+over OA), with the highest consistent-action count (7,046
+states) and 41.1% fewer action-type mismatches than O,
+from 1,279 to 753 (Supplement Table S3). On Low, PACT
+raises Crule over O from 86.39% to 87.56%, while OAR
+reaches 88.14% but incurs 217 more action regressions than
+PACT (Section 6.3).
+Visual grounding improves alongside task perfor-
+mance. On ScreenSpot-v2 Mobile, PACT raises the point-in-
+target hit rate from 91.82% (460/501) to 96.01% (481/501),
+improving on both text and icon targets and exceeding OAR
+(95.41%; Table 3(B)). PACT has the highest grounding score
+in Table 3(A). Notably, while PACT and OA tie on aggre-
+gate grounding accuracy, PACT leads OA by 7.76 pp on
+AndroidWorld, indicating that PACT’s advantage in multi-
+step task completion extends beyond static point localization.
+6.2. Extending PACT to desktop GUI agents
+The task-level gains extend to desktop interaction. On
+the full 369-task OSWorld benchmark (Table 3(A,B)), PACT
+solves 163 tasks (44.17%), surpassing O (151, 40.92%) by
+12 tasks, OAR (157, 42.55%) by 6 tasks, and OA (152,
+41.19%) by 11 tasks. Action repair adds one success over O,
+while OAR and PACT yield larger gains, matching Android-
+World’s PACT > OAR > OA > O ordering. On LibreOf-
+fice CSV export, PACT selects Text CSV and finishes in
+9 steps. OAR misclicks PNG and reaches the 100-step limit
+(Supplement Figure S3).
+6.3. Repairing failures while retaining baseline-
+correct actions
+Effective repair must correct errors while retaining mastered
+behavior. Let K0 denote states where O emits a reference-
+matching action. Table 4 reports retention, recovered errors,
+regressions, and net error change ∆E relative to O; Figure 3
+shows net correct-action gains over OAR.
+Plan protection improves both retention and repair rel-
+ative to OAR. PACT achieves the highest baseline-correct re-
+tention on AndroidControl at 89.51% on High and 92.37%
+on Low, versus 86.34% and 89.07% for OAR, preserving
+Table 5. Execution diagnostics on the 23-state execution-gap set.
+Asterisks (*) mark O’s selection criteria. Joint repair is defined in
+Table 1(a). Full semantic results are in the supplementary material.
+Metric (%; out of 23 states)
+O
+OA
+OAR
+PACT
+Fixed plan
+Reference action accuracy
+56.52
+95.65
+100.0
+100.0
+Free generation
+Reference action accuracy
+0.0*
+95.65
+95.65
+95.65
+Plan–action consistency (C)
+0.0*
+100.0
+100.0
+100.0
+Semantic joint repair
+0.0*
+100.0
+95.65
+95.65
+167 and 217 additional baseline-correct states (23.2% and
+30.2% fewer regressions) while recovering 40 and 96 more
+baseline errors, totaling +207 and +313 correct actions over
+OAR on High and Low, compared with +160 and +119 for
+OA (Figure 3).
+Limiting regressions yields a superior trade-off over
+action repair. On AC High, OA recovers 38 more base-
+line errors than PACT (669 vs. 631), but PACT avoids 85
+more regressions (553 vs. 638), yielding 47 more reference-
+action matches overall. On Low, PACT leads on both axes,
+preserving 154 more baseline-correct states and recovering
+40 more errors for a net advantage of 194 matches. Thus,
+curbing regressions on mastered states translates directly into
+higher overall reference action accuracy than either repair
+baseline.
+A similar retention advantage holds on ScreenSpot-v2
+Mobile: PACT preserves 459/460 (99.78%) of O-correct
+targets (vs. 456/460 for OAR and 458/460 for OA), while all
+three variants acquire 22–23 new hits.
+6.4. Fixed-plan execution versus free generation
+We next examine execution on 23 identified AndroidControl
+Low initial states with empty history, where O stated a valid
+immediate plan but emitted an incompatible application-
+launch action (Table 5). Under fixed-plan continuation, all
+four models—including O—generate a fresh action con-
+tinuation from the same screenshot, instruction, and exact
+O reasoning prefix, whereas free generation requires each
+model to produce both reasoning and action.
+Plan-aligned action repair resolves fixed-plan execu-
+tion failures. Conditioned on the fixed valid plan, both
+PACT and OAR raise reference action accuracy from 56.52%
+(13/23) for O to 100.0% (23/23), while OA reaches 95.65%
+(22/23); Supplement Figure S4 shows cross-app examples.
+Holding the input and plan fixed isolates action generation,
+showing that suffix supervision translates a valid plan into
+the intended action.
+The repaired behavior transfers to free generation.
+When generating both plans and actions autonomously,
+OA, OAR, and PACT all achieve 95.65% (22/23) refer-
+ence action accuracy; under semantic evaluation, PACT and
+7
+
+
+86
+88
+90
+OA
+OAR
+PACT
+0
+100
+200
+300
+OA
+PACT
+78
+82
++160
+40
+167
++207
+89
+91
+93
+OA
+OAR
+PACT
+0
+100
+200
+300
+OA
+PACT
+56
+63
++119
+96
+217
++313
+99.0
+99.5
+100.0
+OA
+OAR
+PACT
+0
+1
+2
+3
+OA
+PACT
+1
+2
++3
+3
++3
+Retention of O-correct actions (%)
+Additional correct actions vs. OAR
+Extra repairs
+Avoided regressions
+AC High
+87.89
+86.34
+89.51
+AC Low
+90.03
+89.07
+92.37
+ScreenSpot
+99.57
+99.13
+99.78
+Figure 3. Retention and repair on aligned states (higher is better). Top: O-correct action retention. Bottom: net correct-action gains over
+OAR, computed as extra repairs plus avoided regressions. PACT leads retention across settings and net gains on AndroidControl.
+Table 6. Free-generation results on all 30 states and the 24 with
+COAR = CPACT = 1, using Table 1(a) metrics.
+Subset
+Model
+T ↑
+A ↑
+C ↑Joint repair↑
+All (N = 30)
+OAR 19/30 13/30 25/30
+13/30
+PACT 23/30 19/30 28/30
+19/30
+Both models consistent
+C = 1, N = 24
+OAR 13/24 12/24 24/24
+12/24
+PACT 18/24 16/24 24/24
+16/24
+OAR achieve 95.65% (22/23) joint repair while OA reaches
+100.0% (23/23). The additional semantic success for OA
+comes from a valid off-center product click outside the ref-
+erence point-distance tolerance, as detailed in the supple-
+mentary material. Although all three reach 100.0% (23/23)
+plan–action consistency (C), their joint-repair scores sepa-
+rate surface agreement with a generated plan from faithful
+execution of the requested step.
+6.5. Preserving plans during free generation
+To assess reference-aligned plan protection, we compare
+PACT with OAR in Table 6 on 30 natural execution-gap
+states covering action-type, scroll-direction, and input-order
+errors, with protocol details in the supplementary material.
+PACT preserves more valid plans and completes more
+repairs. PACT leads OAR on all four metrics, raising joint
+repair from 43.33% to 63.33% (+20.00 pp). Among the 24
+states where both models are plan–action consistent, PACT
+preserves five more correct plans (18/24 vs. 13/24) and com-
+pletes four more joint repairs (16/24 vs. 12/24). For example,
+in Supplement Figure S1, PACT closes the blocking Myntra
+popup before typing, whereas OAR types into the covered
+field; Figures S5–S8 illustrate additional single-step and
+boundary cases.
+7. Discussion and Limitations
+Why plan protection complements action repair. Across
+multi-step benchmarks, the complete PACT framework
+achieves substantially higher task success on AndroidWorld
+and the highest task success on OSWorld within the matched
+comparisons of Table 3(B), while preserving more baseline-
+correct actions across aligned states in Table 4, even though
+OAR and OA match or approach PACT on isolated single-
+step grounding in Table 3(B) and fixed-plan continuation in
+Table 5. These results clarify the complementary roles of our
+two mechanisms: plan-aligned action repair teaches the pol-
+icy to translate a valid plan into the intended action, whereas
+reference-aligned plan protection shields that plan from neg-
+ative policy-gradient updates on failed rollouts. Because
+each action in closed-loop interaction alters the context for
+subsequent turns, retaining mastered behaviors is as critical
+as recovering from errors, enabling PACT to drive stronger
+end-to-end task completion across mobile and desktop envi-
+ronments.
+Limitations and future directions. First, our training-
+time selector requires explicit plans whose parameters can
+be verified against a single annotated reference. Conse-
+quently, valid but implicit plans or semantically equivalent
+alternative actions may fall outside the eligible set; incor-
+porating semantic plan verifiers or multi-reference super-
+vision could broaden the coverage of repairable failures.
+Second, whereas our OSWorld experiments establish task-
+level gains on desktop workflows, our fine-grained plan and
+fixed-plan continuation diagnostics focus on mobile states.
+Extending these mechanistic analyses to richer desktop ac-
+tion spaces—such as keyboard shortcuts, composite opera-
+tions, and long-horizon workflows—will clarify how both
+mechanisms interact in complex environments.
+8. Conclusion
+We presented PACT, a training framework that couples
+reference-aligned plan protection with plan-aligned action
+repair to resolve GUI execution gaps without altering the
+original scalar action reward. It shields reference-supported
+plan spans from negative policy-gradient updates while
+optimizing corrected action suffixes under the same de-
+coded reasoning trace. Compared with outcome-only RL,
+8
+
+
+PACT substantially improves AndroidWorld task success
+and achieves higher task success on OSWorld, alongside mo-
+bile plan–action consistency and visual grounding. Aligned-
+state retention analyses further show that PACT preserves
+a higher proportion of baseline-correct actions than unpro-
+tected repair variants. Moreover, fixed-plan continuation
+and free-generation diagnostics confirm the complementary
+roles of both mechanisms while distinguishing true action
+correctness from surface-level plan–action agreement. To-
+gether, these findings establish a correctness-guided credit-
+assignment principle for GUI agents: preserve valid plans
+and selectively repair their execution, rather than optimizing
+consistency alone.
+LLM Usage Statement.
+Large language models (GPT
+and Gemini) were used for manuscript copy-editing, figure-
+layout formatting, and assisting with initial candidate screen-
+ing prior to human verification in our diagnostic semantic
+evaluations (Section 5). All experimental designs, imple-
+mentations, analyses, and final judgments were conducted
+and verified by the authors.
+References
+[1] ByteDance Seed. UI-TARS-1.5-7B: Official model card. Hug-
+ging Face, https://huggingface.co/ByteDance-
+Seed/UI-TARS-1.5-7B, 2025.
+[2] Yixiong Chen and Alan Yuille. Agentic-DPO: From Imitation
+to Agentic Policy Optimization on Expert Trajectories. arXiv
+preprint arXiv:2607.10601, 2026.
+[3] Yuhan Chen, Yuxuan Liu, Long Zhang, Pengzhi Gao, Jian
+Luan, and Wei Liu. STEP: Success-rate-aware trajectory-
+efficient policy optimization. In Findings of the Associa-
+tion for Computational Linguistics: ACL 2026, pages 30681–
+30692. Association for Computational Linguistics, 2026.
+[4] Yi Ding, Ziliang Qiu, Bolian Li, and Ruqi Zhang. Learn-
+ing Self-Correction in Vision-Language Models via Rollout
+Augmentation. In Proceedings of the 43rd International Con-
+ference on Machine Learning, pages 25096–25113. PMLR,
+2026.
+[5] Lingzhong Dong, Ziqi Zhou, Shuaibo Yang, Haiyue Sheng,
+Pengzhou Cheng, Zongru Wu, Zheng Wu, Gongshen Liu, and
+Zhuosheng Zhang. Say One Thing, Do Another? Diagnosing
+Reasoning-Execution Gaps in VLM-Powered Mobile-Use
+Agents. arXiv preprint arXiv:2510.02204, 2025.
+[6] Yichen Gong, Zhuohan Cai, Sunhao Dai, Yuqi Zhou, Zhangx-
+uan Gu, Changhua Meng, and Shuheng Shen. VenusBench-
+Mobile: A challenging and user-centric benchmark for mobile
+GUI agents with capability diagnostics. In Proceedings of the
+43rd International Conference on Machine Learning, pages
+35862–35887. PMLR, 2026.
+[7] Zhangxuan Gu, Zhengwen Zeng, Zhenyu Xu, Xingran Zhou,
+Shuheng Shen, Yunfei Liu, Beitong Zhou, Changhua Meng,
+Tianyu Xia, Weizhi Chen, Yue Wen, Jingya Dou, Fei Tang,
+Jinzhen Lin, Yulin Liu, Zhenlin Guo, Yichen Gong, Heng Jia,
+Changlong Gao, Yuan Guo, Yong Deng, Zhenyu Guo, Liang
+Chen, and Weiqiang Wang. UI-Venus technical report: Build-
+ing high-performance UI agents with RFT. arXiv preprint
+arXiv:2508.10833, 2025.
+[8] Peixuan Han, Runhui Wang, Ketan Ramaneti, Jie Hao, Gerald
+Friedland, and Chris Kong. Cliff: Learning Process Rewards
+from the First Mistake. arXiv preprint arXiv:2609.02817,
+2026.
+[9] Haowen Hu, Pengzhou Cheng, Zheng Wu, Lingzhong Dong,
+Gongshen Liu, and Zhuosheng Zhang. Faithful Mobile GUI
+Agents with Guided Advantage Estimator. In Proceedings
+of the 43rd International Conference on Machine Learning,
+pages 44838–44865. PMLR, 2026.
+[10] Kun Huang, Weikai Xu, Yuxuan Liu, Quandong Wang,
+Pengzhi Gao, Wei Liu, Jian Luan, Bin Wang, and Bo An.
+MobileIPL: Enhancing Mobile Agents Thinking Process via
+Iterative Preference Learning. In International Conference
+on Learning Representations, 2026.
+[11] Xin Lai, Zhuotao Tian, Yukang Chen, Senqiao Yang, Xiangru
+Peng, and Jiaya Jia. Step-DPO: Step-wise Preference Opti-
+mization for Long-chain Reasoning of LLMs. arXiv preprint
+arXiv:2406.18629, 2024.
+[12] Wei Li, William Bishop, Alice Li, Chris Rawles, Folawiyo
+Campbell-Ajala, Divya Tyamagundlu, and Oriana Riva. On
+the Effects of Data Scale on UI Control Agents. In Advances
+in Neural Information Processing Systems, pages 92130–
+92154, 2024.
+[13] Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao
+Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shi-
+jue Huang, Wanjun Zhong, Kuanye Li, Jiale Yang, Yu Miao,
+Woyu Lin, Longxiang Liu, Xu Jiang, Qianli Ma, Jingyu Li, Xi-
+aojun Xiao, Kai Cai, Chuang Li, Yaowei Zheng, Chaolin Jin,
+Chen Li, Xiao Zhou, Minchao Wang, Haoli Chen, Zhaojian
+Li, Haihua Yang, Haifeng Liu, Feng Lin, Tao Peng, Xin Liu,
+and Guang Shi. UI-TARS: Pioneering automated GUI inter-
+action with native agents. arXiv preprint arXiv:2501.12326,
+2025.
+[14] Qwen Team.
+Qwen3.5-9B model card.
+Hugging Face,
+https://huggingface.co/Qwen/Qwen3.5-9B,
+2026.
+[15] Rafael Rafailov, Archit Sharma, Eric Mitchell, Christopher D.
+Manning, Stefano Ermon, and Chelsea Finn. Direct Pref-
+erence Optimization: Your Language Model is Secretly a
+Reward Model. In Advances in Neural Information Process-
+ing Systems, pages 53728–53741, 2023.
+[16] Chris Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan
+Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William
+Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel Toyama,
+Robert Berry, Divya Tyamagundlu, Timothy Lillicrap, and
+Oriana Riva. AndroidWorld: A Dynamic Benchmarking
+Environment for Autonomous Agents. In International Con-
+ference on Learning Representations, 2025.
+[17] Zhihong Shao, Peiyi Wang, Qihao Zhu, Runxin Xu, Junxiao
+Song, Xiao Bi, Haowei Zhang, Mingchuan Zhang, Y. K. Li,
+Y. Wu, and Daya Guo. DeepSeekMath: Pushing the Limits of
+Mathematical Reasoning in Open Language Models. arXiv
+preprint arXiv:2402.03300, 2024.
+[18] Venus Team, Zhuohan Cai, Haoxing Chen, Jiaxuan Chen,
+Weizhi Chen, Changlong Gao, Zhangxuan Gu, Yuan Guo,
+9
+
+
+Yusong Hu, Jianrong Jiang, Jianguo Li, Runze Li, Jinzhen
+Lin, Zhenyu Ma, Changhua Meng, Han Peng, Xinyu Qiu,
+Shuheng Shen, Zhongyi Shui, Weiqiang Wang, Ming Wen,
+Zhuoer Xu, Hang Yan, Kaiwen Yang, Ruilin Yao, Nanjun Yu,
+Zhengwen Zeng, Lianrui Zhang, Yunzhu Zhang, Zhe Zhao,
+and Beitong Zhou. UI-Venus-2 Technical Report. arXiv
+preprint arXiv:2609.00028, 2026.
+[19] Jiayi Wu, Ruobing Xie, Zeqian Huang, Lei Jiang, Can Xu,
+Kangyang Luo, Bochen Lin, Ming Gao, and Xiang Li. Neg-
+ative Advantage Is a Double-Edged Sword: Calibrating Ad-
+vantages in GRPO for Search Agents. In Findings of the
+Association for Computational Linguistics: EMNLP 2026,
+pages 39986–40002. Association for Computational Linguis-
+tics, 2026.
+[20] Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi
+Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng
+Chen, Paul Pu Liang, and Yu Qiao. OS-ATLAS: Foundation
+Action Model for Generalist GUI Agents. In International
+Conference on Learning Representations, 2025.
+[21] Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li,
+Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhoujun Cheng,
+Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan
+Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao
+Yu. OSWorld: Benchmarking Multimodal Agents for Open-
+Ended Tasks in Real Computer Environments. In Advances in
+Neural Information Processing Systems, pages 52040–52094,
+2024.
+[22] Haolong Yan, Jia Wang, Xin Huang, Yeqing Shen, Ziyang
+Meng, Zhimin Fan, Kaijun Tan, Jin Gao, Lieyu Shi, Mi Yang,
+Shiliang Yang, Zhirui Wang, Brian Li, Kang An, Chenyang
+Li, Lei Lei, Mengmeng Duan, Danxun Liang, Guodong Liu,
+Hang Cheng, Hao Wu, Jie Dong, Junhao Huang, Mei Chen,
+Renjie Yu, Shunshan Li, Xu Zhou, Yiting Dai, Yineng Deng,
+Yingdan Liang, Zelin Chen, Wen Sun, Chengxu Yan, Chun-
+qin Xu, Dong Li, Fengqiong Xiao, Guanghao Fan, Guopeng
+Li, Guozhen Peng, Hongbing Li, Hang Li, Hongming Chen,
+Jingjing Xie, Jianyong Li, Jingyang Zhang, Jiaju Ren, Ji-
+ayu Yuan, Jianpeng Yin, Kai Cao, Liang Zhao, Liguo Tan,
+Liying Shi, Mengqiang Ren, Min Xu, Manjiao Liu, Mao
+Luo, Mingxin Wan, Na Wang, Nan Wu, Ning Wang, Peiyao
+Ma, Qingzhou Zhang, Qiao Wang, Qinlin Zeng, Qiong Gao,
+Qiongyao Li, Shangwu Zhong, Shuli Gao, Shaofan Liu, Shisi
+Gao, Shuang Luo, Xingbin Liu, Xiaojia Liu, Xiaojie Hou, Xin
+Liu, Xuanti Feng, Xuedan Cai, Xuan Wen, Xianwei Zhu, Xin
+Liang, Xin Liu, Xin Zhou, Yifan Sui, Yingxiu Zhao, Yukang
+Shi, Yunfang Xu, Yuqing Zeng, Yixun Zhang, Zejia Weng,
+Zhonghao Yan, Zhiguo Huang, Zhuoyu Wang, Zihan Yan,
+Zheng Ge, Jing Li, Yibo Zhu, Binxing Jiao, Xiangyu Zhang,
+and Daxin Jiang. Step-GUI technical report. arXiv preprint
+arXiv:2512.15431, 2025.
+[23] Jiabo Ye, Xi Zhang, Haiyang Xu, Haowei Liu, Junyang Wang,
+Zhaoqing Zhu, Ziwei Zheng, Feiyu Gao, Junjie Cao, Zhengxi
+Lu, Jitong Liao, Qi Zheng, Fei Huang, Jingren Zhou, and
+Ming Yan. Mobile-Agent-v3: Fundamental agents for GUI
+automation. arXiv preprint arXiv:2508.15144, 2025.
+[24] Qize Yu, Lianrui Fan, Boyu Chen, Jiaqi Liang, Xini Ding,
+Yue Chen, Zetian Song, Yuran Wang, Yi Zou, Kaixuan Wang,
+Tianxing Chen, Wenxuan Song, Bohan Zhou, Mingleyang
+Li, Siqiao Huang, Yuqi Ye, Caigao Jiang, Wei Wei, Ruihai
+Wu, Hang Zhang, Yixiao Ge, Shuchang Zhou, Shilong Liu,
+Xianming Liu, Ping Luo, and Shiyu Huang. GroundingPI:
+A grounding foundation model towards physical intelligence
+with visual primitives.
+arXiv preprint arXiv:2609.39601,
+2026.
+[25] Hanzhang Zhou, Xu Zhang, Panrong Tong, Jianan Zhang,
+Liangyu Chen, Quyu Kong, Chenglin Cai, Chen Liu, Yue
+Wang, Jingren Zhou, and Steven Hoi. MAI-UI technical
+report: Real-world centric foundation GUI agents. arXiv
+preprint arXiv:2512.22047, 2025.
+[26] Shijie Zhou, Viet Dac Lai, Hao Tan, Jihyung Kil, Wanrong
+Zhu, Changyou Chen, and Ruiyi Zhang. GUI-AIMA: Align-
+ing intrinsic multimodal attention with a context anchor for
+GUI grounding. In Computer Vision – ECCV 2026, pages
+79–97. Springer, 2026.
+10
+
+
+PACT: Plan-Action Consistency Training by Preserving Correct Plans and
+Repairing Actions in GUI Agents
+Supplementary Material
+A. Implementation Details
+Sections A.1–A.5 detail the reward, selection and construc-
+tion rules, gradient derivation, and optimization schedule.
+Section B provides benchmark breakdowns and diagnostic
+protocols, and Section C presents qualitative cases.
+A.1. Original action reward and coordinate toler-
+ances
+Within each platform, all four training configurations share
+the scalar outcome scorer R0(y, a⋆) defined in Eq. (3) of
+the main paper. In the mobile scorer’s standard parseable
+branch, the format term rfmt(y) assigns +0.5 for valid
+<think>...</think><action>...</action>
+struc-
+ture and −0.5 otherwise. Matching the reference action
+type τ(a) = τ(a⋆) contributes 1.0 point, followed by the
+action-specific parameter score P0(a, a⋆). Missing actions,
+unparseable outputs, and grounding-only samples retain the
+base scorer’s original branches.
+For
+mobile
+point-based
+actions
+(e.g.,
+Click,
+LongPress), predicted coordinates are emitted on a
+normalized 0–999 grid and mapped back to native im-
+age pixels.
+Let d denote the Euclidean pixel distance
+between the predicted and reference coordinates, and let
+m = min(W, H) be the shorter screen dimension. The
+parameter score is
+Pclick(d) =
+
+
+
+
+
+1.0,
+d < 0.07m,
+0.5,
+0.07m ≤d < 0.14m,
+0.0,
+d ≥0.14m.
+(S1)
+For Scroll/Swipe actions with directional metadata, the
+scorer checks both gesture endpoints and assigns 1.5 param-
+eter points when both satisfy the strict coordinate tolerance.
+The branch with endpoint coordinates alone uses its standard
+Boolean endpoint comparison. Text-based actions (Type,
+LaunchApp, Answer) receive full parameter credit un-
+der exact normalized string match or a token-set F1 score
+exceeding 0.5.
+A.2. Reference-verified execution-gap selection and
+plan span localization
+To compute the execution-gap eligibility flag Ei
+=
+Ji 1[ bTi = 1, bAi = 0, bCi = 0] in Eq. (2) of the main pa-
+per, the programmatic selector first evaluates judgeability
+Ji ∈{0, 1}. Setting Ji = 1 requires a unique emitted
+action block, a parseable reference action a⋆
+i with compar-
+ison metadata, and a non-terminal plan with checkable pa-
+rameters. Grounding-only samples and terminal references
+(Finished, Answer, CallUser) are assigned Ji = 0
+and participate in the base GRPO objective.
+The following rules define the three binary proxies for
+judgeable mobile responses (Ji = 1).
+• Action correctness proxy ( bAi): bAi = 1 if the base con-
+tent score (action-type bonus plus parameter score) reaches
+the full-credit threshold (2.0 points for standard actions,
+or 2.5 points for normalized Scroll/Swipe with direc-
+tional endpoints). Responses receiving only partial param-
+eter credit are treated as bAi = 0.
+• Plan correctness proxy ( bTi): The reasoning trace zi
+is segmented into clauses using line breaks and En-
+glish/Chinese punctuation, and the final four sentences
+are scanned in reverse order. A valid plan must specify
+a single immediate action without negation or multi-step
+ambiguity. Setting bTi = 1 requires the extracted plan pa-
+rameters to match a⋆
+i . Pointing plans require a unique ex-
+plicit 0–999 coordinate within the strict 0.07 min(W, H)
+pixel tolerance of a⋆
+i . Directional plans require a unique
+matching direction. Text and app-launch plans require a
+unique quoted argument matching the normalized refer-
+ence string. Parameter-free system actions must match by
+action type.
+• Plan–action compatibility proxy ( bCi): bCi = 1 if the
+emitted action ai matches the extracted plan in action type,
+lies within a grid distance of 1 on the normalized 0–999
+coordinate space for pointing actions, and matches any
+specified direction, text, or application argument.
+For pointing actions, bTi checks proximity to the reference
+coordinate, whereas bCi checks agreement with the explicitly
+stated coordinate. PACT selects repair candidates using the
+full eligibility condition Ei = 1, including bAi = 0.
+For reference-aligned plan protection (Ei = 1), the char-
+acter span of the verified plan is mapped to response token
+indices to form the binary mask M D
+i,t ∈{0, 1}. The im-
+plementation uses tokenizer character offsets whenever the
+re-encoded reasoning prefix matches the active token se-
+quence, and otherwise performs an exact token-subsequence
+search prior to the action tag. If a unique token span cannot
+be localized, we set M D
+i,t = 0 for all t, leaving the base
+advantage A0
+i unchanged while still permitting suffix repair
+if pair construction succeeds.
+A.3. Constructing positive action suffixes
+For each eligible mobile response y−
+i = (zi, a−
+i ), the pos-
+itive action suffix a+
+i is synthesized from the training ref-
+11
+
+
+erence a⋆
+i in the model’s native action syntax and 0–999
+coordinate grid. Because bTi = 1 already verifies that the ex-
+tracted plan targets the reference UI element within the strict
+reference tolerance, synthesizing a+
+i from a⋆
+i under the same
+decoded reasoning trace zi provides a reference-compatible
+execution of the stated plan. Reference pixel coordinates are
+converted to the normalized grid, rounded, and clamped to
+valid bounds. Scroll references with endpoint coordinates are
+formatted as Swipe actions. Reference actions with miss-
+ing endpoints or text arguments that cannot be serialized in
+the native action syntax, as well as overlength replacements,
+are omitted from P. Their original rollouts remain in B.
+On both platforms, the constructed positive sequence
+y+
+i = (zi, a+
+i ) retains the exact input context xi (instruction,
+screenshot, and interaction history) and the decoded reason-
+ing text zi, replacing only the <action>...</action>
+block. The binary action masks M A,−
+i,t
+and M A,+
+i,t
+cover
+only the action tags and action tokens, excluding all reason-
+ing tokens and any trailing text. At most 64 constructible
+pairs are retained per training iteration in batch order. In
+the OA baseline (original GRPO with Action Repair), pairs
+are constructed using the identical reference formatter from
+parseable, non-terminal rollouts with bAi = 0 and a−
+i̸ = a+
+i ,
+without requiring bTi = 1 or bCi = 0.
+A.4. First-order gradient derivation of the suffix-
+repair surrogate
+Let s±
+θ,i denote the summed action-span log probability de-
+fined in Eq. (6) of the main paper, and let the log-ratio margin
+be
+ℓi(θ) =
+ s+
+θ,i −s+
+ref,i
+
+−
+ s−
+θ,i −s−
+ref,i
+
+.
+(S2)
+A conditional DPO-style logistic preference objective [11,
+15] over the retained pair set P is given by
+Llog(θ) = −λ
+B0
+X
+i∈P
+log σ
+ βℓi(θ)
+
+.
+(S3)
+Here, λ is the repair weight and β is the preference scale.
+Taking the gradient with respect to θ and evaluating at the
+pre-update policy θ = θold (where ℓi(θold) = ℓold
+i
+) yields
+∇θLlog(θ)|θ=θold
+=
+X
+i∈P
+λβ
+B0
+σ
+ −βℓold
+i
+
+|
+{z
+}
+wi
+ ∇θs−
+θ,i −∇θs+
+θ,i
+
+θ=θold
+. (S4)
+Detaching the pre-update weight wi (where −ℓold
+i
+= s−
+old,i−
+s−
+ref,i −s+
+old,i + s+
+ref,i matches Eq. (7) of the main paper)
+via stopgrad(wi) produces the linear suffix-repair surrogate
+Lsur
+repair(θ) = P
+i∈P stopgrad(wi)(s−
+θ,i −s+
+θ,i) in Eq. (8) of
+the main paper, whose gradient matches Eq. (S4) at θ = θold.
+A.5. Optimization schedule, hyperparameters, and
+desktop adaptation
+Training data and optimization. Table S1 summarizes
+the RL configurations for both platforms. All four config-
+urations (O, OA, OAR, and PACT; main Table 2) on both
+platforms start RL training from the same SFT checkpoint.
+We obtain this checkpoint by supervised fine-tuning the
+Qwen3.5-9B vision–language model on multimodal GUI tra-
+jectories to generate structured <think>...</think>
+<action>...</action> responses, with spatial action
+coordinates normalized to 0–999. A frozen copy of this
+checkpoint serves as the KL reference policy πref. Within
+each platform, the four variants share the base-training con-
+figuration in Table S1. Desktop RL training uses 18,000 ex-
+amples sampled without replacement (seed 42) and runs for
+one epoch with complete 32-prompt batches (562 iterations),
+preserving the original system instructions, interaction his-
+tory, screenshots, and reference actions. All training data are
+strictly disjoint from the evaluation benchmarks.
+The desktop action interface supports pointing, keyboard,
+drag/scroll, and control actions. Training references are dom-
+inated by Click (43.0%), Hotkey (26.1%), and Type
+(21.2%). Each training example pairs the multimodal input
+context (system instructions, interaction history, and screen-
+shots) with its ground-truth reference action.
+Both platforms use token-mean policy loss and apply KL
+regularization in the actor objective with η = 0.01. The
+mobile k3+ estimator combines a clipped k3 value with a
+straight-through squared-log-ratio gradient. Desktop train-
+ing uses ed −d −1, with d = log πref −log πθ clipped to
+[−20, 20] and the estimator clipped to [−10, 10]. Original
+rollout groups determine GRPO advantages. Constructed
+positive responses carry the suffix-repair loss with zero PG
+and KL masks, and signed pair weights ±wi preserve the
+sum in Eq. (8) of the main paper under data-parallel averag-
+ing. On 32 accelerators, the mobile 1,250-iteration training
+loop takes 120.76 hours for O and 123.19 hours for PACT,
+excluding initial model loading, corresponding to approxi-
+mately 2.0% overhead.
+Algorithm S1 summarizes one mobile PACT training
+iteration. Selection, span localization, and pair construction
+use Sections A.2 and A.3.
+Desktop plan verification and suffix construction. The
+desktop selector applies the same execution-gap condition
+to explicit plans. Table S2 sets out the supported action
+parameters. Reference support bTi compares the plan with
+the reference action, while compatibility bCi compares the
+emitted action with the plan. Both comparisons require
+matching action types. Desktop action correctness bAi = 1
+requires the full native content score of 2.0, comprising one
+point for type and one for parameters.
+For desktop pointing actions, the native parameter score
+is 1.0 at grid distances below 49.95 = 0.05 × 999, 0.5
+12
+
+
+Table S1. Training hyperparameters for the mobile and desktop studies. Repair parameters apply to OA, OAR, and PACT.
+Setting
+Mobile
+Desktop
+Initialization and fixed reference
+Qwen3.5-9B SFT
+Qwen3.5-9B SFT
+RL training examples
+10,000
+18,000
+Training iterations / epochs
+1,250 / 2
+562 / 1
+Prompts per iteration / responses per prompt (K)
+16 / 8
+32 / 8
+Original rollout batch size (B0)
+128
+256
+Optimizer
+AdamW
+Distributed Adam
+Learning rate / PPO epochs
+10−6 / 1
+10−6 / 1
+Learning-rate schedule
+Constant
+Constant
+Weight decay / gradient clipping
+0.01 / 1.0
+0.01 / 1.0
+Policy-loss aggregation / entropy coefficient
+Token mean / 0
+Token mean / 0
+Probability-ratio clipping / dual clipping
+0.2 / 3.0
+0.2 / 3.0
+Sampling temperature / top-p / top-k
+1.0 / 1.0 / −1
+1.0 / 1.0 / −1
+Maximum prompt / response tokens
+36,864 / 2,048
+40,960 / 2,048
+Accelerators / training framework
+32 / FSDP2
+64 / Megatron
+Rollout tensor parallelism
+4
+4
+Numerical precision
+bfloat16
+bfloat16
+KL coefficient (η) / estimator
+0.01 / k3+
+0.01 / low_var_kl
+Repair weight (λ) / preference scale (β)
+0.1 / 0.1
+0.1 / 0.1
+Maximum repair pairs per iteration
+64
+64
+Table S2. Desktop training-action verification and reference-derived suffix construction. Spatial distances are Euclidean distances on the
+normalized 0–999 grid.
+Action
+Required parameters
+Reference support / plan compatibility
+Positive suffix construction
+Click,
+DoubleClick,
+RightClick
+One box coordinate
+bT: distance < 49.95 (0.05 × 999). bC: distance ≤1.
+Copy reference box.
+Drag, Swipe
+start and end
+coordinates
+bT: each endpoint distance < 139.86 (0.14 × 999). bC: each endpoint
+distance ≤1.
+Copy both reference endpoints.
+Type
+One quoted content
+string
+bT, bC: exact string equality, preserving whitespace and escapes.
+Copy reference content.
+Hotkey
+One nonempty keys list
+or tuple
+bT, bC: equality of normalized, ordered key tuples.
+Copy reference keys.
+Wait
+No arguments
+bT, bC: matching Wait action.
+Wait().
+CallUser,
+Finished
+Optional content
+string
+Terminal actions receive native scoring with exact content matching.
+Excluded from auxiliary
+selection.
+from 49.95 up to but excluding 99.9 = 0.10 × 999, and
+zero otherwise. The reference-support test uses the full-
+credit threshold. Drag and Swipe plans specify exactly two
+coordinate pairs in start–end order. For Type, the native
+parameter score awards 1.0 to exact text matches and 0.5 to
+non-exact matches with the same trailing-whitespace cate-
+gory and token-set F1 greater than 0.5. Hotkey comparison
+strips surrounding whitespace and lowercases each key while
+preserving tuple order and the literal space key.
+Desktop reference coordinates already use the model’s
+normalized grid. The positive suffix serializes the reference
+action name and parameters with Python literal representa-
+tions and is checked by the same action parser. The resulting
+pair retains the original input and decoded reasoning context,
+following Section A.3.
+B. Evaluation Protocols and Additional Quanti-
+tative Results
+B.1. AndroidControl rule-based consistency
+On AndroidControl, the rule-based consistency evaluator
+first searches the reasoning trace for the final function-style
+action expression; if none is present, it extracts the last En-
+glish or Chinese action keyword after resolving keyword
+overlaps, and parses any accompanying coordinate, direc-
+tion, or text arguments. Disagreements between the ex-
+tracted intent and the emitted action are categorized into
+action-type or direction mismatches (Ntype), coordinate mis-
+matches (Ncoord), and text-argument mismatches (Ntext).
+Rule-based consistency is computed over all judgeable out-
+13
+
+
+Algorithm S1 One mobile PACT training iteration
+Require: Pre-update policy πold, reference πref, 16 prompts with refer-
+ence actions, K = 8, pair cap 64
+1: Sample original rollout batch B, B0 = 128
+2: Compute R0 and grouped A0
+i using main Eqs. (3)–(4)
+3: Broadcast e
+Ai,t ←A0
+i ; set P ←∅
+4: for each response i in batch order do
+5:
+Compute Ji, bTi, b
+Ai, bCi and Ei using main Eq. (2)
+6:
+if Ei = 1 then
+7:
+Localize MD
+i,t (use a zero mask if no unique span is found)
+8:
+Clamp plan-token advantages using main Eq. (5)
+9:
+Independently construct y+
+i = (zi, a+
+i ) from a⋆
+i
+10:
+if the pair is constructible and |P| < 64 then
+11:
+Append the pair and its action masks to P
+12:
+end if
+13:
+end if
+14: end for
+15: if P̸ = ∅then
+16:
+Pack positive responses into a 128-row auxiliary batch with zero-
+loss padding
+17:
+Score both suffixes under πold and πref; compute and freeze wi
+using main Eqs. (6)–(7)
+18:
+Assign +wi to sampled negative suffixes, −wi to constructed
+positive suffixes, and zero to padding
+19:
+Set auxiliary PG and KL masks to zero
+20: end if
+21: Update policy parameters θ by minimizing the actor objective in main
+Eq. (9)
+puts as
+Crule =
+Nconsistent
+Nconsistent + Ntype + Ncoord + Ntext
+.
+(S5)
+Responses lacking a reasoning block, an extractable ac-
+tion intent, or a valid reference label are excluded from
+the denominator of Crule. Table S3 reports consistent and
+judgeable counts over 8,444 states per setting. These states
+comprise all annotated action steps in the 1,543 evaluation
+episodes, with identical episode–step pairs used for High
+and Low. On AC High, PACT achieves the highest Crule
+(89.74%) and absolute consistent-action count (7,046 vs.
+O: 6,879; OAR: 6,997; OA: 6,440), remaining first with
+all 8,444 states as a common denominator. Action-type
+mismatches account for most rule inconsistencies. PACT
+reduces these mismatches from 1,279 to 753 on High, and
+has the fewest coordinate mismatches on both High (16) and
+Low (6).
+Because Crule relies on surface keyword and function
+extraction, it provides a scalable benchmark-wide proxy
+rather than a full semantic parse. For example, mentioning
+an in-app “Home” tab can trigger the system PressHome
+keyword rule, and discussing a subsequent step at the end of a
+multi-clause sentence can override an earlier immediate click
+intent. These boundary cases motivate our complementary
+screenshot-based semantic diagnostics in the main paper.
+B.2. Interactive task evaluation on AndroidWorld
+and OSWorld
+AndroidWorld. For each mobile checkpoint, we report
+the task success rate across AndroidWorld’s 116 interactive
+tasks, yielding 70/116 (60.34%) for O, 71/116 (61.21%) for
+OA, 73/116 (62.93%) for OAR, and 80/116 (68.97%) for
+PACT.
+OSWorld. All four desktop-adapted variants (O, OA,
+OAR, and PACT) are evaluated on the full 369-task OS-
+World benchmark. Evaluation uses a standardized Linux
+x86/Docker environment with a read-only Ubuntu base im-
+age and the official native evaluation scripts. All four variants
+use temperature 0 and a 100-step interaction limit. Input con-
+struction and generation parameters are given in Section B.5.
+At each step, the complete emitted action block is parsed
+and executed. A task is counted as successful strictly when
+its native evaluator returns a full score of 1.0:
+SROSWorld =
+1
+369
+369
+X
+j=1
+1
+
+native_scorej = 1.0
+
+,
+(S6)
+without counting partial completion scores as successes. The
+totals are 151/369 (40.92%) for O, 152/369 (41.19%) for
+OA, 157/369 (42.55%) for OAR, and 163/369 (44.17%) for
+PACT. PACT completes 12 more tasks than O, 11 more than
+OA, and 6 more than OAR. The Step-GUI-8B and Qwen3.5-
+9B scores in main Table 3(A) use OSWorld-Verified.
+B.3. ScreenSpot-v2 Mobile subgroup breakdown
+and target retention
+Tables S4 and S5 provide the target-category breakdown
+and baseline-correct retention statistics on ScreenSpot-v2
+Mobile. Because ScreenSpot-v2 Mobile consists of single-
+step grounding queries without multi-turn history, Table S5
+offers a history-independent test of capability preservation:
+PACT retains 99.78% (459/460) of O-correct targets while
+incurring only a single right-to-wrong regression. For the
+four cited ScreenSpot-v2 Mobile scores in main Table 3(A),
+text/icon accuracies are weighted by 290/211 targets.
+B.4. Mechanism diagnostic protocols and complete
+results
+For both diagnostic sets, screenshot-based semantic assess-
+ments use language-model assistance followed by human
+verification, with separate judgments of plan correctness (T),
+action validity (A), and semantic plan–action consistency
+(C). Here, T evaluates whether the current plan is correct for
+the task, A evaluates action validity in the current task and
+state, and C evaluates whether the action implements the
+model’s stated plan. Joint repair requires T = A = C = 1
+for the same plan–action pair, as in Table 1(a) of the main
+paper. When a valid plan (T = 1) is paired with an invalid
+action (A = 0), consistency is judged as C = 0 if the action
+14
+
+
+Table S3. AndroidControl consistency and mismatch counts over 8,444 states per setting. Type, coordinate, and text columns partition the
+inconsistent judgeable outputs. Bold marks the best values within each setting, including ties.
+Setting
+Model
+Consistent / judgeable
+Type↓
+Coord.↓
+Text↓
+Crule(%)↑
+AC High
+O
+6879 / 8218
+1279
+19
+41
+83.71
+OA
+6440 / 8046
+1559
+25
+22
+80.04
+OAR
+6997 / 8096
+1032
+21
+46
+86.43
+PACT
+7046 / 7852
+753
+16
+37
+89.74
+AC Low
+O
+7182 / 8313
+1081
+19
+31
+86.39
+OA
+6534 / 8327
+1753
+24
+16
+78.47
+OAR
+7270 / 8248
+906
+24
+48
+88.14
+PACT
+7155 / 8172
+966
+6
+45
+87.56
+Table S4. ScreenSpot-v2 Mobile point-in-target accuracy across all 501 examples, 290 text targets, and 211 icon targets.
+Configuration
+All targets (501)
+Text targets (290)
+Icon targets (211)
+O
+460 (91.82%)
+271 (93.45%)
+189 (89.57%)
+OA
+481 (96.01%)
+286 (98.62%)
+195 (92.42%)
+OAR
+478 (95.41%)
+286 (98.62%)
+192 (91.00%)
+PACT
+481 (96.01%)
+285 (98.28%)
+196 (92.89%)
+targets a different UI element or operation than stated (e.g.,
+landing on an unrelated control in Figure S7), and C = 1 if
+it targets the stated element or text but fails task validity due
+to boundary localization or interface state constraints.
+23-state fixed-plan continuation and free generation.
+The 23 diagnostic states were identified among AndroidCon-
+trol Low initial steps (empty interaction history) where O
+articulated a valid immediate plan but emitted an erroneous
+application-launch action. Under the fixed-plan condition,
+each model receives the identical task instruction, screenshot,
+empty history, and O’s exact valid reasoning prefix terminat-
+ing at the <action> opening tag, and deterministically gen-
+erates the action continuation in a single turn. For a matched
+comparison with OA, OAR, and PACT, O also generates a
+fresh action continuation from the same fixed prefix, yielding
+13/23; its 0/23 free-generation score comes from the origi-
+nal outputs used to select these states. Under free generation,
+the assistant prefix is removed and each model generates both
+reasoning and action from scratch. Reference-action match-
+ing and screenshot-based semantic evaluation are reported
+side by side in Table 5 of the main paper. On the single state
+where OA’s semantic action-validity and reference-matching
+judgments differ (a Nike product-card screen), OA clicks
+a valid off-center region of the product image outside the
+point-distance tolerance of the single reference coordinate,
+whereas PACT and OAR score 22/23 under both criteria.
+Table S6 reports the complete fixed-plan continuation and
+free-generation results, including the semantic breakdown.
+Following our coordinate-based action interface, reference-
+action matching evaluates predictions directly against each
+state’s annotated reference action a⋆(without accessibility-
+tree bounding boxes or cross-type equivalences), requiring
+matching action types and reference-compatible parameters
+(0.14
+√
+W 2 + H2 point-distance tolerance for clicks, match-
+ing swipe direction, and normalized text match).
+30-state natural execution-gap set. This set comprises
+O-selected execution-gap candidates from AndroidControl
+High and Low, targeting valid immediate plans paired with
+invalid, inconsistent actions. Eleven states use empty his-
+tory and 19 use O’s interaction history. OAR and PACT
+freely generate plans and actions from identical screenshots,
+instructions, and available O histories, without O’s current
+response or the reference action. This set and the 23-state
+fixed-plan diagnostic follow distinct selection protocols and
+are analyzed separately.
+All 30 states remain in each denominator; only verified
+successes enter the numerator. The ambiguous-reference
+boundary case scores as a non-success for T and joint repair,
+with C evaluated independently. In Table S7, PACT raises
+T from 63.33% (19/30) to 76.67% (23/30), C from 83.33%
+(25/30) to 93.33% (28/30), and both A and joint repair from
+43.33% (13/30) to 63.33% (19/30, +20.00 pp). Among
+the 24 states with COAR = CPACT = 1, PACT retains
+18/24 correct plans versus 13/24 for OAR (+20.83 pp) and
+completes 16/24 joint repairs versus 12/24 (+16.67 pp). On
+the remaining six states, OAR generates six valid plans but
+only one consistent action and joint repair; PACT achieves
+consistency on four states and joint repair on three.
+B.5. Prompts, input construction, and generation
+settings
+Training inputs. Both platforms retain the original system
+prompt, interaction history, and screenshots from each train-
+ing example. Images fill the message placeholders in their
+recorded order. Historical assistant messages contain the as-
+sociated reasoning and actions. The current reference action
+is stored in a separate reference field.
+15
+
+
+Table S5. Target-level retention and repair on ScreenSpot-v2 Mobile (460 O-correct targets).
+Configuration
+Retained / 460
+Retention (%)
+Wrong to right (↑)
+Right to wrong (↓)
+OA
+458 / 460
+99.57
+23
+2
+OAR
+456 / 460
+99.13
+22
+4
+PACT
+459 / 460
+99.78
+22
+1
+Table S6. Complete fixed-plan continuation and free-generation results on the 23-state execution-gap diagnostic set (%, with exact counts
+out of 23 in parentheses). Joint repair requires T = A = C = 1. Asterisks (*) mark O’s selection criteria. Bold indicates row-wise maxima,
+including ties.
+Condition / metric
+O
+OA
+OAR
+PACT
+Fixed plan: reference action accuracy
+56.52 (13/23)
+95.65 (22/23)
+100.0 (23/23)
+100.0 (23/23)
+Free generation: reference action accuracy
+0.0 (0/23)*
+95.65 (22/23)
+95.65 (22/23)
+95.65 (22/23)
+Free generation: plan correctness (T)
+100.0 (23/23)*
+100.0 (23/23)
+95.65 (22/23)
+95.65 (22/23)
+Free generation: action validity (A)
+0.0 (0/23)*
+100.0 (23/23)
+95.65 (22/23)
+95.65 (22/23)
+Free generation: plan–action consistency (C)
+0.0 (0/23)*
+100.0 (23/23)
+100.0 (23/23)
+100.0 (23/23)
+Free generation: semantic joint repair
+0.0 (0/23)*
+100.0 (23/23)
+95.65 (22/23)
+95.65 (22/23)
+Table S7. Natural execution-gap composition and free-generation results on all 30 states, the 24 with COAR = CPACT = 1, and the
+remaining six. Bold marks the better value within each comparison, including ties.
+(a) Set composition
+Candidate category
+States
+Click-versus-launch conflict
+8
+Scroll-direction error
+2
+Premature text entry / skipped selection
+17
+Click-versus-wait conflict
+1
+Swipe-versus-click/selection conflict
+1
+Ambiguous-reference boundary case
+1
+Total
+30
+(b) Free-generation results (%, with exact counts)
+Subset
+Model
+T ↑
+A ↑
+C ↑
+Joint repair↑
+All (N = 30)
+OAR
+63.33 (19/30)
+43.33 (13/30)
+83.33 (25/30)
+43.33 (13/30)
+PACT
+76.67 (23/30)
+63.33 (19/30)
+93.33 (28/30)
+63.33 (19/30)
+Both models consistent
+C = 1, N = 24
+OAR
+54.17 (13/24)
+50.00 (12/24)
+100.0 (24/24)
+50.00 (12/24)
+PACT
+75.00 (18/24)
+66.67 (16/24)
+100.0 (24/24)
+66.67 (16/24)
+Remaining (N = 6)
+OAR
+100.0 (6/6)
+16.67 (1/6)
+16.67 (1/6)
+16.67 (1/6)
+PACT
+83.33 (5/6)
+50.00 (3/6)
+66.67 (4/6)
+50.00 (3/6)
+Mobile
+evaluation.
+The
+system
+prompt
+con-
+tains
+the
+task
+goal,
+action
+definitions,
+and
+the
+<think>...</think><action>...</action>
+response format. On AndroidControl Low, the goal is fol-
+lowed by Current step: and the low-level instruction.
+High uses the episode goal.
+The current user message
+contains Current Screenshot: and the image. The
+most recent ten interaction rounds contribute the model’s
+own reasoning and action text. AndroidControl uses the
+recorded state image at each step. AndroidWorld supplies
+the current environment screenshot and uses an interaction
+budget of ⌊10 × task.complexity⌋.
+ScreenSpot-v2 uses an empty interaction history and
+the instruction In the screenshot, click the
+element that matches this description:
+followed by the quoted target description. Mobile generation
+uses temperature 0 and a maximum of 4,096 output tokens.
+For execution, normalized 0–999 coordinates (x, y) are
+linearly rescaled to integer pixel coordinates on the W × H
+screen.
+Desktop evaluation. The desktop system prompt em-
+beds the task goal and defines Click, DoubleClick,
+RightClick, Drag, Swipe, Type, Hotkey, Wait,
+CallUser, and Finished. Each input contains the cur-
+rent 1920×1080 screenshot and the two most recent histori-
+cal screenshots. Earlier steps retain historical reasoning and
+action blocks. All four desktop configurations use tempera-
+ture 0, a maximum of 4,096 output tokens, and at most 100
+interaction steps. Task success is determined strictly by the
+official native evaluator.
+Fixed-plan continuation. The fixed-plan input supplies
+the same system message, screenshot, and verbatim valid O
+reasoning prefix to each model. The assistant prefix termi-
+nates immediately after the opening action tag.
+system
+[task and action definitions]
+user
+[Current Screenshot: and the state
+image]
+,→
+assistant
+<think>[O's exact valid
+reasoning]</think><action>
+,→
+temperature=0, max_tokens=4096
+continue_final_message=true
+The completed response concatenates the supplied prefix and
+generated suffix. Free generation uses the same state input
+and generates both reasoning and action in a new assistant
+response. In the 30-state natural execution-gap set, 11 states
+use empty history and 19 supply the same recorded O-history
+steps to both OAR and PACT (e.g., two prior steps on Myntra
+in Figure S1), using identical mobile generation settings.
+16
+
+
+C. Qualitative Case Studies
+C.1. Comparative Success Cases Across Mobile and Desktop
+Preserving the next-step requirement. The Myntra example in Figure S1 uses the same screenshot and two preceding
+O-history steps for PACT and OAR. The task requires closing the modal before text entry. PACT preserves that ordering in its
+immediate plan and clicks the close button. OAR assumes that the covered search field is ready and emits Type. Both outputs
+have C = 1, while only PACT meets the plan, action, and joint-repair criteria. This example illustrates how PACT preserves a
+valid plan and completes the repair during free generation.
+Executing a complete mobile workflow.
+In Figure S2, all four configurations receive the same receipt-copy
+goal and task seed.
+PACT selects Download, confirms the copy, and emits Finished at step 15.
+OAR emits
+Type(content=’Download’) at steps 9, 10, 12, 14, and 16. The native final score is 1.0 for PACT and 0.0 for
+O, OA, and OAR.
+Completing a desktop export task. Figure S3 shows the same OSWorld task across the four configurations. PACT uses
+the Save As workflow, selects Text CSV, confirms the export options, and finishes in nine steps. Its exported file passes the
+official CSV-content comparison. O, OA, and OAR receive native scores of zero at the 100-step limit.
+Preserving the required next step
+Current step Click on cancel and type Men's t-shirt
+Free generation · Same screenshot and two prior O steps · ac-low:7806:2
+OAR Plan-Aligned Action Repair
+PLAN EXCERPT
+There's a popup showing "Image search" and "Fashion GPT" options, but I can
+still type in the search box.
+ACTION
+Type(content='Men\'s t-shirt')
+T = 0    A = 0    C = 1       Joint repair = 0
+PACT
+PLAN EXCERPT
+I need to close this popup first before I can type in the search bar. Let me click
+the X button to close it.
+ACTION
+Click(box=(911, 87))
+T = 1    A = 1    C = 1       Joint repair = 1
+PACT click
+T  Plan correctness     A  Action validity     C  Plan-action consistency
+Figure S1. Free generation on the same Myntra state and history. PACT selects the required cancel action and achieves T = A = C = 1.
+OAR plans and emits direct typing, yielding T = A = 0, C = 1.
+17
+
+
+Completing receipt copy in AndroidWorld
+Copy receipt_2023_01_22_sure_frog.jpg from DCIM to Download with the same name.
+O   0 / 16 steps
+OA   0 / 16 steps
+OAR   0 / 16 steps
+PACT   1 / 15 steps
+OAR
+Step 8
+Choose destination
+let me try searching for it first.
+Click(box=(500, 240))
+Step 9
+Enter folder name
+I need to type "Download"
+Type(content='Download')
+Step 16
+Keep entering the name
+I need to type "Download"
+Type(content='Download')
+PACT
+Step 8
+Choose destination
+click on the Download folder to
+select it
+Click(box=(335, 615))
+Step 9
+Confirm copy
+click the "OK" button to confirm
+Click(box=(780, 845))
+Step 15
+Finish the task
+I have successfully copied
+Finished(...)
+Top row shows native success / steps. Cards show plan excerpts and emitted actions.
+Figure S2. AndroidWorld receipt-copy task. PACT selects the destination, confirms copying, and terminates with native success. OAR
+repeatedly emits the folder name. Step numbers are one-based.
+Initial task view · PACT, step 1
+Export the current sheet to CSV
+Keep the base filename, displayed values and default export options.
+Native success / model steps
+O
+0.0  /  100
+OA
+0.0  /  100
+OAR
+0.0  /  100
+PACT 1.0  /  9
+Format selection
+Final state
+OAR
+Plan-aligned
+action repair
+STEP 4
+Plan excerpt
+"I should scroll down to find the CSV option."
+Click(box=(705, 983))
+PNG selected
+STEP 100 · AFTER ACTION
+Native success 0.0 · 100-step limit
+PACT
+STEP 6
+Plan excerpt
+"I need to click that to select the CSV format."
+Click(box=(696, 950))
+Text CSV selected
+STEP 8 · AFTER EXPORT CONFIRMATION
+Native success 1.0 · Finished at step 9
+Figure S3. OSWorld CSV export. PACT selects the requested format and completes the export with native success 1.0. OAR continues
+format selection through step 100. Green and red circles identify the actual PACT and OAR click locations, respectively.
+18
+
+
+Action repair with a fixed valid plan. Figure S4 provides three examples from the 23-state set. Each O/PACT comparison
+uses the same task, screenshot, and verbatim O reasoning prefix ending at the <action> opening tag. The prompt-token
+sequences are identical between O and PACT within each case. O continues with an application-launch command in all three
+examples. PACT generates the on-screen click specified by the supplied plan. The corresponding PACT free-generation
+outputs also satisfy T = A = C = 1.
+Step-level plan execution and joint correction. Figures S5 and S6 further compare O, OAR, and PACT on individual
+AndroidControl states. In Figure S5, O states a valid plan to tap the search icon in Google News but emits an incompatible
+LaunchApp command, whereas both OAR and PACT execute the intended on-screen click. In Figure S6, where the
+instruction requests tapping Send in an email composer, O plans to edit the message body and long-presses the subject line,
+whereas OAR and PACT jointly correct both the immediate plan and the emitted click.
+Plan-aligned action repair across apps
+Within each case, O and PACT share the input and valid O plan.
+Pinterest
+ac-low:406:0
+SHARED PLAN EXCERPT
+According to the user's instruction, I
+need to click on the + icon to start
+creating content.
+O  FIXED-PLAN ACTION
+LaunchApp(app='Pinterest')
+PACT  FIXED-PLAN ACTION
+Click(box=(500, 950))
+Google News
+ac-low:1198:0
+SHARED PLAN EXCERPT
+I need to click on the "Newsstand"
+tab, which is located at the bottom
+right of the screen.
+O  FIXED-PLAN ACTION
+LaunchApp(app='Google News')
+PACT  FIXED-PLAN ACTION
+Click(box=(876, 930))
+Pepperfry
+ac-low:1892:0
+SHARED PLAN EXCERPT
+I need to open the Benicio Fabric 3
+Seater Sofa product page.
+O  FIXED-PLAN ACTION
+LaunchApp(app='Pepperfry')
+PACT  FIXED-PLAN ACTION
+Click(box=(250, 383))
+Green circles mark PACT's actual clicks. Coordinates use the 0–999 action grid.
+Figure S4. Fixed-plan continuation on Pinterest, Google News, and Pepperfry. The plan excerpt is shared by O and PACT. Displayed actions
+are the actual fixed-plan continuations. Green circles mark PACT’s predicted clicks.
+19
+
+
+Executing a stated plan
+Google News: search for a requested podcast
+ac-high:62:0
+MODEL OUTPUTS  ·  Plan summaries are paraphrased
+O
+Click the search icon.
+LaunchApp(app='Google News')
+T: correct    A: invalid    C: inconsistent
+OAR
+Click the search icon.
+Click(box=(76, 91))
+T: correct    A: valid    C: consistent
+PACT
+Click the search icon.
+Click(box=(76, 91))
+T: correct    A: valid    C: consistent
+OAR/PACT
+OAR/PACT click the visible search control. O's action does not
+implement its stated search plan.
+T: plan correctness    A: action validity    C: plan–action consistency
+Coordinates use a 0–999 grid.
+Figure S5. Executing a stated plan. O formulates a valid search plan but emits an incompatible LaunchApp action. PACT and OAR execute
+the intended on-screen search click.
+O
+Correcting the plan and action
+Mail composer: current step is to click Send
+ac-low:167:4
+MODEL OUTPUTS  ·  Plan summaries are paraphrased
+O
+Long-press the email body to edit it.
+LongPress(box=(450, 330))
+T: wrong    A: invalid    C: inconsistent
+OAR
+Click the Send icon.
+Click(box=(821, 90))
+T: correct    A: valid    C: consistent
+PACT
+Click the Send icon.
+Click(box=(821, 90))
+T: correct    A: valid    C: consistent
+OAR/PACT
+O presses the Subject row. OAR/PACT select Send, as required by
+the current-step instruction.
+T: plan correctness    A: action validity    C: plan–action consistency
+Coordinates use a 0–999 grid.
+Figure S6. Joint plan and action correction. O plans to edit the email body and long-presses the subject line. PACT and OAR correct both
+the plan and action to click Send.
+20
+
+
+C.2. Diagnostic Taxonomy Boundary Illustrations
+Figures S7 and S8 illustrate two distinct T, A, C configurations using observed agent responses, a correct plan with incorrect
+spatial execution (1, 0, 0) and an incorrect plan executed consistently (0, 0, 1). These examples distinguish plan correctness,
+action validity, and plan–action consistency.
+Coordinate grounding error
+ac-high:55:8
+Zara: view the results for the selected child size
+Observed response (T=1, A=0, C=0)
+MODEL OUTPUT
+PLAN SUMMARY (PARAPHRASED)
+Click VIEW RESULTS (6).
+ACTION
+Click(box=(750, 585))
+T: correct
+Plan correctness
+Targets VIEW RESULTS.
+A: invalid
+Action validity
+The click lands on the size option.
+C: inconsistent
+Plan-action consistency
+The click does not implement the plan.
+Coordinates use a 0–999 grid.
+Pred
+Figure S7. Coordinate-error illustration (T = 1, A = 0, C = 0). The model identifies VIEW RESULTS as the intended target, but its click
+lands on a neighboring size option.
+Consistency without correctness
+ac-high:45:3
+Task: turn on location (switch is already ON)
+Observed response (T=0, A=0, C=1)
+MODEL OUTPUT
+PLAN SUMMARY (PARAPHRASED)
+The switch is off; toggle it again.
+ACTION
+Click(box=(844, 314))
+T: wrong
+Plan correctness
+The enabled switch is read as off.
+A: invalid
+Action validity
+The click toggles an enabled switch.
+C: consistent
+Plan-action consistency
+The click implements the toggle plan.
+Coordinates use a 0–999 grid.
+Pred
+Figure S8. Consistency without correctness (T = 0, A = 0, C = 1). When instructed to enable location access on a screen where the switch
+is already ON, the model misreads the toggle state as disabled and clicks it, consistently executing an incorrect plan.
+21

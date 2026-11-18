@@ -1,0 +1,41 @@
+{
+  "date": "20261118",
+  "date_label": "2026-11-17 06:00 ~ 2026-11-18 06:00 (UTC+8)",
+  "generated_at": "2026-11-18 03:28:40 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.22591v1",
+      "route": "202611/18/2611.22591v1-pact-plan-action-consistency-training-by-preserving-correct-plans-and-repairing-actions-in-gui-agents",
+      "title": "PACT: Plan-Action Consistency Training by Preserving Correct Plans and Repairing Actions in GUI Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "面向GUI智能体的计划-动作一致性训练",
+      "first_seen_at": "2026-11-18 03:28:40 UTC",
+      "updated_at": "2026-11-18 03:28:40 UTC"
+    },
+    {
+      "paper_id": "2611.22085v1",
+      "route": "202611/18/2611.22085v1-atlas-finance-benchmarking-ai-agents-in-realistic-banking-environments",
+      "title": "ATLAS-Finance: Benchmarking AI Agents in Realistic Banking Environments",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "跨工作场所应用的多步工作流智能体基准",
+      "first_seen_at": "2026-11-18 03:28:40 UTC",
+      "updated_at": "2026-11-18 03:28:40 UTC"
+    }
+  ]
+}

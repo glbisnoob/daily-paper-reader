@@ -1,0 +1,39 @@
+{
+  "label": "2026-11-17 06:00 ~ 2026-11-18 06:00 (UTC+8)",
+  "date": "2026-11-18",
+  "generated_at": "2026-11-18T03:28:42",
+  "count": 2,
+  "papers": [
+    {
+      "paper_id": "202611/18/2611.22591v1-pact-plan-action-consistency-training-by-preserving-correct-plans-and-repairing-actions-in-gui-agents",
+      "section": "deep",
+      "title_en": "PACT: Plan-Action Consistency Training by Preserving Correct Plans and Repairing Actions in GUI Agents",
+      "authors": "Zhuohan Cai, Zhangxuan Gu, Runze Li, Beitong Zhou, Ming Wen, Hongbo Yu, Shuheng Shen, Changhua Meng",
+      "date": "2026-11-17",
+      "pdf": "https://arxiv.org/pdf/2611.22591v1",
+      "score": "9.0",
+      "evidence": "面向GUI智能体的计划-动作一致性训练",
+      "tldr": "GUI智能体常生成正确计划却执行错误动作，形成执行鸿沟；结果监督RL会把负面优势广播到计划token，误伤正确规划。PACT用参考动作定位缺口，屏蔽正确计划的负梯度，并以偏好替代目标修复错误动作。AndroidWorld成功率由60.34%升至68.97%，AndroidControl High一致性由83.71%升至89.74%，OSWorld由40.92%升至44.17%。该框架实现更细粒度信用分配，提升GUI任务完成率。",
+      "tags": "query:gui-agents",
+      "abstract_en": "GUI agents can formulate a correct immediate plan in their reasoning yet emit an action that fails to execute it, creating an execution gap. This recurring mismatch undermines reliable task completion, as a single execution error can derail a multi-step workflow. In outcome-supervised reinforcement learning, broadcasting a negative response-level advantage across all generated tokens risks penalizing valid planning together with erroneous execution. To address this credit-assignment conflict, we introduce PACT (Plan-Action Consistency Training), a training framework that combines reference-aligned plan protection and plan-aligned action repair without altering the original scalar action reward. Using annotated reference actions to identify execution gaps, PACT protects the verified plan by masking negative policy-gradient contributions across its token span. Keeping the generated reasoning unchanged as context, it then favors the reference action over the emitted erroneous action through a preference surrogate with stop-gradient pair weights. Compared with the outcome-only baseline, PACT raises AndroidWorld task success from 60.34% to 68.97% (+8.63 pp), while improving rule-based plan-action consistency on AndroidControl High from 83.71% to 89.74% (+6.03 pp). Adapting PACT to desktop agents also improves task success from 40.92% to 44.17% (+3.25 pp) on the full 369-task OSWorld benchmark. Together, these results establish PACT as an effective credit-assignment framework for bridging execution gaps and improving task completion across mobile and desktop GUI environments.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "paper_id": "202611/18/2611.22085v1-atlas-finance-benchmarking-ai-agents-in-realistic-banking-environments",
+      "section": "quick",
+      "title_en": "ATLAS-Finance: Benchmarking AI Agents in Realistic Banking Environments",
+      "authors": "Elaine Lau, Antoine Pangas, Alexandre Finot, Collin Schweiker, Amir Bouzidi, Hui Wen Goh, Andrew Peter Martin, Jonas Mueller",
+      "date": "2026-11-17",
+      "pdf": "https://arxiv.org/pdf/2611.22085v1",
+      "score": "6.0",
+      "evidence": "跨工作场所应用的多步工作流智能体基准",
+      "tldr": "专业工作常任务欠明确、信息分散于多种办公应用且可能冲突或更新。ATLAS-Finance构建100个端到端投行任务，覆盖13家模拟公司，要求智能体检索邮件、聊天、日历、笔记与文件，识别需求、汇总信息、消解冲突并搭建复杂财务模型。任务由资深银行家基于真实交易设计，人工完成需15-30小时，并用专家 rubric 评估财务逻辑、结果、表格构建、完整性与格式。当前前沿智能体虽完成大量工作，却极少交付正确成果，最佳模型通过率不足11%。",
+      "tags": "query:gui-agents",
+      "abstract_en": "Professional work involves under-specified assignments, where relevant information is spread across workplace applications and may conflict or change over time. To evaluate how well frontier agents can perform economically valuable work in such settings, we introduce ATLAS-Finance, a benchmark of 100 end-to-end investment-banking tasks across 13 simulated firms. As in real banking workflows, agents must search email, chat, calendars, notes, and files to identify requirements, gather information, reconcile conflicts/updates, and then build complex financial models. Tasks were developed by experienced bankers based on their real deal work and take them 15-30 hours to complete. Agent deliverables are evaluated with expert-authored rubrics (median: 124.5 criteria) covering financial rationale and results, spreadsheet construction, completeness, and formatting. Despite completing substantial portions of the requested work, current agents rarely produce correct deliverables. Across today's frontier models, the best ones (Claude Opus and Fable) pass fewer than 11% of tasks.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "errors": []
+}
