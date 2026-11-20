@@ -1,0 +1,39 @@
+{
+  "label": "2026-11-19 06:00 ~ 2026-11-20 06:00 (UTC+8)",
+  "date": "2026-11-20",
+  "generated_at": "2026-11-20T02:52:29",
+  "count": 2,
+  "papers": [
+    {
+      "paper_id": "202611/20/2611.25297v1-scalediag-diagnosing-the-limits-of-test-time-scaling-in-gui-grounding",
+      "section": "deep",
+      "title_en": "ScaleDiag: Diagnosing the Limits of Test-Time Scaling in GUI Grounding",
+      "authors": "Chen Liu, Zhen Fang, Xin Yu, Dadong Wang, Ling Chen",
+      "date": "2026-11-18",
+      "pdf": "https://arxiv.org/pdf/2611.25297v1",
+      "score": "9.0",
+      "evidence": "GUI定位将截图与指令映射到界面元素坐标",
+      "tldr": "GUI grounding需将截图与指令映射到界面元素坐标，但视觉、指令与采样三类测试时扩展各自解决何种瓶颈、何时饱和仍不清楚。ScaleDiag用受控诊断独立改变目标尺度与上下文、目标信息与辅助描述、候选覆盖与选择，在5个基准和最多8个视觉语言模型上评估。结果显示三类扩展均只在很窄区间有效：视觉扩展受目标占画面比例支配而非固定裁剪比，指令增益主要来自外观与空间描述，重复采样存在5.1–11.0点oracle空间却难选择。该工作揭示了GUI grounding测试时扩展的非单调边界，为诊断与改进扩展策略提供依据。",
+      "tags": "query:gui-agents",
+      "abstract_en": "GUI grounding maps a screenshot and a natural language instruction to the coordinates of the intended interface element. Existing approaches improve grounding through visual scaling, instruction scaling, and sampling scaling, yet it remains unclear which grounding bottlenecks these strategies address and where their gains saturate. To address this gap, we introduce ScaleDiag, a controlled diagnostic framework that isolates the effects of visual input, instruction information, and prediction sampling on GUI grounding by independently varying target scale and surrounding context, target-specific information and auxiliary descriptions, and candidate coverage and selection, respectively. We evaluate ScaleDiag across five benchmarks and up to eight vision-language models and find that each scaling strategy operates within a much narrower regime than commonly assumed. (1) Visual scaling is governed by target occupancy rather than a fixed crop ratio, with full-screen errors typically rescued once the target occupies only 0.32% of the cropped view, while further zooming eventually becomes harmful. (2) Instruction scaling is driven by information that identifies the target rather than description richness itself, as even ground-truth-derived attributes such as color, size, and shape are often neutral or harmful, while appearance and spatial descriptions account for over 90% of the achievable gain. (3) Repeated sampling exposes a different limitation, as correct coordinates are frequently generated but remain difficult to select, leaving 5.1--11.0 points of oracle headroom while geometric consensus provides almost no improvement. Together, these results show that test-time scaling is constrained by distinct operating regimes rather than benefiting monotonically from more visual focus, richer instructions, or additional samples. Our code is available at https://github.com/YenanLiu/ScaleDiag.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "paper_id": "202611/20/2611.25387v1-turingspace-grounding-spatial-intelligence-in-action-with-interactive-captchas",
+      "section": "quick",
+      "title_en": "TuringSpace: Grounding Spatial Intelligence in Action with Interactive CAPTCHAs",
+      "authors": "Xuwei Ding, Skylar Zhai, Linxin Song, Jiarui Feng, Dongqi Fu, Huajun Xi, Junnan Li, Jingcheng Liang, Jieyu Zhao, Yinglong Xia, Hong Li, Jian Kang",
+      "date": "2026-11-19",
+      "pdf": "https://arxiv.org/pdf/2611.25387v1",
+      "score": "7.0",
+      "evidence": "多模态大模型通过屏幕点击拖拽完成交互式验证码",
+      "tldr": "现有CAPTCHA基准多已饱和且缺乏空间性，空间基准又少要求交互动作。作者构建TuringSpace：125个需点击拖拽的交互式CAPTCHA，覆盖五类空间能力，并能程序化生成与校验，形成可扩展训练场。人类解决率94.1%，GPT-6 Astra失败25.9%，Kimi K3失败68.0%；模型多误读截图，且常为错误信念编造证据。微调Qwen3.5-9B后成功率从1.6%升至33.1%，七个分布外基准提升，VSI-Bench增9.9分。",
+      "tags": "query:gui-agents",
+      "abstract_en": "Humans act in the visual world by inferring the 3D layout behind a 2D view, predicting how an action changes it, and correcting themselves after seeing the result. Can multimodal large language models (MLLMs) do the same? CAPTCHAs offer a natural test, since humans solve them through this very loop, clicking and dragging on the screen and adjusting after each result. Yet existing CAPTCHA benchmarks are largely solved and rarely spatial, while spatial benchmarks rarely require action. We therefore present TuringSpace, a synthetic web environment of 125 interactive CAPTCHAs that span five spatial abilities and must be solved through clicks and drags on the screen. Every task is a program that generates new instances with a checker and an oracle, so the tasks also form a scalable training gym. Humans solve 94.1% of the tasks, whereas the best model, GPT-6 Astra, still fails 25.9% of them, and the best open-weight model, Kimi K3, fails 68.0%. Our further analysis shows that most failures come from misreading the screenshot, and that model reasoning rarely corrects a wrong belief but hallucinates evidence to defend it. To test whether such spatial abilities can be learned, we fine-tune Qwen3.5-9B on this gym. Its success rate rises from 1.6% to 33.1%, above Kimi K3, and it improves on all seven out-of-distribution benchmarks, including a 9.9-point gain on the real-world indoor videos of VSI-Bench. These results show that grounding spatial intelligence in screen actions exposes what MLLMs lack and offers a scalable way to teach it, with gains that transfer to real-world scenes. We will release TuringSpace to support further study.",
+      "source": "arxiv",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "errors": []
+}

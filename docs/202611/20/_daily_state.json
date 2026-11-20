@@ -1,0 +1,41 @@
+{
+  "date": "20261120",
+  "date_label": "2026-11-19 06:00 ~ 2026-11-20 06:00 (UTC+8)",
+  "generated_at": "2026-11-20 02:52:27 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.25297v1",
+      "route": "202611/20/2611.25297v1-scalediag-diagnosing-the-limits-of-test-time-scaling-in-gui-grounding",
+      "title": "ScaleDiag: Diagnosing the Limits of Test-Time Scaling in GUI Grounding",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "GUI定位将截图与指令映射到界面元素坐标",
+      "first_seen_at": "2026-11-20 02:52:27 UTC",
+      "updated_at": "2026-11-20 02:52:27 UTC"
+    },
+    {
+      "paper_id": "2611.25387v1",
+      "route": "202611/20/2611.25387v1-turingspace-grounding-spatial-intelligence-in-action-with-interactive-captchas",
+      "title": "TuringSpace: Grounding Spatial Intelligence in Action with Interactive CAPTCHAs",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "多模态大模型通过屏幕点击拖拽完成交互式验证码",
+      "first_seen_at": "2026-11-20 02:52:27 UTC",
+      "updated_at": "2026-11-20 02:52:27 UTC"
+    }
+  ]
+}

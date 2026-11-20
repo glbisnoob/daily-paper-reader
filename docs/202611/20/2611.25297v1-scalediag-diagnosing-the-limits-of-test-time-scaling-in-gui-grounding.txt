@@ -1,0 +1,263 @@
+Title: ScaleDiag: Diagnosing the Limits of Test-Time Scaling in GUI Grounding
+
+URL Source: https://arxiv.org/pdf/2611.25297v1
+
+Published Time: Fri, 20 Nov 2026 01:37:25 GMT
+
+Number of Pages: 8
+
+Markdown Content:
+# : Diagnosing the Limits of Test-Time Scaling in GUI Grounding 
+
+Chen Liu † Zhen Fang † Xin Yu ‡ Dadong Wang § Ling Chen †* 
+
+> †
+
+University of Technology Sydney, Australia , {chen.liu, fang.zhen, ling.chen }@uts.edu.au 
+
+> ‡
+
+Adelaide University, Australia , xin.yu@adelaide.edu.au §CSIRO Technology, Australia , Dadong.Wang@csiro.au 
+
+Abstract —GUI grounding maps a screenshot and a natural language instruction to the coordinates of the intended interface element. Existing approaches improve grounding through visual scaling , instruction scaling , and sampling scaling , yet it remains unclear which grounding bottlenecks these strategies address and where their gains saturate. To address this gap, we introduce ScaleDiag, a controlled diagnostic framework that isolates the effects of visual input, instruction information, and prediction sampling on GUI grounding by independently varying target scale and surrounding context, target-specific information and auxiliary descriptions, and candidate coverage and selection, respectively. We evaluate ScaleDiag across five benchmarks and up to eight vision-language models and find that each scaling strategy operates within a much narrower regime than commonly assumed. (1) Visual scaling is governed by target occupancy rather than a fixed crop ratio, with full-screen errors typically rescued once the target occupies only 0.32% of the cropped view, while further zooming eventually becomes harmful. (2) Instruction scaling is driven by information that identifies the target rather than description richness itself, as even ground-truth-derived attributes such as color, size, and shape are often neutral or harmful, while appearance and spatial descriptions account for over 90% of the achievable gain. (3) Repeated sampling exposes a different limitation, as correct coordinates are frequently generated but remain difficult to select, leaving 5.1–11.0 points of oracle headroom while geometric consensus provides almost no improvement. Together, these results show that test-time scaling is constrained by distinct operating regimes rather than benefiting monotonically from more visual focus, richer instructions, or additional samples. Our code is available at https://github.com/YenanLiu/ScaleDiag. 
+
+Index Terms —Multimodal Learning, Multimodal Understand-ing, GUI Grounding; 
+
+I. I NTRODUCTION 
+
+GUI grounding maps a screenshot and a natural language instruction to the coordinates of the intended interface element, enabling GUI agents to translate high-level goals into concrete actions [1]–[3]. Recent vision-language models have achieved strong performance on standard grounding benchmarks [4]– [7], yet their predictions remain sensitive to small targets, dense interfaces, irrelevant visual content, and ambiguous instructions. Existing work improves grounding through local cropping [8]–[12], richer target descriptions [2], [5], [13], [14], and repeated sampling [4], [15], [16]. However, these strategies are often applied uniformly across inputs or combine multiple changes at once, making it difficult to determine 
+
+*Corresponding author: Ling Chen (ling.chen@uts.edu.au). User Instruction: Toggle indicator of overexposure. Predicted Result Groundtruth 
+
+> Wrong Prediction!
+> Did I misunderstand the instruction?
+> Should I zoom in for more details?
+> Should I try more times?
+
+Fig. 1. GUI grounding failures can arise from insufficient target visibil-ity, missing target-identifying information, or unreliable candidate selection. These bottlenecks require different interventions, including visual scaling, instruction refinement, and verifier-guided sampling. 
+
+when additional computation is actually useful, what drives the improvement, and where the gain saturates or reverses. To address this gap, we introduce ScaleDiag , a controlled diagnostic framework that isolates the effects of visual in-put, instruction information, and prediction sampling on GUI grounding by independently varying target scale and sur-rounding context, target-specific and auxiliary descriptions, and candidate coverage and selection, respectively. The model size is treated as a cross-cutting factor and examine whether these effects persist across models of different scales and specialization. We evaluate ScaleDiag across five GUI ground-ing benchmarks and up to eight vision-language models spanning different scales and levels of GUI specialization. For visual scaling, we vary target-centered crop size and irrelevant context. For instruction scaling, we vary how much information the instruction provides to identify the target and what additional target descriptions are included. For sampling scaling, we test whether repeated sampling generates a correct coordinate and whether that coordinate can be reliably selected from the sampled candidates. Our experiments reveal where each form of test-time scaling helps and where its benefit breaks down. First , visual scaling is governed by target occupancy rather than by a universal crop ratio. Full-screen errors rescued by cropping require a median target occupancy of only 0.32%, while further enlargement eventually becomes harmful as useful context is removed. Appropriate cropping rescues 24.1% of full-screen errors while harming only 1.3% of correct predictions. Second , instruction scaling helps when added information makes the target easier to identify, rather than simply making the description richer. arXiv:2611.25297v1 [cs.CV] 18 Nov 2026 Removing target-identifying information reduces accuracy to 4%–6%, while even ground-truth-derived attributes such as color, size, and shape provide little consistent benefit. Ap-pearance and spatial descriptions account for over 90% of the achievable gain, with function and goal descriptions con-tributing little further improvement. Third , repeated sampling improves the chance of generating a correct coordinate but not of selecting it. Oracle@ 8 improves accuracy by 5.1–11.0 points, while coordinate-medoid selection provides almost no gain. Correct candidates often appear only once or twice among eight samples, making them difficult to recover through geometric consensus. Together, these results show that visual focus, richer descriptions, and additional samples have distinct limits rather than providing monotonic gains. In summary, our contributions are threefold:  
+
+> •
+
+A controlled diagnostic framework. ScaleDiag inde-pendently varies visual input, instruction information, and prediction sampling to separate effects that are coupled in existing scaling strategies.  
+
+> •
+
+A quantitative characterization of scaling limits. We identify the target-occupancy range in which cropping helps, which instruction information contributes mean-ingful gains, and why additional sampled candidates fail to translate into better final predictions.  
+
+> •
+
+Evidence for selective test-time scaling. Our results show that visual focus, richer descriptions, and additional samples are useful under different conditions, motivating test-time computation that is allocated according to the source of grounding error rather than applied uniformly. II. R ELATED WORK 
+
+A. Instruction Semantic Enhancement 
+
+Successful GUI grounding requires instructions that provide enough information to identify the intended interface element [1]–[3]. Early methods such as SeeClick [1], UGround [2], and OS-Atlas [3] learn mappings from language to GUI elements using visible text, control attributes, spatial relations, and template-based referring expressions. These formulations work well when the target can be identified from explicit interface cues, but provide limited support for instructions expressed through appearance, function, or user intent. More recent methods enrich the instruction with additional target descriptions [5], [13], [14]. Aria-UI [14], UI-E2I-Synth [13], and UI-Ins [5] incorporate cues such as appearance, location, function, and interaction intent, while UI-Ins further reformu-lates high-level intent into a target description before coor-dinate prediction. Other approaches, including MEGA-GUI [17], ZoomUI [18], and AdaZoom-GUI [19], combine richer instructions with visual search to narrow the target region. Despite these advances, it remains unclear which additional descriptions actually help identify the target and which merely add target-related information without improving grounding. Existing work also does not systematically test how these effects change with model scale or whether larger models can compensate when target-identifying information is missing. 
+
+B. Visual Perception and Representation Enhancement 
+
+Accurate GUI grounding requires sufficient visual detail to distinguish the target while preserving the surrounding context needed for localization [6], [7], [20]–[22]. Early methods improve small-target grounding through higher-resolution or multi-view encoding. CogAgent [20] combines global and local visual representations, while Ferret-UI [6], [7] adapts image partitioning to GUI layouts to better preserve small icons and text. Later work reduces visual redundancy or focuses computation on task-relevant regions. ShowUI [21] and FocusUI [23] selectively retain informative visual tokens or patches, while TAG [24], GUI-AIMA [25], GUI-Actor [26], and InnerZoom [27] strengthen attention or computa-tion around likely target regions. However, visual focusing typically changes target scale and surrounding context at the same time. As a result, it remains unclear whether gains come from enlarging the target or removing context, how much enlargement is actually needed, and when further cropping becomes harmful. 
+
+C. Test-Time Search and Verification for GUI Grounding 
+
+When a single grounding prediction is unreliable, additional test-time computation can be used to search for, refine, or verify the target location. A common strategy is coarse-to-fine visual search. RegionFocus [8], DiMo-GUI [10], and GUI-Eyes [28] first localize a coarse region and then refine it through cropping, zooming, or local views. More adaptive methods decide when and where to spend this extra computa-tion. AdaZoom-GUI [19] selectively activates refinement for small targets, while UI-Zoomer [29] uses prediction consis-tency and spatial dispersion to guide zooming. DRS-GUI [16] and ZoomUI [30] further formulate grounding as an iterative search process that updates the candidate region based on previous predictions or target cues. Additional computation can also be used without explicit visual search. MVP [31] aggregates predictions from perturbed views to identify stable locations, while Re-Prefill [32] performs a second inference pass using selected visual and instruction features. These methods show that repeated inference can expose alternative predictions or reconsider an initial decision. However, prior work rarely distinguishes whether the gain comes from gener-ating a correct candidate or from selecting it once generated, making it unclear how much repeated computation remains useful when candidate selection itself is the limiting factor. III. M ETHOD 
+
+A. Task Definition and Framework Overview 
+
+Task Definition. Given a GUI screenshot I and a natural-language instruction q, a GUI grounding model predicts the click coordinate of the target element, ˆp = (ˆ x, ˆy). A prediction is correct if ˆp lies within the ground-truth bounding box B.
+
+Framework Overview. We introduce ScaleDiag , a model-agnostic diagnostic framework for isolating the effects of visual input, instruction information, and prediction sampling on GUI grounding. ScaleDiag follows a one-factor-at-a-time design that changes one factor while keeping the target and (1) Target-Centered Cropping. (2) Irrelevant Context Addition.    
+
+> (a) Visual Input
+> Original (100%) 50% 25% 12.5%
+
+…    
+
+> 6.25%
+> (b) Instruction Information
+> (1) Ground-Truth-Derived Attribute Injection. (2) LLM-Generated Multi- View Semantic Description.
+> (c) Prediction Sampling
+> [+position]: add the Rhombus shape (It is in the center of the screen). [+color]: add the Rhombus shape (It is a black icon). [+size]: add the Rhombus shape (It is a small element). [+shape]: add the Rhombus shape (It is a square element).
+> [+Appearance]: Click the gray diamond (rhombus) shape icon in the shapes palette near the middle of the screen. [+spatial]: Click the diamond-shaped button that sits in the shapes grid between the right-pointing arrow above it and the pentagon below it. [+function]: Select the rhombus shape tool to insert a rhombus into the document or canvas. [+goal]: Add a rhombus (diamond) shape.
+> Position Color Size Shape Appearance Spatial Function Goal
+> Add the Rhombus shape.
+> Candidate Selection
+> Final Result
+
+Fig. 2. Overview of our controlled diagnostic framework for GUI grounding. (a) Controlled visual interventions vary the visual evidence while keeping the instruction fixed. We construct target-centered, aspect-ratio-preserving crops at different area ratios, and separately add resized distractor screenshots while preserving the target screenshot at its native resolution. (b) Controlled instruction interventions keep the screenshot and target fixed while modifying the instruction. Rule-based attribute injection appends ground-truth-derived position, color, size, or shape cues, whereas an LLM generates natural descriptions from appearance, spatial, functional, and goal-oriented views. (c) Repeated sampling keeps both the screenshot and instruction fixed and generates multiple coordinate predictions, allowing us to compare greedy decoding, coordinate-medoid consensus, and oracle candidate coverage. Together, these interventions isolate the effects of visual evidence, instruction information, and candidate selection. 
+
+evaluation setting fixed. As shown in Figure 2, the three components are studied through controlled experiments. For visual input, we vary target scale and surrounding context through target-centered cropping and added irrelevant interface content. For instruction information, we vary the amount of target-identifying information and the type of additional target descriptions using rule-based attributes, an information ladder, and multi-view descriptions. For prediction sampling, we generate multiple coordinate candidates and compare their coverage with different selection strategies to separate candi-date generation from candidate selection. 
+
+B. Controlled Visual Interventions 
+
+The visual experiments keep the instruction and target fixed while varying target scale and surrounding context. We use target-centered cropping to change target scale while progres-sively reducing surrounding context, and tiled perturbations to add irrelevant content while preserving the original target. 
+
+Target-Centered Cropping. To measure the effect of visual scaling without confounding it with crop-selection accuracy, we construct oracle crops using the ground-truth target lo-cation. Given a screenshot of size W × H and the center 
+
+c = ( cx, c y ) of the ground-truth bounding box, a crop with area ratio f has width Wf = √f W and height Hf = √f H .The crop is centered at c and shifted inward when necessary to remain within the screenshot while preserving its size. We evaluate f ∈ { 1, 0.5, 0.25 , 0.125 , 0.0625 , 0.03125 }, cor-responding to 100%, 50%, 25%, 12.5%, 6.25%, and 3.125% of the original screenshot area. This controlled experiment removes crop-selection errors and measures how grounding changes as the target occupies a larger fraction of the input while surrounding context is progressively reduced. 
+
+Irrelevant Context Addition. Target-centered cropping simul-taneously enlarges the target relative to the input and removes surrounding content. To isolate the effect of surrounding con-text, we construct tiled screenshots that keep the target screen-shot unchanged while adding unrelated interfaces around it. On ScreenSpot-v2 [33], each grid cell has the original screenshot size W × H, and we construct canvases with K ∈ 1, 2, 4 cells arranged as 1 × 1, 1 × 2, and 2 × 2 grids. The target screenshot is placed without resizing in a randomly selected cell, while the remaining cells contain screenshots sampled from the same dataset and resized to W × H. We use a fixed random seed, seed = 0 , so that all models receive the same target placement and surrounding content. Let (ox, o y ) denote the top-left offset of the target cell. Because the target screenshot is not resized, its bounding box B = (x1, y 1, x 2, y 2) is translated to B′ = (x1 + ox, y 1 + oy , x 2 + ox, y 2 + oy ).The instruction remains unchanged. Thus, the target itself and its scale are preserved while only the amount of irrelevant surrounding content increases, allowing us to measure its effect on grounding independently. 
+
+C. Controlled Instruction Construction 
+
+As depicted in Figure 2 (b), all instruction experiments keep the screenshot, target element, and visual processing fixed while changing only the instruction. We design three con-trolled experiments to examine whether coarse target attributes are useful, how grounding changes with the amount of infor-mation available to identify the target, and which additional target descriptions provide further gains. These questions are studied through ground-truth-derived attribute injection, an instruction information ladder, and LLM-generated multi-view descriptions, respectively. (a) Visual Scaling by Crop Size (b) Visual Scaling Gain from Cropping                                                         
+
+> Qwen3-VL-8B MAI-UI-8B Qwen3-VL-32B Qwe2.5-VL-7B GTA1-7B-4B Qwen3.5-4B Qwen3.5-9B Qwen3.5-27B
+> 100 80 60 40 20 100 80 60 40 20 Accuracy (%) Accuracy (%) 10.1 10.1 10.1 10.1 10.1 10.1 10.1 10.1 Qwen3.5-27B Qwen3.5-9B Qwen3.5-4B GTA1-7B Qwen2.5-VL-7B Qwen3-VL-8B MAI-UI-8B Qwen3-VL-32B Crop Area Ration Crop Area Ration
+> 100 80 60 40 20 +15 +18 +4 +8 +0 +13 +7 +1 +4 +1 +17 +12 +3 +2 +0 +29 +20 +11 +11 +2 +0 +0 +0 +1 +0 +12 +1 +2 +2 +0 +10 +6 +2 +4 +0 +8 +10 +2 +2 +0 SS-Pro UI-Vison MMBench OSWorld-G SS-V2
+
+Fig. 3. Effects of target-centered cropping on GUI grounding performance. (a) Grounding accuracy across crop area ratios for each model and benchmark. (b) Accuracy gain of the best crop over the full screenshot. 
+
+Ground-Truth-Derived Attribute Injection. We derive four coarse attributes from the ground-truth target, including po-sition, color, size, and shape. Let the screenshot have width 
+
+W and height H, and let B = ( x1, y 1, x 2, y 2) denote the target bounding box with center (cx, c y ). Position is obtained by mapping (cx/W, c y /H ) to a 3 × 3 grid with left, center, and right horizontal regions and top, middle, and bottom vertical regions, producing labels such as top-left and 
+
+bottom-right . For color, we crop the target region, resize it to 16 × 16 , compute the median RGB value, and assign the nearest color from a fixed vocabulary of black, white, gray, red, green, blue, yellow, orange, purple, cyan, pink, and brown using Euclidean distance in RGB space. Target size is determined by the area ratio a = (x2−x1)( y2−y1)
+
+> W H
+
+and labeled small when a < 5 × 10 −4, medium when 
+
+5 × 10 −4 ≤ a < 5 × 10 −3, and large otherwise. Shape is determined by the aspect ratio r = x2−x1 
+
+> y2−y1
+
+and labeled wide when r > 1.6, tall when r < 0.62 , and square otherwise. Attributes are appended to the original instruction using the fixed template <instruction > (It is 
+
+<attribute phrase >.) . For example, an attribute phrase may be a small blue element located in the top-right of the screen . We evaluate each attribute individually and four predefined combinations, position+color , position+size , position+color+size , all attributes. Together with the unchanged original instruction, this yields nine conditions per sample. Because all attributes are derived deterministically from ground truth, this experiment measures whether coarse target descriptions improve grounding without introducing variation from instruction generation. 
+
+Instruction Information Ladder. To measure how grounding depends on the information available to identify the target, we construct a controlled ladder from an underspecified instruction to increasingly explicit target information. The 
+
+generic condition removes target-identifying information and replaces the instruction with Click the correct interactive UI element on the screen for the task. The keep-half condition retains the first 
+
+⌈n/ 2⌉ tokens of an instruction with n tokens, while base 
+
+uses the complete original instruction. Starting from base ,
+
+clarify-pos adds the target’s coarse location on the same 3 × 3 grid, and clarify-fine adds its approximate horizontal and vertical positions as percentages of the screenshot dimensions. A fine-grained clarification takes the form It is located approximately 53% from the left and 42% from the top of the screen. This ladder measures how performance changes as target-identifying information is removed, restored, and further clarified. 
+
+LLM-Generated Multi-View Descriptions. The previous experiments control coarse attributes and the amount of target-identifying information. We additionally study whether richer target descriptions provide further gains. Following the multi-view taxonomy of UI-Ins [5], we use GPT-5.2 [34] to generate descriptions from four perspectives. The appearance view 
+
+app describes visible text, iconography, color, and coarse location. The spatial view spa describes the target relative to neighboring interface elements. The functional view fun 
+
+describes the effect of activating the target without relying on its appearance or location. The goal view goa describes the higher-level user intent associated with the target. For each target, GPT-5.2 receives the original instruction, a full screenshot with the target highlighted, an enlarged target crop, and automatically derived hints for color, position, size, shape, and UI type. The model is instructed to follow the images when the heuristic hints conflict with the visual evidence. These marked images are used only to generate descriptions. We generate four single-view descriptions, six pairwise combinations, four three-view combinations, and one four-view combination. Together with the original instruction, this yields 16 conditions per sample. Each condition integrates its selected perspectives into a single coherent instruction. Generated descriptions must remain faithful to the target, remain usable without the marked images, and avoid refer-ences to annotations, coordinates, percentages, or ground truth. Comparing individual views and their combinations measures which additional target descriptions improve grounding and whether their gains saturate as more descriptions are added. 
+
+D. Repeated Sampling and Candidate Selection 
+
+The preceding visual and instruction experiments use a single prediction for each sample. To examine whether ad-ditional test-time sampling improves GUI grounding, we keep 90 80 70 40 30 100 12.5 60 50 Accuracy (%) Retained Image Area (% of Full Screenshot)            
+
+> Native OCC < 0.1% (n=20K) Native OCC 0.1-0.5% (n=0.9K) Native OCC 0.5-2% (n=3.6K) Native OCC >=2% (n=2K)
+> +9.4 +8.3 +7.9 +8.3 10 100 86420+8.1 +8.8 +6.9 -1.4
+> Rescue IQR [0.12, 1.00] % Rescue Median 0.32%
+> 50 25 6.25 3.125 (a) Accuracy across crop scales by native target occupancy (b) Within-item gain by post-crop target occupancy Post Crop Target Occupancy (%) Accuracy Gain over Full-Frame Input (pp)
+> Number of Screenshots in the Tiled Canvas Accuracy (%)
+> Qwen3.5-9B MAI-UI-8B Qwen2.5-VL-7B Qwen3.5-4B Qwen3.5-27B Qwen3-VL-8B Qwen3-VL-32B GTA1-7B
+> (c) Grounding Robustness to Increasing Irrelevant Context 90 80 12490 80 80
+
+Fig. 4. Difficulty-gated visual scaling under target-centered cropping. OCC denotes the ratio of the target bounding-box area to the visible image area. (a) 
+
+Grounding accuracy across retained crop areas, grouped by native OCC measured on the full screenshot. Each point reports the accuracy of one native-OCC group at a given crop scale. (b) Within-item accuracy gain over the full-frame input as a function of post-crop OCC. Each crop prediction is compared with the full-frame prediction for the same item, and the resulting changes are averaged within OCC bins. Rescue OCC is the post-crop target occupancy at the least aggressive crop that converts a full-frame miss into a hit. The shaded region shows its interquartile range across rescued items, while the dashed line marks its median. Both panels pool approximately 34.9k model–benchmark–item instances. TABLE I OVERALL GROUNDING ACCURACY AND TARGET -TYPE BREAKDOWN ACROSS GUI GROUNDING BENCHMARKS . A LL DENOTES OVERALL ACCURACY , T/I 
+
+> DENOTES TEXT AND ICON ACCURACY
+
+, AND GAP DENOTES THEIR DIFFERENCE . B EST AND SECOND -BEST RESULTS FOR ALL AND GAP ARE HIGHLIGHTED IN GREEN AND PURPLE , RESPECTIVELY .
+
+Method SS-Pro UI-Vision MMBench OSW-G SS-v2 All T/I Gap All T/I Gap All T/I Gap All All T/I Gap 
+
+Qwen3-VL-8B [35] 50.8 69.8/20.0 49.8 24.0 59.7/16.2 43.5 81.7 88.6/76.2 12.3 54.4 93.4 98.1/87.4 10.7 MAI-UI-8B [36] 62.9 78.3/37.9 40.4 39.6 76.5/31.6 44.9 88.5 94.7/83.5 11.2 62.1 95.4 98.2/91.7 6.5 Qwen3-VL-32B [35] 57.8 76.0/28.3 47.7 35.0 67.6/27.9 39.6 87.3 91.8/83.7 8.1 65.6 95.0 97.8/91.3 6.4 Qwen3.5-4B [37] 49.7 64.8/25.3 39.5 33.2 64.5/26.3 38.2 81.7 87.0/77.4 9.6 56.2 91.8 96.2/86.1 10.1 Qwen3.5-9B [37] 60.7 74.5/38.2 36.3 38.6 63.8/33.1 30.7 84.0 87.8/80.9 6.8 62.4 93.5 97.2/88.6 8.6 Qwen3.5-27B [37] 70.1 82.4/50.2 32.2 53.6 72.2/49.5 22.7 88.5 91.9/85.7 6.3 69.5 95.5 97.6/92.8 4.9 
+
+the screenshot and instruction fixed while varying coordinate generation and candidate selection. As shown in Figure 2 (c), we first obtain a baseline prediction ˆpgreedy using greedy decoding with temperature 0. We then independently sample 
+
+K = 8 coordinates at temperature T = 0 .7, yielding the candidate set P = {pi}Ki=1 .To evaluate verifier-free candidate selection, we choose the coordinate medoid, defined as the sampled point with the smallest total Euclidean distance to the remaining candidates 
+
+pmedoid = arg min pi∈P 
+
+PKj=1 
+
+j̸ =i
+
+∥pi − pj ∥2. Unlike coordinate averaging, the medoid is always one of the sampled pre-dictions and does not introduce an interpolated coordinate. Candidate coverage is measured by Oracle@ K. For each sample, we define the corresponding indicator as oK =
+
+I [∃ pi ∈ P such that pi ∈ B], where B denotes the ground-truth bounding box. Oracle@ K is obtained by averaging oK
+
+over the evaluation set. At the dataset level, the differences between Oracle@ K and Greedy and between Medoid and Greedy quantify the potential gain from candidate coverage and verifier-free spatial consensus, respectively. The gap be-tween Oracle@ K and Medoid reflects cases in which a correct candidate has been generated but is not reliably selected. Finally, we quantify sampling dispersion using the normalized mean pairwise distance σ =
+
+2
+
+K(K−1) 
+
+P
+
+i<j dnorm (pi, pj ), where dnorm is the Euclidean distance after normalizing the horizontal and vertical coordinates by the screenshot width and height. A larger σ
+
+indicates greater variation among the sampled coordinates and is used as a test-time proxy for grounding uncertainty. IV. E XPERIMENTS 
+
+A. Experimental Setup 
+
+Environment and Model Configuration. All models are deployed on NVIDIA H100 GPUs using vLLM. We use model-specific image preprocessing, coordinate spaces, output parsers, and generation limits, and map all predictions back to the original screenshot coordinates. The generation limits are sufficient to prevent output truncation. Unless otherwise specified, we use greedy decoding with temperature 0 and leave top-k and top-p unspecified under the vLLM defaults. For repeated sampling, we set the temperature to 0.7.
+
+Datasets and Models. We evaluate on five GUI ground-ing benchmarks including ScreenSpot-Pro (SS-Pro) [15], UI-Vision [38], MMBench-GUI [39], OSWorld-G [4], and ScreenSpot-v2 [33]. Full test sets are used for baseline evalu-ation and multi-view rewriting, and all other experiments use fixed-seed subsets for consistent cross-model comparisons. We evaluate eight models including Qwen3-VL-8B and 32B [35], Qwen3.5-4B, 9B, and 27B [37], Qwen2.5-VL-7B [40], MAI-UI-8B [36], and GTA1-7B [41]. These models cover general-purpose VLMs, GUI-specific grounders, and multiple scales within the same model family. 
+
+Metrics. Beyond grounding accuracy, we also measure the gain of the best crop over the full screenshot, the perfor-Accuracy Change over Base (pp)                
+
+> (a) Generic Attributes Provide Little Benefit (b) Missing Target Identity Eliminates Scaling Gains (c) Appearance and Spatial Cues Provide Most Gains
+> Position Color Size Shape All Attributes 321-3 -4 -1 -2 0
+> Qwen3.5-9B MAI-UI-8B Qwen3.5-4B Qwen3.5-27B Qwen3-VL-8B
+> Goal Function Base Spatial Appearance Appearance &Spatial All Views
+> Qwen3.5-9B MAI-UI-8B Qwen2.5-VL-7B Qwen3.5-4B Qwen3.5-27B Qwen3-VL-8B Qwen3-VL-32B GTA1-7B
+> Generic Half Instruction Original Coarse Clarification Fine Clarification
+> Grounding Accuracy (%)  80 40 20 60 0
+> Grounding Accuracy (%)  80 40 20 60 0100
+> 55.1 57.4 57.6 62.6 65.4 69.1 69.9
+
+Fig. 5. Instruction utility depends on target-identifying information. (a) Effects of appending annotation-derived coarse attributes, including position, color, size, shape, and their combination. Bars show the mean accuracy change relative to the original instruction over models and four benchmarks, while points show the corresponding per-model averages. (b) Grounding accuracy along an information ladder, from a generic instruction without target identity, through truncated and original instructions, to coarse and fine location clarifications. Qwen3.5 models are emphasized with darker curves. (c) Grounding accuracy under the original instruction and selected GPT-5.2-generated single-view and multi-view descriptions. Each bar is averaged over seven models and five benchmarks, and the dashed line marks the original-instruction baseline. 
+
+mance drop under irrelevant context, and the gain from fine-grained clarification. For repeated sampling, we report Greedy, Medoid, Oracle@ K, and the normalized mean pairwise dis-tance among sampled coordinates. 
+
+B. Visual Scaling Is Governed by Target Occupancy 
+
+Table I shows that visual difficulty is concentrated in SS-Pro and UI-Vision, where icon targets are substantially harder than text targets. For several models, the text–icon gap reaches 39–50 points, while the gap is much smaller on MMBench-GUI and ScreenSpot-v2. Within the Qwen3.5 family, this gap narrows from 4B to 27B but remains substantial, indicating that model scaling alone does not eliminate errors on small targets. Figure 3 (a) shows that target-centered cropping has a nonmonotonic effect. Accuracy generally improves as the crop becomes smaller, peaks when 6.25%–25% of the orig-inal screenshot area is retained, and then declines as more surrounding context is removed. Figure 3 (b) further shows that the largest gains occur on SS-Pro and UI-Vision, which contain more small targets, whereas ScreenSpot-v2 benefits little. The best crop ratio also varies across benchmarks and models, showing that visual scaling cannot be determined by a single crop ratio. Figures 4 (a) and (b) reveal a more consistent relationship with target occupancy. Targets with low full-screen OCC benefit most from cropping, whereas targets with full-screen OCC above 2% are generally harmed. After cropping, gains re-main broadly positive below approximately 2% OCC, weaken between 2% and 5%, and become negative beyond roughly 5%. Among full-screen errors that are rescued by cropping, the median OCC at the first successful crop is only 0.32%. These results show that visual scaling requires only modest target enlargement and quickly saturates once the target occupies a sufficient fraction of the input. Figure 4 (c) separately exam-ines surrounding context. Adding irrelevant interface content while preserving the target screenshot and its scale reduces accuracy for most models. However, performance on small targets does not consistently predict robustness to irrelevant context, and neither effect scales monotonically with model size. Target scale and surrounding context therefore affect grounding differently and should not be conflated. 
+
+Finding 1. Visual scaling is governed by target occupancy rather than by a fixed crop ratio. Cropping primarily helps targets with low occupancy, requires only modest enlarge-ment to recover many errors, and becomes harmful once further cropping removes useful surrounding context. 
+
+C. Instruction Scaling Depends on Target Identification 
+
+Figure 5 (a) shows that adding coarse target attributes provides little consistent benefit. Position yields only a small average improvement, while color, size, and shape are neutral or harmful for several models. Even target descriptions derived directly from ground truth therefore do not necessarily improve grounding. Figure 5 (b) a much stronger dependence on target-identifying information. Removing the information needed to identify the referred element reduces all evaluated models to approximately 4%–6% accuracy and nearly eliminates the performance gap between Qwen3.5 models of different sizes. Restoring the original instruction recovers most of the lost performance, while additional location information provides smaller gains. Increasing model size therefore improves the use of available instruction information but does not compen-sate when target-identifying information is missing. Figure 5 (c) and Table II further show that different addi-tional target descriptions contribute very differently. Appear-ance descriptions improve average accuracy from 57.6% to 65.4%, spatial descriptions reach 62.6%, and combining the two reaches 69.1%. In contrast, function descriptions provide little improvement and goal descriptions reduce average accu-racy. Combining all four description types reaches 69.9%, only 0.8 points above appearance and spatial descriptions alone. Thus, most of the gain comes from additional descriptions that make the target easier to distinguish by its appearance and location, rather than from adding more target-related information in general. TABLE II GROUNDING ACCURACY UNDER DIFFERENT COMBINATIONS OF INSTRUCTION VIEWS . C HECKMARKS INDICATE THE VIEWS INCLUDED IN EACH INSTRUCTION . B EST AND SECOND -BEST RESULTS IN EACH MODEL COLUMN ARE HIGHLIGHTED IN GREEN AND PURPLE , RESPECTIVELY .
+
+Setting App Spa Fun Goa Qwen3-VL-8B MAI-UI-8B Qwen2.5-VL-7B GTA1-7B Qwen3.5-4B Qwen3.5-9B Qwen3.5-27B 
+
+Base 60.8 66.0 32.8 37.9 62.5 67.8 75.3 Single ✓ 70.8 70.6 37.4 49.8 74.0 76.1 78.9 Single ✓ 66.4 68.3 34.8 50.6 69.4 71.9 76.5 Single ✓ 62.1 64.3 32.7 40.2 63.1 67.4 71.7 Single ✓ 57.8 65.4 31.6 33.7 60.9 64.8 71.7 Pair ✓ ✓ 74.2 74.4 38.8 55.9 77.9 79.6 82.9 Pair ✓ ✓ 71.7 71.4 37.5 54.9 73.9 77.6 80.2 Pair ✓ ✓ 72.9 72.7 38.1 54.7 75.1 78.8 81.5 Pair ✓ ✓ 68.9 71.5 36.2 52.8 72.6 76.1 80.4 Pair ✓ ✓ 68.8 72.0 36.5 52.5 73.3 76.3 80.5 Pair ✓ ✓ 62.5 67.1 33.7 37.5 64.4 68.2 74.1 Triple ✓ ✓ ✓ 75.0 74.9 38.9 57.1 77.9 80.7 83.6 Triple ✓ ✓ ✓ 74.9 75.1 39.1 56.9 78.1 80.7 84.1 Triple ✓ ✓ ✓ 72.9 72.9 38.1 55.0 75.0 78.7 81.3 Triple ✓ ✓ ✓ 70.1 72.4 36.7 52.9 73.1 76.8 81.0 All ✓ ✓ ✓ ✓ 75.6 75.2 39.2 55.7 78.0 81.0 84.5 # correct of K=8 samples (per item)                          
+
+> Greedy Medoid Oracle@8
+> Grounding Accuracy (%)
+> 80 40 20 60 0100
+> 69.5 69.8 74.6 61.0 60.8 72.0 67.5 66.1 75.9 75.4 74.2 83.8
+> MAI-UI-8B Qwen3.5-4B Qwen3.5-9B Qwen3.5-27B
+> 23.5 53.4 23.1
+> 30 10 020 50 40
+> Item Proportion (%) 012345678012345678# correct of K=8 samples (per item) Recoverable items (%)
+> 012340.6 0.2 0.0 0.4 1.0 0.8
+> All wrong Partially right All right Recoverable rate GRPO Opportunity Score Reward Variance Factor Greedy Hit Rate
+> Normalized Weight / Rate (a) Candidate Coverage under Repeated Sampling (b) Corrected-Sample Count Distribution (c) Recoverability and GRPO Opportunity
+
+Fig. 6. Repeated sampling improves candidate coverage but leaves a selection gap. Sampling uses K = 8 predictions at T = 0 .7, while Greedy uses one prediction at T = 0 . (a) Grounding accuracy under Greedy, coordinate-medoid selection, and Oracle@ 8, averaged over five benchmarks with 500 items each. Medoid selects the coordinate with the smallest total distance to the other samples, whereas Oracle@ 8 counts an item as correct if any sample hits the target. 
+
+(b) Distribution of the number of correct samples m, pooled over four models and five benchmarks ( N = 10 ,000 ), with items categorized as all wrong (m = 0 ), partially correct ( 0 < m < 8), or all correct ( m = 8 ). (c) Recoverable items as a function of m. Bars show the proportion of items missed by Greedy but covered by Oracle@ 8; curves show the normalized GRPO opportunity score, reward-variance factor, and Greedy hit rate. 
+
+Finding 2. Instruction scaling depends on target-identifying information, not more description. Larger models cannot compensate when this information is missing, while appear-ance and spatial descriptions provide most of the gain. 
+
+D. Sampling Improves Coverage but Not Selection 
+
+Figure 6 (a) suggests that repeated sampling improves candidate coverage but not candidate selection. Compared with greedy decoding, Oracle@ 8 improves average grounding accuracy by 5.1–11.0 points across the four evaluated mod-els, showing that additional samples often contain a correct coordinate when the greedy prediction is wrong. In contrast, coordinate-medoid selection changes accuracy by only −1.4
+
+to +0 .3 points, leaving most of this gain unrealized. Figure 6 (b) shows where this gap arises. Across the pooled model– item pairs, 23.1% contain both correct and incorrect samples, meaning that a correct candidate is generated but is not consistently selected. The prevalence of these cases varies substantially across models, from 32.6% for Qwen3.5-4B to 9.2% for MAI-UI-8B, indicating that the potential benefit of additional sampling is strongly model-dependent. Figure 6 (c) further explains why geometric selection cap-tures little of this potential gain. Among items rescued by Oracle@ 8, correct coordinates often appear only once or twice among eight samples and therefore remain rare among the generated candidates. A medoid favors the dominant spatial cluster, making these rare correct candidates unlikely to be selected. As correct candidates become more frequent, greedy decoding is also increasingly likely to be correct, leaving less additional gain for repeated sampling. 
+
+Finding 3. Prediction sampling improves candidate gen-eration but not candidate selection. Additional samples frequently contain correct coordinates missed by greedy decoding, but these coordinates are often rare among the sampled candidates and are therefore not recovered by geometric selection. V. C ONCLUSION 
+
+In this work, we propose a systematic framework for studying test-time scaling in GUI grounding across visual input, instruction information, and output sampling. Our re-sults show that scaling is effective only when it addresses the active bottleneck. Visual scaling improves target visibility, instruction scaling resolves target ambiguity, and repeated sampling expands candidate coverage but still requires reliable selection. These findings motivate adaptive scaling based on target visibility, identity, and selection uncertainty. REFERENCES [1] K. Cheng, Q. Sun, Y. Chu, F. Xu, L. YanTao, J. Zhang, and Z. Wu, “Seeclick: Harnessing gui grounding for advanced visual gui agents,” in Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics , 2024, pp. 9313–9332. [2] B. Gou, D. R. Wang, B. Zheng, Y. Xie, C. Chang, Y. Shu, H. Sun, and Y. Su, “Navigating the digital world as humans do: Universal visual grounding for gui agents,” in International Conference on Learning Representations , vol. 2025, 2025, pp. 30 851–30 883. [3] Z. Wu, Z. Wu, F. Xu, Y. Wang, Q. Sun, C. Jia, K. Cheng, Z. Ding, L. Chen, P. P. Liang et al. , “Os-atlas: A foundation action model for generalist gui agents, 2024,” URL https://arxiv. org/abs/2410.23218 .[4] T. Xie, J. Deng, X. Li, J. Yang, H. Wu, J. Chen, W. Hu, X. Wang, Y. Xu, Z. Wang et al. , “Scaling computer-use grounding via user interface decomposition and synthesis,” Advances in Neural Information Processing Systems , vol. 38, 2026. [5] L. Chen, H. Zhou, J. Zhang, P. Tong, X. Zhang, Q. Kong, C. Liu, Y. Liu, W. Wang, Y. Wang et al. , “Ui-ins: Enhancing gui grounding with multi-perspective instruction as reasoning,” in International Conference on Learning Representations , vol. 2026, 2026, pp. 54 418–54 444. [6] K. You, H. Zhang, E. Schoop, F. Weers, A. Swearngin, J. Nichols, Y. Yang, and Z. Gan, “Ferret-ui: Grounded mobile ui understanding with multimodal llms,” in European Conference on Computer Vision .Springer, 2024, pp. 240–255. [7] Z. Li, K. You, H. Zhang, D. Feng, H. Agrawal, X. Li, M. Moorthy, J. Nichols, Y. Yang, and Z. Gan, “Ferret-ui 2: Mastering universal user interface understanding across platforms,” in International Conference on Learning Representations , vol. 2025, 2025, pp. 99 783–99 806. [8] T. Luo, L. Logeswaran, J. Johnson, and H. Lee, “Visual test-time scaling for gui agent grounding,” in 2025 IEEE/CVF International Conference on Computer Vision (ICCV) . IEEE, 2025, pp. 19 989–19 998. [9] H. Lee, J. Kim, B. Kim, J. Tack, C. Jo, J. Lee, C. Park, S. In, J. Shin, and K. M. Yoo, “Reguide: Data efficient gui grounding via spatial reasoning and search,” arXiv preprint arXiv:2505.15259 , 2025. [10] H. Wu, H. Chen, Y. Cai, C. Liu, Q. Ye, M.-H. Yang, and Y. Wang, “Dimo-gui: Advancing test-time scaling in gui grounding via modality-aware visual reasoning,” in Proceedings of the 2025 Conference on Empirical Methods in Natural Language Processing , 2025, pp. 26 246– 26 256. [11] Y. Du, Y. Yan, F. Tang, Z. Lu, C. Zong, W. Lu, S. Jiang, and Y. Shen, “Test-time reinforcement learning for gui grounding via region consis-tency,” in Proceedings of the AAAI Conference on Artificial Intelligence ,vol. 40, no. 36, 2026, pp. 30 593–30 601. [12] B. Lei, N. Xu, A. Payani, M. Hong, C. Liao, Y. Cao, and C. Ding, “\textsc {GUI-Spotlight }: Adaptive iterative focus refinement for en-hanced gui visual grounding,” arXiv preprint arXiv:2510.04039 , 2025. [13] X. Liu, X. Zhang, Z. Zhang, and Y. Lu, “Ui-e2i-synth: Advancing gui grounding with large-scale instruction synthesis,” in Findings of the Association for Computational Linguistics , 2025, pp. 15 668–15 684. [14] Y. Yang, Y. Wang, D. Li, Z. Luo, B. Chen, C. Huang, and J. Li, “Aria-ui: Visual grounding for gui instructions,” in Findings of the Association for Computational Linguistics , 2025, pp. 22 418–22 433. [15] K. Li, Z. Meng, H. Lin, Z. Luo, Y. Tian, J. Ma, Z. Huang, and T.-S. Chua, “Screenspot-pro: Gui grounding for professional high-resolution computer use,” in Proceedings of the 33rd ACM International Conference on Multimedia , 2025, pp. 8778–8786. [16] Y. Liu, H. Shen, L. Yu, S. Liu, Z. Chen, and Y. Zhou, “Drs-gui: Dynamic region search for training-free gui grounding,” arXiv preprint arXiv:2605.15542 , 2026. [17] S. Kwak, J. Kim, B. Kim, J. J. Yoon, W. Jang, J. Hong, J. Yang, and Y.-D. Kwon, “Mega-gui: Multi-stage enhanced grounding agents for gui elements,” arXiv preprint arXiv:2511.13087 , 2025. [18] Z. Liu, T. Feng, B. Kang, Y. Yang, and J. Luo, “Zoom to essence: Trainless gui grounding by inferring upon interface elements,” arXiv preprint arXiv:2603.14448 , 2026. [19] S. Pei, L. Tang, T. Duan, L. Chen, S. Li, K. Huang, Y. Jing, Y. Yan, B. Zhang, C. Jiang et al. , “Adazoom-gui: Adaptive zoom-based gui grounding with instruction refinement,” arXiv preprint arXiv:2603.17441 , 2026. [20] W. Hong, W. Wang, Q. Lv, J. Xu, W. Yu, J. Ji, Y. Wang, Z. Wang, Y. Dong, M. Ding et al. , “Cogagent: A visual language model for gui agents,” in 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE, 2024, pp. 14 281–14 290. [21] K. Q. Lin, L. Li, D. Gao, Z. Yang, S. Wu, Z. Bai, S. W. Lei, L. Wang, and M. Z. Shou, “Showui: One vision-language-action model for gui visual agent,” in 2025 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) . IEEE, 2025, pp. 19 498–19 508. [22] H.-M. Xu, Q. Chen, L. Wang, and L. Liu, “Attention-driven gui grounding: Leveraging pretrained multimodal large language models without fine-tuning,” in Proceedings of the AAAI Conference on Artificial Intelligence , vol. 39, no. 8, 2025, pp. 8851–8859. [23] M. Ouyang, K. Q. Lin, M. Z. Shou, and H. T. Ng, “Focusui: Efficient ui grounding via position-preserving visual token selection,” arXiv preprint arXiv:2601.03928 , 2026. [24] L. Ma, D. Zhao, S. Wang, Z. Lv, and M. Wang, “Trifuse: Enhancing attention-based gui grounding via multimodal fusion,” arXiv preprint arXiv:2602.06351 , 2026. [25] S. Zhou, V. D. Lai, H. Tan, J. Kil, W. Zhu, C. Chen, and R. Zhang, “Gui-aima: Aligning intrinsic multimodal attention with a context anchor for gui grounding,” arXiv preprint arXiv:2511.00810 , 2025. [26] Q. Wu, K. Cheng, R. Yang, C. Zhang, J. Yang, H. Jiang, J. Mu, B. Peng, B. Qiao, R. Tan et al. , “Gui-actor: Coordinate-free visual grounding for gui agents,” Advances in Neural Information Processing Systems ,vol. 38, pp. 15 101–15 128, 2026. [27] C. Liu, L. Chen, H. Zhou, L. Chen, C. Cai, X. Yu, S. Hoi, and Y. Wang, “One forward beats two: Innerzoom for accurate and efficient gui grounding,” arXiv preprint arXiv:2606.30084 , 2026. [28] C. Chen, J. Shao, D. Lu, H. Hu, X. Liu, H. Yao, and W. Liu, “Gui-eyes: Tool-augmented perception for visual grounding in gui agents,” in 
+
+Proceedings of the AAAI Conference on Artificial Intelligence , vol. 40, no. 35, 2026, pp. 29 350–29 358. [29] F. Tang, B. Chen, Z. Lu, T. Chen, S. Nong, T. Jiang, W. Xu, W. Lu, J. Xiao, Y. Zhuang et al. , “Ui-zoomer: Uncertainty-driven adaptive zoom-in for gui grounding,” arXiv preprint arXiv:2604.14113 , 2026. [30] J. Li, C. Hao, L.-P. Chau, and Y. Wang, “Gui-c 2: Coarse-to-fine gui grounding via difficulty-aware reinforcement learning,” arXiv preprint arXiv:2605.30884 , 2026. [31] Y. Zhang, Z. Pan, Z. Zeng, S. Shen, C. Meng, and L. Zhu, “Mvp: Multiple view prediction improves gui grounding,” in Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2026, pp. 27 482–27 492. [32] J. Lin, F. Shen, J. Li, P. Nie, F. Yu, M. Li, and H. Li, “What happens before decoding? prefill determines gui grounding in vlms,” arXiv preprint arXiv:2605.12549 , 2026. [33] K. Cheng, Q. Sun, Y. Chu, F. Xu, L. YanTao, J. Zhang, and Z. Wu, “Seeclick: Harnessing gui grounding for advanced visual gui agents,” in Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , 2024, pp. 9313– 9332. [34] A. Singh, A. Fry, A. Perelman, A. Tart, A. Ganesh, A. El-Kishky, A. McLaughlin, A. Low, A. Ostrow, A. Ananthram et al. , “Openai gpt-5 system card,” arXiv preprint arXiv:2601.03267 , 2025. [35] S. Bai, Y. Cai, R. Chen, K. Chen, X. Chen, Z. Cheng, L. Deng, W. Ding, C. Gao, C. Ge et al. , “Qwen3-vl technical report,” arXiv preprint arXiv:2511.21631 , 2025. [36] H. Zhou, X. Zhang, P. Tong, J. Zhang, L. Chen, Q. Kong, C. Cai, C. Liu, Y. Wang, J. Zhou et al. , “Mai-ui technical report: Real-world centric foundation gui agents,” arXiv preprint arXiv:2512.22047 , 2025. [37] Q. Team, “Qwen3.5: Accelerating productivity with native multimodal agents,” February 2026. [38] S. Nayak, X. Jian, K. Q. Lin, J. A. Rodriguez, M. Kalsi, R. Awal, N. Chapados, M. T. ¨ Ozsu, A. Agrawal, D. Vazquez et al. , “Ui-vision: A desktop-centric gui benchmark for visual perception and interaction,” 
+
+arXiv preprint arXiv:2503.15661 , 2025. [39] X. Wang, Z. Wu, J. Xie, Z. Ding, B. Yang, Z. Li, Z. Liu, Q. Li, X. Dong, Z. Chen et al. , “Mmbench-gui: Hierarchical multi-platform evaluation framework for gui agents,” arXiv preprint arXiv:2507.19478 , 2025. [40] S. Bai, K. Chen, X. Liu, J. Wang, W. Ge, S. Song, K. Dang, P. Wang, S. Wang, J. Tang, H. Zhong, Y. Zhu, M. Yang, Z. Li, J. Wan, P. Wang, W. Ding, Z. Fu, Y. Xu, J. Ye, X. Zhang, T. Xie, Z. Cheng, H. Zhang, Z. Yang, H. Xu, and J. Lin, “Qwen2.5-vl technical report,” 2025. [41] Y. Yang, D. Li, Y. Dai, Y. Yang, Z. Luo, Z. Zhao, Z. Hu, J. Huang, A. Saha, Z. Chen et al. , “Gta1: Gui test-time scaling agent,” in 
+
+International Conference on Learning Representations , vol. 2026, 2026, pp. 48 295–48 323.
