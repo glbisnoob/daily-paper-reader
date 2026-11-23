@@ -1,10 +1,10 @@
 {
-  "generated_at": "2026-11-22T01:50:41.012833+00:00",
-  "updated_date": "20261122",
+  "generated_at": "2026-11-23T02:17:26.686025+00:00",
+  "updated_date": "20261123",
   "carryover_days": 9,
   "tag_states": {
     "gui-agents": {
-      "updated_date": "20261122",
+      "updated_date": "20261123",
       "carryover_days": 9,
       "items": []
     }
