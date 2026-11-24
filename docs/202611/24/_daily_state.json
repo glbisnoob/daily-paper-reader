@@ -1,0 +1,121 @@
+{
+  "date": "20261124",
+  "date_label": "2026-11-23 06:00 ~ 2026-11-24 06:00 (UTC+8)",
+  "generated_at": "2026-11-24 05:51:28 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.30235v1",
+      "route": "202611/24/2611.30235v1-pixelone-from-options-to-pixels-in-a-single-forward-for-gui-grounding",
+      "title": "PixelOne: From Options to Pixels in a Single Forward for GUI Grounding",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "GUI视觉定位，从原生分辨率截图直接预测精确点击坐标",
+      "first_seen_at": "2026-11-24 05:51:28 UTC",
+      "updated_at": "2026-11-24 05:51:28 UTC"
+    },
+    {
+      "paper_id": "2611.30170v1",
+      "route": "202611/24/2611.30170v1-gui-q-task-sensitive-granularity-and-relation-preserving-quantization-for-gui-agents",
+      "title": "GUI-Q: Task-Sensitive Granularity and Relation-Preserving Quantization for GUI Agents",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "量化保持指令-视觉亲和力与空间关系以支持 GUI 目标定位",
+      "first_seen_at": "2026-11-24 05:51:28 UTC",
+      "updated_at": "2026-11-24 05:51:28 UTC"
+    },
+    {
+      "paper_id": "2611.30190v1",
+      "route": "202611/24/2611.30190v1-same-executions-different-gaps-judgment-rules-in-web-agent-evaluation",
+      "title": "Same Executions, Different Gaps: Judgment Rules in Web-Agent Evaluation",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 8.0,
+      "evidence": "网页智能体评测中的判定规则与评估协议",
+      "first_seen_at": "2026-11-24 05:51:28 UTC",
+      "updated_at": "2026-11-24 05:51:28 UTC"
+    },
+    {
+      "paper_id": "2611.29847v1",
+      "route": "202611/24/2611.29847v1-mobilegrail-learning-compact-guardrails-for-on-device-deployable-mobile-gui-agent-safety",
+      "title": "MobileGrail: Learning Compact Guardrails for On-Device deployable Mobile GUI Agent Safety",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 7.0,
+      "evidence": "面向移动 GUI 智能体的端侧运行时安全护栏",
+      "first_seen_at": "2026-11-24 05:51:28 UTC",
+      "updated_at": "2026-11-24 05:51:28 UTC"
+    },
+    {
+      "paper_id": "2611.29977v1",
+      "route": "202611/24/2611.29977v1-conartist-adaptive-agentic-red-teaming-of-computer-using-agents-against-multi-step-prompt-injection",
+      "title": "Conartist: Adaptive Agentic Red-Teaming of Computer-Using Agents against Multi-Step Prompt Injection",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "针对计算机使用智能体的多步提示注入红队测试",
+      "first_seen_at": "2026-11-24 05:51:28 UTC",
+      "updated_at": "2026-11-24 05:51:28 UTC"
+    },
+    {
+      "paper_id": "2611.30075v1",
+      "route": "202611/24/2611.30075v1-context-grounded-skill-internalization-for-vision-language-agents",
+      "title": "Context-Grounded Skill Internalization for Vision-Language Agents",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "视觉语言智能体技能内化，在 WebShop 上评测",
+      "first_seen_at": "2026-11-24 05:51:28 UTC",
+      "updated_at": "2026-11-24 05:51:28 UTC"
+    },
+    {
+      "paper_id": "2611.30193v1",
+      "route": "202611/24/2611.30193v1-visual-rft-extending-visual-reinforcement-fine-tuning-to-multimodal-tool-use",
+      "title": "Visual-RFT++: Extending Visual Reinforcement Fine-Tuning to Multimodal Tool Use",
+      "section": "quick",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 6.0,
+      "evidence": "面向LVLM智能体工具使用的强化微调可迁移至GUI智能体训练",
+      "first_seen_at": "2026-11-24 05:51:28 UTC",
+      "updated_at": "2026-11-24 05:51:28 UTC"
+    }
+  ]
+}

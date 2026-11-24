@@ -1,0 +1,606 @@
+Title: GUI-Q: Task-Sensitive Granularity and Relation-Preserving Quantization for GUI Agents
+
+URL Source: https://arxiv.org/pdf/2611.30170v1
+
+Published Time: Tue, 24 Nov 2026 04:42:34 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# GUI-Q: Task-Sensitive Granularity and Relation-Preserving Quantization for GUI Agents 
+
+## Tianqi Li 1,* , Yang Wang 2,* , Xin He 3, Le Zhang 4, Yun Liu 1,5,6,† 
+
+> 1
+
+VCIP, College of Computer Science, Nankai University 
+
+> 2
+
+College of Mathematics and Physics, Beijing University of Chemical Technology 
+
+> 3
+
+School of Computer Science and Engineering, Tianjin University of Technology 
+
+> 4
+
+School of Information and Communication Engineering, UESTC 
+
+> 5
+
+Academy for Advanced Interdisciplinary Studies, Nankai University 
+
+> 6
+
+Nankai International Advanced Research Institute, Shenzhen Futian 
+
+> *
+
+Equal contribution. †Corresponding author. 
+
+## Abstract 
+
+Graphical user interface (GUI) agents enable automated interactions with mobile, web, and desktop interfaces. How-ever, their large memory footprint and repeated model calls hinder deployment on resource-constrained devices, moti-vating post-training quantization (PTQ) without full retrain-ing. Quantization can degrade GUI response accuracy and distort the instruction–vision affinities and local spatial re-lations needed for GUI target selection. Small coordinate errors can cause missed clicks, while early action errors can alter subsequent interface states and disrupt task execution. Local reconstruction error alone does not directly assess whether these responses and relations are preserved. We propose GUI-Q , a PTQ framework that targets response and relation preservation with 4-bit weights and 16-bit ac-tivations (W4A16). Task-Sensitive Granularity Allocation (TSGA) allocates finer groups under a scale-byte budget by combining response sensitivity with the measured reduc-tion in activation-weighted distortion. Relation-Preserving Symmetry Selection (RPSS) then selects symmetric or asym-metric grids to preserve instruction–vision affinities and local spatial relations in GUIs. Across three GUI-capable models, GUI-Q improves mean grounding TargetHit by 8.04– 12.55 points over the strongest evaluated 4-bit configurations, while reducing static peak graphics processing unit (GPU) memory by 49.9–56.2% relative to bfloat16 (BF16). Fixed-output replay with packed 4-bit execution provides 1.7–2.8 ×
+
+model-call speedups. The code will be released. 
+
+## 1. Introduction 
+
+GUI agents translate instructions and screenshots into actions on mobile, web, and desktop interfaces. Beyond understand-ing images and language [8, 24, 25], they must localize tar-gets precisely and specify action arguments correctly. Small coordinate errors can cause missed clicks, and early mistakes can alter the interface state in later steps. Recent GUI agents [21, 26, 35] rely on large vision-language models and repeated model calls, creating sub-stantial memory and inference costs. For 7–8B models, FP32 weights require approximately 26–30 GiB of mem-ory. Even in bfloat16 (BF16), peak GPU memory allocation reaches 15.75–16.67 GiB in our static evaluation (Sec. 4.6). These resource demands complicate local deployment on smartphones and other edge devices with limited memory and compute resources. Post-training quantization (PTQ) of-fers a practical route to reduce weight storage while reusing pretrained models without full retraining. We focus on four-bit weight quantization (W4) to reduce model cost while preserving accurate target selection and action generation. This motivates examining how quantization affects GUI re-sponses, instruction–target associations, and spatial relations among neighboring GUI elements within the interface. Existing PTQ methods use reconstruction and activation-aware scaling [12, 19]. Recent methods incorporate end-loss guidance, modality or token sensitivity, and action fidelity [1, 13, 16, 27, 30]. These advances provide useful task-aware signals, but identifying sensitive modules does not establish where finer grouping is most beneficial. For GUI agents, a sequence-averaged objective alone does not explicitly bal-ance numerical content against the rest of the response, while local reconstruction error does not directly measure whether instruction–target and spatial relations are preserved. The grounding and action gaps in Figure 1 motivate response preservation and relation preservation for GUI quantization. GUI quantization should preserve responses under a lim-ited scale-byte budget and retain the instruction–vision affini-arXiv:2611.30170v1 [cs.CV] 23 Nov 2026 Peak GiB ↓         
+
+> OSW-G ↑
+> AC-SS ↑AC-GA ↑
+> AC-TH ↑
+> SS-v2 ↑
+> SS-Pro ↑
+> 7.29 22.45 87.74 32.81 70.12 69.77 38.16 23.72 88.60 30.27 64.06 62.89 16.67 38.30 11.38 18.34 73.76 23.44 58.20 56.99 32.13
+> InternVL-3.5
+> BF16 best other PTQ GUI-Q(Ours)
+> 8.32 35.62 85.91 37.70 74.41 59.57 15.74 55.66 72.85 36.52 71.86 25.11 2.66 11.91 29.96 59.77 75.59 37.70 87.42 16.62 43.01
+> Peak GiB ↓
+> OSW-G ↑
+> AC-SS ↑AC-GA ↑
+> AC-TH ↑
+> SS-v2 ↑
+> SS-Pro ↑
+> UI-TARS-1.5 Step 3-click Step 2-click Step 1-click Step 0-swipe up
+> GUI-Q other best PTQ success area
+
+Figure 1. Task and cross-model comparison. Left: four-step trajectory comparisons. Right: BF16, the strongest PTQ baselines, and GUI-Q across six accuracy metrics and peak memory. 
+
+ties and local spatial relations needed for GUI target se-lection. These goals guide our choices of granularity and symmetry. Granularity determines which weights share a scale. Groups of 64 weights (G64) adapt ranges more locally than groups of 128 (G128) but double scale metadata. Finer groups should therefore be assigned where they best pre-serve GUI responses. Symmetry determines the grid within each group: asymmetric mappings adapt to offset ranges at the cost of zero-point metadata. Choosing between these grids requires assessing how they affect instruction–vision affinities and local spatial relations in GUIs. Supplemen-tary Table S85 (Sec. S13) compares the accuracy of both quantization choices on the evaluated GUI tasks. We propose GUI-Q , a framework with W4 weights and 16-bit activations (W4A16). Task-Sensitive Granularity Al-location ( TSGA ) estimates module sensitivity from full re-sponses, digit-bearing tokens, and remaining tokens. It combines this sensitivity with the measured reduction in activation-weighted distortion from G128 to G64 to allocate finer groups on a per-module basis under a scale-byte budget. These label-free calibration signals use the frozen model’s own responses. At the resulting group sizes, Relation-Preserving Symmetry Selection ( RPSS ) selects symmetric or asymmetric grids by their preservation of instruction–vision affinities and local spatial relations in GUIs. Across UI-TARS-1.5-7B, OS-Atlas-Base-7B, and InternVL3.5-8B, GUI-Q improves mean grounding Tar-getHit (TH) over the strongest evaluated W4 configurations by 12.55, 9.62, and 8.04 points, respectively, while reducing static peak GPU memory by 49.9–56.2% relative to BF16. A separate AgentCPM-GUI evaluation on AndroidWorld [22] improves strict success by 7.2 points. Packed four-bit model calls run 1.7–2.8 × faster in our fixed-output replay. Our work makes the following three main contributions: • A W4A16 PTQ framework for GUI agents that combines granularity allocation and symmetry selection under a scale-byte budget and a cap on asymmetric modules. • TSGA, which allocates finer groups based on response sen-sitivity and distortion reduction to preserve GUI responses under a shared budget for storing quantization scales. • RPSS, which selects symmetric or asymmetric grids to preserve instruction–vision affinities and local spatial rela-tions needed to select the correct GUI target. 
+
+## 2. Related Work 
+
+GUI understanding and agents. GUI systems have pro-gressed from visual templates and interface encoders to screenshot grounding and general interaction [2, 3, 5, 31]. Web, mobile, and desktop benchmarks now evaluate both iso-lated grounding and multi-step execution [9, 14, 15, 18, 28, 29, 36]. UI-TARS and OS-Atlas provide representative GUI-oriented checkpoints for grounding and action generation, while InternVL3.5 provides a general multimodal check-point with GUI interaction capabilities. Static grounding assesses target localization, whereas closed-loop evaluation captures how action errors change later observations and task outcomes. These requirements motivate preserving target selection and action generation when quantizing GUI agents. 
+
+Post-training quantization. PTQ methods optimize weight rounding [12, 20], rescale weights using activations [19], or learn calibration transformations [23]. Related work also studies token-group constraints for activation quantization [17]. Sensitivity-based methods use gradients, curvature, per-turbations, and end-loss signals [4, 10, 11, 13]. AutoRound is represented by the SignRound formulation and imple-mentation family [6]. SignRoundV2 combines gradient-informed allocation with scale initialization and tuning that also apply at fixed bit width [7]. Sensitivity alone does not indicate how much a module benefits from finer grouping, while distortion reduction alone does not measure its effect on GUI responses. GUI-Q combines response sensitivity with the measured G128-to-G64 distortion reduction to allo-cate finer groups under a shared scale-byte budget. 
+
+Multimodal and action-aware quantization. Multimodal PTQ studies dependencies across layers, modality balance, compensation for asymmetry, bit-width allocation, and token sensitivity [16, 27, 32, 34]. In embodied control, QVLA and Figure 2. Overview of GUI-Q: TSGA allocates task-sensitive granularity, while RPSS selects relation-preserving quantizers. 
+
+ActQuant use sensitivity to action spaces or predicted actions [1, 30], while QuantVLA studies scale-calibrated PTQ for vision-language-action models [33]. Task sensitivity and full-precision self-generated action references also appear in prior PTQ. For GUI target selection, local reconstruction error does not directly assess changes in instruction–vision affinities or local spatial relations. RPSS evaluates the preser-vation of these relations to select symmetric or asymmetric grids at the group sizes allocated by TSGA. 
+
+## 3. Method 
+
+3.1. Problem Formulation 
+
+We quantize all targeted linear weights to W4, while activa-tions and untargeted components remain BF16. We choose granularity and symmetry under their metadata constraints to preserve GUI responses and relations for target selection. Let fθ be a frozen GUI vision-language model and Dc =
+
+{(In, u n)}Nn=1 an unlabeled calibration set of screenshot– instruction pairs. For sample n and linear module l ∈ L ,
+
+Hl,n has teacher-forced inputs at all Tn response positions: 
+
+Hl,n ∈ RTn×din  
+
+> l
+
+, Wl, cWl ∈ Rdout   
+
+> l×din
+> l
+
+,Yl,n = Hl,n W ⊤ 
+
+> l
+
+∈ RTn×dout  
+
+> l
+
+. (1) Module l uses cl = (4 , g l, a l), where gl ∈ { 64 , 128 } and 
+
+al ∈ { sym , asym } denote the group size and grid symmetry. 
+
+Granularity and symmetry. Splitting a G128 group into two G64 groups allows separate ranges, improving resolu-tion when weight ranges differ. The two-byte scales cost 0.125 and 0.25 bits per targeted weight for G128 and G64, respectively. These supported, nested choices expose a mea-surable trade-off without assuming universal optimality. Sen-sitivity alone cannot establish the benefit of finer grouping; distortion reduction alone does not measure its effect on GUI responses. TSGA combines both signals to identify modules where the G128-to-G64 gain justifies the extra scales. A symmetric grid ties its range to the largest absolute weight; an asymmetric grid adds a zero point for an offset range. Either can alter relative affinities between instruc-tions and competing targets. At the assigned granularity, RPSS compares how both grids preserve instruction–vision affinities and spatial relations among nearby visual tokens. 
+
+Quantization mappings. For each input-channel group w
+
+in an output row, symmetric W4 uses codes [−7, 7] , scale 
+
+αs = max(max i |wi|/7, ϵ s), and zero point zs = 0 . For a nonconstant asymmetric group, set a = min(min i wi, 0) 
+
+and b = max(max i wi, 0) . Its scale and zero point are 
+
+αa = max 
+
+ b − a
+
+15 , ϵ s
+
+
+
+,za = clip 
+
+
+
+rnd 
+
+
+
+− aαa
+
+
+
+, 0, 15 
+
+
+
+.
+
+(2) With the chosen scale α, zero point z, and code bounds 
+
+qmin , q max , the shared map for each weight is 
+
+bwi = α [clip(rnd( wi/α ) + z, q min , q max ) − z] . (3) Here rnd rounds to nearest, with ties to even. Scales are stored in BF16 before codes and zero points are com-puted, with ϵs = 10 −8. Including zero in the asymmetric range avoids collapse for one-sided groups. Supplementary Sec. S1.3 gives constant-group, packing, and rounding rules. 
+
+Coupled decisions and staged selection. TSGA allocates group sizes under an incremental scale-byte budget Bscale 
+
+relative to all-G128, using a common symmetric reference. At those group sizes, RPSS selects up to Kasym asymmetric modules A from a frozen attention-projection pool C. Other modules remain symmetric. With both assignments frozen, the common rounding backend calibrates and exports the packed checkpoint (Figure 2). Supplementary Sec. S7 sepa-rately audits padding, alignment, zero points, and backend metadata. Sec. 4.3 tests this staged approximation by com-paring isolated RPSS scores with observed results of jointly quantized models on the downstream GUI tasks we evaluate. 3.2. Task-Sensitive Granularity Allocation 
+
+TSGA partitions frozen-model responses to estimate task-weighted recoverable distortion. Digit-bearing tokens com-prise only 17.15–20.85% of calibration response tokens. Sep-arate masks weight them beyond their sequence-average fre-quency. These shared lexical masks approximate numerical fields and remaining response structure across output for-mats, without parsing exact coordinates or structured actions. For each pair, the BF16 model greedily generates 
+
+y∗ 
+
+> n
+
+= Greedy( fθ , I n, u n). (4) Teacher forcing under the native chat template yields 
+
+ℓn,k = − log pθ
+
+ y∗ 
+
+> n,k
+
+| In, u n, y ∗
+
+> n,<k
+
+ . (5) Losses exclude padding and include the end-of-sequence (EOS) token when emitted. Let T = {seq , num , non }
+
+and Iseq  
+
+> n
+
+= {1, . . . , T n}. The mask Bnum  
+
+> n
+
+selects positions whose decoded token forms contain a Unicode decimal digit; 
+
+Bnon  
+
+> n
+
+selects the remaining positions. An empty lexical mask uses all token positions in the response: 
+
+Itn =
+
+(
+
+Btn, |B tn| > 0,
+
+Iseq  
+
+> n
+
+, |B tn| = 0 , t ∈ { num , non }. (6) 
+
+Ln,t = 1
+
+|I tn|
+
+X
+
+> k∈I tn
+
+ℓn,k , t ∈ T . (7) We fix (pseq , p num , p non ) = (0 .30 , 0.50 , 0.20) before testing for all models. With Ul,t,n = ∂Ln,t /∂Y l,n , TSGA estimates module sensitivity using the following factorized proxy: 
+
+bEl,t = 1
+
+N
+
+> N
+
+X
+
+> n=1
+
+mean( H⊙2 
+
+> l,n
+
+) mean( U ⊙2
+
+> l,t,n
+
+). (8) Response-token loss gradients propagate through visual and instruction prefixes, but Hl,n and Ul,t,n retain only response rows. Thus bEl,t is a response-restricted, factorized rank-ing proxy. Percentile normalization makes the three objec-tive scores comparable before weighting. Distortion mea-sures the available benefit of changing the grid. Frozen self-generated responses provide consistent calibration targets; oracle and full-position controls test these approximations. Ascending energy ranks with averaged ties give percentiles: 
+
+eEl,t = rank j∈L ( bEj,t ) − 1max( |L| − 1, 1) , (9) 
+
+Rl = X
+
+> t∈T
+
+pt eEl,t , S+ 
+
+> l
+
+= Rl + 10 −4. (10) Before final rounding calibration, TSGA scores direct sym-metric min–max quantization. For group size g, W sym  
+
+> l,g
+
+de-notes quantized weights. The activation-weighted distortion, sensitivity-weighted objective, and scale storage costs are 
+
+Dl,g =
+
+P 
+
+> n
+
+∥Hl,n (Wl − W sym  
+
+> l,g
+
+)⊤∥2
+
+> F
+
+max  P  
+
+> n
+
+∥Hl,n W ⊤ 
+
+> l
+
+∥2 
+
+> F
+
+, ϵ D
+
+ ,Jl(g) = S+ 
+
+> l
+
+Dl,g , (11) 
+
+Algorithm 1 Task-Sensitive Granularity Allocation 
+
+Require: fθ , Dc, L, {64 , 128 }, and Bscale 
+
+Ensure: Group assignment {gl}l∈L  
+
+> 1:
+
+for n = 1 , . . . , N do  
+
+> 2:
+
+Generate y∗ 
+
+> n
+
+and build all three response masks  
+
+> 3:
+
+Use the sequence mask for any empty lexical mask  
+
+> 4:
+
+Teacher-force y∗ 
+
+> n
+
+and cache Hl,n and Ul,t,n  
+
+> 5:
+
+end for  
+
+> 6:
+
+Compute bEl,t and its global percentile rank  
+
+> 7:
+
+for each l ∈ L do  
+
+> 8:
+
+Compute S+ 
+
+> l
+
+, Dl, 64 , Dl, 128 , bl, and both scale costs  
+
+> 9:
+
+end for  
+
+> 10:
+
+Solve Eq. 14 by cost-normalized DP  
+
+> 11:
+
+Set gl = 64 when xl = 1 and gl = 128 otherwise  
+
+> 12:
+
+return {gl}l∈L 
+
+Cl(g) = mscale dout 
+
+> l
+
+ din 
+
+> l
+
+g
+
+
+
+. (12) For the reported GUI-Q layouts, each stored scale uses 
+
+mscale = 2 bytes. For G64 ( xl = 1 ), the predicted ben-efit over G128 is bl = [ Jl(128) − Jl(64)] +. A high benefit requires measured distortion reduction and response sensi-tivity. TSGA maximizes total benefit without exceeding the byte budget for the storage of additional scales: 
+
+max 
+
+> xl∈{ 0,1}
+
+X
+
+> l∈L
+
+blxl, (13) 
+
+s.t. X
+
+> l∈L
+
+[Cl(64) − Cl(128)] xl ≤ Bscale . (14) The positive part assigns zero benefit when G64 does not reduce the proxy. We divide integer costs by their great-est common divisor, then solve the reduced knapsack by dynamic programming (DP), as detailed in Algorithm 1. 
+
+3.3. Relation-Preserving Symmetry Selection 
+
+RPSS selects grids using relations needed for target selection. Instruction–vision affinities link screenshot features to the request; spatially weighted visual similarities describe local feature relations. Preserving both complements response-sensitive allocation. After TSGA fixes {gl}, RPSS evaluates a frozen 16-module attention pool spanning early q pro-jections and k/v/o projections at three depths. Attention projections directly affect these relations, while the frozen pool bounds profiling cost. Supplementary Sec. S2.8 details pools, tie orders, and how visual tokens map to screenshots. For candidate a = ( b, p ) ∈ C , RPSS quantizes only 
+
+a at ga and retains BF16 elsewhere. This estimates the grid’s marginal gain in relation preservation at its assigned granularity. It omits interactions among jointly quantized projections. Preserving relative affinities cannot guarantee unchanged downstream actions, because they do not con-strain every feature direction used by the final readout. We measure features at block b after attention and residual addi-Table 1. UI-TARS-1.5-7B accuracy (%). Bold/underline: best/second-best W4 result. BF16: full precision. 
+
+Method SS-Pro TH SS-v2 TH AC TH AC GA AC SS OSW-G TH Mean TH BF16 43.01 87.42 37.70 75.59 59.77 29.96 53.47 AWQ 22.77 66.19 37.50 65.82 59.18 4.43 31.13 GPTQ 18.98 69.89 25.00 58.20 46.09 1.42 30.09 MABA 0.51 33.96 15.43 49.02 44.34 2.84 12.44 VLM-PTQ 16.19 52.20 9.77 15.82 9.77 6.03 24.81 AutoRound 18.41 43.87 6.64 6.84 6.25 4.61 22.29 COD-TDQ 9.42 64.94 33.98 68.16 58.40 3.01 25.79 MBQ 17.14 51.18 8.79 14.84 8.79 4.96 24.43 QIG 15.64 50.24 7.81 13.87 7.81 4.08 23.32 Q-VLM 14.17 50.24 8.79 12.89 6.84 3.01 22.47 GuidedQuant 23.53 71.93 36.33 66.80 46.88 1.77 32.41 QVLA 15.62 65.72 35.94 71.09 51.17 4.43 28.59 ActQuant 25.11 71.86 36.52 72.85 55.66 2.66 33.21 
+
+GUI-Q 35.62 85.91 37.70 74.41 59.57 15.74 45.76 
+
+tion but before the multilayer perceptron (MLP), then apply 
+
+ℓ2 normalization. Text features use only user-instruction po-sitions. Visual features use visible screenshot tokens after the frozen projector and native token compression. Visual-token positions are normalized centroids of their source patches. Let T ra,n ∈ RMn×d and V ra,n ∈ RVn×d be text and visual features for r ∈ { fp , sym , asym }. Their normalized dot products define the affinity of each token pair: 
+
+Ara,n,ij = ⟨T ra,n,i , V ra,n,j ⟩
+
+τ . (15) We compute P ra,n = LogSinkhorn( Ara,n , μ n, ν n), where 
+
+μn, ν n ≥ 0, 1⊤μn = 1⊤νn = 1, P ra,n 1 = μn, and 
+
+(P ra,n )⊤1 = νn. Log-domain normalization avoids unsta-ble exponentiation and yields positive transport entries. We define the cross-modal discrepancy using these couplings: 
+
+Lcm 
+
+> a,n
+
+(r) = 
+
+> Mn
+
+X
+
+> i=1
+> Vn
+
+X
+
+> j=1
+
+P fp  
+
+> a,n,ij
+
+log P fp 
+
+> a,n,ij
+
+P ra,n,ij 
+
+. (16) Let ρn,i ∈ [0 , 1] 2 be the visual-token positions defined above. We define the spatial relation and its discrepancy, then use their combined score to select asymmetric modules: 
+
+Gra,n,ij = ⟨V ra,n,i , V ra,n,j ⟩× exp 
+
+
+
+− ∥ρn,i − ρn,j ∥22
+
+2σ2
+
+
+
+, (17) 
+
+Lsp 
+
+> a,n
+
+(r) = ∥Gfp  
+
+> a,n
+
+− Gra,n ∥2
+
+> F
+
+∥Gfp 
+
+> a,n
+
+∥2 
+
+> F
+
++ ϵG
+
+, (18) 
+
+Ra,n (r) = Lcm 
+
+> a,n
+
+(r) + γLsp 
+
+> a,n
+
+(r), (19) 
+
+∆a = 1
+
+N
+
+> N
+
+X
+
+> n=1
+
+[Ra,n (sym) − R a,n (asym)] , (20) 
+
+A = arg max 
+
+> S⊆C |S|≤ Kasym
+
+X
+
+> a∈S
+
+[∆ a]+. (21) RPSS selects up to Kasym candidates with positive scores; if fewer are positive, it selects fewer modules. Ties follow the frozen candidate order. We use τ = 0 .1, σ = 0 .25 ,
+
+γ = 1 , and ϵD = ϵG = 10 −8. These marginal scores require validation against the observed outcomes of the final jointly quantized model on the GUI tasks we evaluate. 
+
+Final rounding calibration. After allocation, the common backend optimizes only zero-initialized rounding offsets in 
+
+[−1, 1] . Weights, BF16-stored scales, zero points, and con-stant groups remain fixed. It uses all valid teacher-forced positions to minimize normalized activation-weighted recon-struction error over 50 Adam steps. It uses 32-bit floating-point (FP32) arithmetic and straight-through rounding. We export hard codes from the earliest of the 51 iterates attaining the lowest error over the full calibration cache. 
+
+## 4. Experiments 
+
+4.1. Experimental Setup 
+
+Models and evaluation metrics. We evaluate UI-TARS-1.5-7B, OS-Atlas-Base-7B, and InternVL3.5-8B on ScreenSpot-Pro (SS-Pro), ScreenSpot-v2 (SS-v2), Android-Control (AC), and OSWorld-G (OSW-G), where their output formats are supported. We use official TH, Grounding Ac-curacy (GA), and StepSuccess (SS). Mean TH averages the three shared grounding benchmarks; AndroidControl end-points are reported separately. Closed-loop AndroidWorld uses 250 frozen task–reset pairs. Strict success requires both a reward above 0.5 and an explicit termination action. 
+
+PTQ protocol and baselines. All methods quantize decoder q/k/v/o and gate/up/down projections to W4, retain BF16 elsewhere, and share the evaluation interface. We compare AWQ, GPTQ, AutoRound, VLM-PTQ, MABA, COD-TDQ, MBQ, QIG, Q-VLM, and allocation/action-aware transfers. Ground Truth BF16 GUI -Q(Ours) GPTQ QVLA AWQ ActQuant VLM -PTQ Figure 3. Qualitative comparison on GUI tasks. GUI-Q correctly localizes the requested control in all three cases. 
+
+Transfers share calibration data, 384 backward passes, the rounding backend, and the asymmetry cap. GUI-Q uses 128 unlabeled calibration examples, a 256-token response cap, and 50 rounding iterations. Calibration, development, static tests, and AndroidWorld are disjoint. Lexical weights are selected on a separate annotated 512-example OS-Atlas de-velopment split and frozen before testing. Only calibration is label-free. Static W4 results average five paired seeds on fixed test examples; BF16 is deterministic. Each com-parison fixes prompts, image processing, parsers, stopping rules, and official evaluators. GuidedQuant-, QVLA-, and ActQuant-inspired transfers implement allocation or action signals in this W4 scope, rather than reproducing every up-stream recipe. A separate retained-objective cohort helps separate criterion gains from adaptation effects. Supple-mentary Secs. S2.2–S2.9 specify seeds, baseline settings, hyperparameters, manifests, data splits, and the hardware. Configuration and retained-objective controls use a sepa-rate cohort: 128 cases for each of 12 static model–workload pairs and 250 AndroidWorld cases, with five paired seed slots per case. Here G3 averages TH on SS-Pro, SS-v2, and OSW-G (Supplementary Secs. S12–S13). In the primary static models, TSGA assigns G64 to 56/196, 20/196, and 81/252 targets; RPSS selects 5, 5, and 6 asymmetric projections, respectively. Remaining target modules retain symmetric grids or G128 as assigned. Supplementary Secs. S2.6 and S6.2 give each model’s byte ceilings and group assignments. 
+
+4.2. Baseline Comparison 
+
+Table 1 shows uneven grounding and action retention among the baselines. AWQ and GPTQ reach 31.13 and 30.09 Mean TH but only 4.43 and 1.42 OSW-G TH. VLM-PTQ leads the tested PTQ baselines on OSW-G yet reaches only 9.77 AndroidControl SS. GUI-Q attains 45.76 Mean TH and 37.70/74.41/59.57 AndroidControl TH/GA/SS. The con-trols below test whether these gains depend on the criteria. These metrics differ: a valid action schema does not guar-antee the correct target, and an accurate isolated click does not establish trajectory success. We report AndroidControl, closed-loop success, and the mean grounding accuracy. On the separate cohort, GUI-Q exceeds retained-objective GuidedQuant and Action-Mixed-Fisher controls by 4.53                                              
+
+> Table 2. AgentCPM-GUI on 250 AndroidWorld episodes. Method Strict Reward Method Strict Reward BF16 38.4% 96 AWQ 20.4% 54 GPTQ 17.6% 47 GuidedQuant 21.6% 57 ActQuant 23.2% 61 VLM-PTQ 15.6% 42 QVLA 24.0% 63 GUI-Q 31.2% 81
+> Table 3. Component-removal ablation on UI-TARS. Configuration SS-Pro SS-v2 OSW-G AC GA AC SS
+> GUI-Q 35.62 85.91 15.74 74.41 59.57
+> w/o TSGA 11.57 65.57 13.83 55.86 40.43
+> w/o RPSS 14.04 71.23 15.43 73.24 57.23
+
+and 3.70 G3 points on UI-TARS, and 5.36 and 4.08 strict-success points on AgentCPM-GUI. The respective 95% case-cluster intervals are [3 .49 , 5.57] and [2 .71 , 4.69] points for UI-TARS, and [3 .84 , 6.88] and [2 .64 , 5.52] for Android-World. These contrasts support gains beyond common-backend transfer controls. Supplementary Sec. S12 provides all endpoints and case-cluster intervals for this cohort. 
+
+Closed-loop AndroidWorld. On the same 250 frozen task– reset pairs, AgentCPM-GUI with GUI-Q reaches 31.2% strict success, versus 24.0% for the strongest evaluated QVLA-inspired transfer and 38.4% for BF16 (Table 2). All actions are parseable; “Reward” counts reward suc-cesses. The 7.2-point gain reflects 34 GUI-Q-only versus 16 QVLA-only successes (Holm-adjusted exact McNemar 
+
+p = 0 .01535 ). The unadjusted paired-bootstrap 95% inter-val is [1 .6, 12 .8] points; the Bonferroni–Wald simultaneous 95% interval is [−0.32 , 14 .72] . Supplementary Sec. S4.2 explains how the paired tests and interval methods differ. On the same tasks, five seeds yield gains of 7.2–7.6 points (mean: 7.28). A disjoint 250-pair replication yields 30.8% versus 23.2% ( +7 .6 points), with 33 GUI-Q-only ver-sus 14 QVLA-only successes (unadjusted exact McNemar 
+
+p = 0 .00794 ). Repeated seeds assess configuration stability, without creating independent task samples. Exploratory er-rors suggest fewer coordinate, neighboring-target, and action-field failures, with differing failure denominators. Supple-mentary Sec. S8 reports independent replication outcomes, paired seed results, task strata, and error counts. Table 4. Criterion-replacement ablation on UI-TARS. 
+
+Allocation objective Symmetry criterion SS-Pro SS-v2 OSW-G Mean TH AC GA AC SS 
+
+GUI lexical proxy GUI relation 35.62 85.91 15.74 45.76 74.41 59.57 
+
+Attention MSE 33.19 84.10 12.94 43.41 73.24 58.59 Generic end loss GUI relation 34.00 84.75 13.65 44.13 73.83 58.98 Attention MSE 28.61 74.43 10.60 37.88 65.00 51.88 
+
+4.3. Ablation Study 
+
+Tables 3 and 4 compare component removal and criterion replacement with identical calibration data, decoder targets, W4 payload, scale-byte ceilings, asymmetry caps, rounding backend, and evaluation protocol. Stage removal measures its full contribution and can change realized metadata bytes. Matched-byte controls and criterion replacements assess selection quality under the same storage constraints. 
+
+Why these configuration axes? Supplementary Table S85 (Sec. S13) tests granularity and symmetry on the separate cohort. G64-sym improves G3 over G128-sym by 7.09, 7.08, and 7.97 points on UI-TARS, OS-Atlas, and InternVL, re-spectively. RPSS adds 5.99, 6.98, and 6.46 G3 points at fixed G128 and also improves all three G3 scores at fixed G64. Finer grouping thus does not remove symmetry selection’s benefit. Relative to uniform G64 plus RPSS, GUI-Q changes 
+
+G3 by +0 .42 , +0 .26 , and −0.16 points while using less de-coder storage. These closely spaced point estimates support selective allocation under a metadata constraint within this cohort. They establish neither uniform accuracy dominance nor statistical equivalence on the evaluated tasks. 
+
+Component removal. Uniform G128 with recomputed RPSS ( w/o TSGA ) lowers Mean TH by 15.44 points and An-droidControl GA/SS by 18.55/19.14 points, removing both task-aware allocation and its extra scales. Keeping TSGA groups but making all modules symmetric ( w/o RPSS ) lowers Mean TH by 12.20 points, with smaller action changes. The largest RPSS-related reductions occur on ScreenSpot-Pro and ScreenSpot-v2, consistent with its cross-modal and local-spatial criteria. Supplementary Sec. S5.1 reports endpoint contrasts and storage for each removed stage. Matched-byte controls isolate selection quality. Let G4
+
+average the three shared grounding THs and AndroidControl TH. Selecting q0–q4 gives 40.54 versus 43.74 for RPSS’s 
+
+q0, q 1, q 2, q 3, q 6: a paired gain of 3.21 points (nominal five-seed 95% interval: [2 .91 , 3.51] ). Cross-modal-only and spatial-only criteria reach 40.98 and 40.07; matched-byte random selection reaches 33.79. Weight mean squared error (MSE) and raw affinity MSE reach 35.58 and 40.39. These comparisons support the combined relation criterion. Sup-plementary Sec. S5.6 gives the exact selections and results for all five seeds used for random selection. 
+
+Criterion specificity and interaction. Against generic end loss with attention MSE, the GUI allocation criterion alone adds 5.53 Mean TH points, the relation criterion alone 6.25, and both 7.88 (Table 4). The conditional lexical/relation gains are 1.63/2.35 points, with Bonferroni-adjusted five-seed 95% intervals [0 .40 , 2.86] /[1 .28 , 3.41] . Their −3.90 -point interaction ( [−5.64 , −2.17] ) indicates overlapping ben-efits; both conditional gains remain positive. These intervals quantify seed variation on fixed test sets. Supplementary Sec. S5.2 fully analyzes the main effects and interaction. 
+
+Ranking diagnostics. Before RPSS, matched-byte all-symmetric controls yield G4 = 33 .67 for TSGA, versus 29.82 for random allocation and 30.71 for distortion alone. TSGA attains 0.57 oracle-ranking correlation and captures 84% of the oracle benefit in 29.8 minutes. Exact sequence Fisher, Hutchinson curvature, and oracle search reach 34.02, 34.10, and 34.46 in 42.5, 83.4, and 173.6 minutes, respec-tively. These controls show the factorized score’s profiling– accuracy trade-off. Including prefix positions changes Mean TH from 45.76 to 45.86 at unchanged storage. RPSS attains 0.72 oracle-ranking correlation, 82% overlap, and 84% pos-itive precision. Supplementary Secs. S5.3 and S5.6 report ranking and compute diagnostics across random seeds and repeated samples drawn from the calibration data. 
+
+Joint-W4 validation. Measured UI-TARS pair corrections for the deployed five-projection set total −1.39 G4 points (12.07% of summed singleton gains). The second-order prediction is 43.83 versus 43.74 measured, but overpredicts fixed early-q performance by 3.22 points. Direct joint eval-uation remains necessary. A 21-set equal-byte search finds a single swap 0.20 points above RPSS, with a nominal five-seed 95% interval of [−0.20 , 0.61] ; this small improvement is not statistically resolved. Restricted OS-Atlas and In-ternVL searches improve Mean TH by at most 0.14 and 0.12 points. Supplementary Sec. S10 gives all 16 singletons, 120 measured pairs, and cross-model searches. Among 112, 112, and 144 eligible projections, the frozen pool covers 4/5, 4/5, and 5/6 of the full-search top-K on UI-TARS, OS-Atlas, and InternVL. Full search improves the reported aggregates by only 0.13/0.13/0.12 points in these checks, supporting the practical pool while leaving its coverage task-dependent. Exact joint enumeration tests 1,368/2,394 configurations at UI-TARS scale-byte ceilings of 12.80/21.76 MB. It exceeds sequential selection by 0.18/0.14 G4 points. Supplementary Sec. S6.4 details the search space at each budget. Lexical-mask and calibration robustness. On UI-TARS, the weighted lexical proxy gives 45.76 Mean TH, versus 45.08 with uniform weights, 45.59 with a coordinate parser, and 45.93 with an action-schema parser at the same budget ceiling. With matched compute, sequence-, numeric-, and nonnumeric-only objectives give 44.08, 44.69, and 43.72; matched random masks give 40.04. Audited digit-mask pre-cision/recall is 73.29/88.52%, with 5.47% fallback. Weight perturbations of ±0.05 give 45.45–45.63 Mean TH. Fixed versus uniform weights give 35.36/34.69 on OS-Atlas and 49.45/48.95 on InternVL, supporting transfer of the weights. On AgentCPM-GUI, this comparison yields 78/250 versus 74/250 strict successes, with nine weighted-only and five uniform-only successes (exact McNemar p = 0 .42395 ). The weights are stable across tested settings, but their closed-loop advantage over uniform weights remains statistically unre-solved. Supplementary Secs. S5.4–S5.5 and S9 report token audits and tests of the lexical weights. Using 64, 128, and 256 calibration examples gives 44.92, 45.76, and 45.86 Mean TH, respectively. Profiling takes 27.97, 54.43, and 107.61 minutes. At N = 128 , single-domain calibration gives 44.96–45.41 versus 45.76 for mixed domains. These results support 128 mixed-domain examples as an accuracy–cost compromise. Supplementary Sec. S6.1 reports all calibration sizes and source domains. 
+
+RPSS operating settings. Sweeps of temperature, relation weight, and radius, each varied alone, yield G4 = 43 .09 –
+
+43 .74 . With 10, 20, and 30 Sinkhorn iterations, G4 is 43.54, 43.74, and 43.73, respectively. Caps of 3, 5, and 7 asym-metric modules give 42.91, 43.74, and 43.63. More than 20 iterations or five asymmetric projections does not improve the reported UI-TARS score. Supplementary Sec. S6.3 lists the full parameter sweeps and profiling costs. 
+
+4.4. Qualitative and Visualization Analysis 
+
+Figure 3 shows adjacent-target, small-object, and semantic-distractor errors. GPTQ approaches GitLab’s reaction con-trols but misses the thumbs-down button. The small Google Apps grid icon competes with the Chrome menu and desktop clutter. In GIMP, expanded menus distract from the narrow layer-mode dropdown. GUI-Q selects all three intended con-trols. These examples illustrate the motivation; controlled ablations provide quantitative evidence. Supplementary Fig-ure S1 and Sec. S3.3 give further examples of GUI targets. 
+
+4.5. Cross-Model Generalization 
+
+Across the three shared grounding benchmarks, UI-TARS achieves 53.47 Mean TH in BF16, 33.21 with the ActQuant-inspired transfer, and 45.76 with GUI-Q. OS-Atlas scores 39.22, 25.74, and 35.36 under the same settings. InternVL scores 50.21 in BF16, 41.41 with its strongest baseline AWQ, and 49.45 with GUI-Q. The gains over W4 baselines are 12.55, 9.62, and 8.04 points, with respective gaps to BF16 of 7.71, 3.86, and 0.76 points. GUI-Q improves all three checkpoints, but recovery of full-precision accuracy varies. GUI-Q’s SS-Pro/SS-v2/OSW-G TH is 11.76/74.03/20.28 on OS-Atlas and 22.45/87.74/38.16 on InternVL. On OS-Atlas, it exceeds the best tested PTQ baseline on each bench-mark. InternVL AndroidControl SS is 69.77 versus 62.89 for BF16 and 56.99 for AWQ. Supplementary Sec. S3 provides per-dataset rates and hit totals. Dynamic-resolution checks retain these gains (Supplementary Sec. S2.8): Mean TH is 51.72/41.02 on UI-TARS and 37.93/29.88 on OS-Atlas for GUI-Q and the listed comparator, in that order. On the separate retained-objective cohort, GUI-Q exceeds Action-Mixed-Fisher by 3.28 G3 points on OS-Atlas and 4.06 on InternVL. The respective 95% case-cluster intervals are [2 .40 , 4.22] and [3 .13 , 5.05] (Supplementary Sec. S12). This comparison tests whether the gains persist when the baseline objective is retained. These gains are measured within this cohort and should therefore be read separately from those on the main static tests. 
+
+4.6. Efficiency Analysis 
+
+We report one-time configuration cost, static peak alloca-tion, and packed-W4 model-call latency. With 128 calibra-tion examples, UI-TARS configuration takes 29.80 minutes for TSGA and 24.63 for RPSS, peaking at 15.43 GiB; DP takes 0.138 seconds. Static exports use 4.166 bits per tar-geted weight on UI-TARS, 4.145 on OS-Atlas, and 4.172 on InternVL, including quantizer metadata. Supplementary Sec. S7 lists scale, zero-point, descriptor, BF16-rest, and serialization bytes. The AgentCPM-GUI export is audited separately in the same section as the static exports. GUI-Q lowers peak allocation from 16.62 to 8.32 GiB on UI-TARS, 15.75 to 6.93 GiB on OS-Atlas, and 16.67 to 7.29 GiB on InternVL: reductions of 49.9%, 56.0%, and 56.2%. Fixed-BF16-output replay from vision encoding through decoding gives respective speedups of 1.92–2.80 ×, 1.70– 2.80 ×, and 1.70–2.24 ×. AndroidWorld first-decision replay over 250 inputs falls from 792.04 to 597.08 ms (1.33 ×), with 56.67% less peak memory. These W4-versus-BF16 gains concern packed model calls; within-W4 configura-tion controls show much smaller timing differences. Fixing BF16-reference output lengths separates execution speed from action changes and early stopping. Logical dispatch coverage and reduced-dimensional numerical checks val-idate execution for tested operator shapes and numerical tolerances. Supplementary Secs. S7.6 and S14 report work-load timings, paired-bootstrap intervals, dispatch coverage, and numerical checks of the execution path. The Android-World replay speedup has a paired-bootstrap 95% interval of [1 .29 , 1.36] ×; the 2.80 × UI-TARS OSWorld-G speedup has a 95% interval of [2 .67 , 2.92] ×. These intervals support faster model calls under fixed output lengths. Environment execution is excluded. The measured speedup therefore con-cerns model calls and does not describe how long an agent takes to complete a GUI task in real environments. 
+
+## 5. Conclusion 
+
+GUI-Q combines TSGA and RPSS for decoder-only W4A16 quantization. TSGA allocates finer groups using response sensitivity and distortion reduction to preserve GUI responses under a scale-byte budget. RPSS selects symmetric or asymmetric grids to preserve instruction– vision affinities and local spatial relations needed for target selection. Calibration uses the frozen model’s own responses without task labels. GUI-Q improves grounding over the evaluated W4 baselines and increases task success in a separate closed-loop evaluation. Static peak GPU memory falls by 49.9–56.2% relative to BF16. Packed model calls run 1.7–2.8 × faster when replaying the same fixed outputs. 
+
+## Acknowledgements 
+
+This work was supported in part by the Tianjin Science and Technology Major Project (No. 25ZXRGGX00120), in part by the National Natural Science Foundation of China (No. 62576176), and in part by the Fundamental Research Funds for the Central Universities (Nankai University, No. 070-63253235). The computational resources were supported by the Supercomputing Center of Nankai University (NKSC). 
+
+## LLM Usage Statement 
+
+ChatGPT (OpenAI) was used to assist with language pol-ishing and LaTeX formatting adjustments in the main paper and supplementary material. The core research ideas and methodological design were developed independently by the authors without LLM involvement. The authors reviewed all AI-assisted content and take full responsibility for the manuscript. 
+
+## References 
+
+[1] Arash Akbari, Arman Akbari, Masih Eskandar, Qitao Tan, Yixiao Chen, Jingwu Luo, Bertha Pangaribuan, Liyun Zhang, Jennifer Dy, Geng Yuan, et al. Actquant: Sub-4-bit action-guided quantization for vision-language-action models. arXiv preprint arXiv:2605.24011 , 2026. [2] Gilles Baechler, Srinivas Sunkara, Maria Wang, Fedir Zubach, Hassan Mansoor, Vincent Etter, Victor Carbune, Jason Lin, Jindong Chen, and Abhanshu Sharma. Screenai: A vision-language model for ui and infographics understanding. In 
+
+Proceedings of the Thirty-Third International Joint Confer-ence on Artificial Intelligence , pages 3058–3068, 2024. [3] Chongyang Bai, Xiaoxue Zang, Ying Xu, Srinivas Sunkara, Abhinav Rastogi, Jindong Chen, and Blaise Ag”uera y Arcas. Uibert: Learning generic multimodal representations for ui understanding. In Proceedings of the Thirtieth International Joint Conference on Artificial Intelligence , pages 1705–1712, 2021. [4] Shubhang Bhatnagar, Andy Xu, Kar-Han Tan, and Narendra Ahuja. Luq: Layerwise ultra-low bit quantization for mul-timodal large language models. Transactions on Machine Learning Research , 2026. [5] Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Yan-tao Li, Jianbing Zhang, and Zhiyong Wu. Seeclick: Harness-ing gui grounding for advanced visual gui agents. In Pro-ceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 9313–9332, 2024. [6] Wenhua Cheng, Weiwei Zhang, Haihao Shen, Yiyang Cai, Xin He, Lv Kaokao, and Yi Liu. Optimize weight rounding via signed gradient descent for the quantization of llms. In 
+
+Findings of the Association for Computational Linguistics: EMNLP 2024 , pages 11332–11350, 2024. [7] Wenhua Cheng, Weiwei Zhang, Heng Guo, Haihao Shen, and Zaner Ma. Signroundv2: Toward closing the performance gap in extremely low-bit post-training quantization for llms. 
+
+arXiv preprint arXiv:2512.04746 , 2026. Revised May 2026, version 2. [8] Juncan Deng and Kejie Huang. Vlm-ptq: Efficient post-training quantization for large vision-language models. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition , pages 24696–24705, 2026. [9] Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Sam Stevens, Boshi Wang, Huan Sun, and Yu Su. Mind2web: Towards a generalist agent for the web. Advances in Neural Information Processing Systems , 36:28091–28114, 2023. [10] Zhen Dong, Zhewei Yao, Daiyaan Arfeen, Amir Gholami, Michael W Mahoney, and Kurt Keutzer. Hawq-v2: Hessian aware trace-weighted quantization of neural networks. Ad-vances in neural information processing systems , 33:18518– 18529, 2020. [11] Ali Edalati, Alireza Ghaffari, Mahsa Ghazvini Nejad, Lu Hou, Boxing Chen, Masoud Asgharian, and Vahid Partovi Nia. Oac: Output-adaptive calibration for accurate post-training quantization. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 16453–16461, 2025. [12] Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alis-tarh. Optq: Accurate post-training quantization for generative pre-trained transformers. In The Eleventh International Con-ference on Learning Representations , 2023. Conference title OPTQ, also commonly referred to as GPTQ. [13] Jinuk Kim, Marwa El Halabi, Wonpyo Park, Clemens JS Schaefer, Deokjae Lee, Yeonhong Park, Jae W Lee, and Hyun Oh Song. Guidedquant: Large language model quanti-zation via exploiting end loss guidance. In Proceedings of the 42nd International Conference on Machine Learning , pages 30011–30037. PMLR, 2025. [14] Jing Yu Koh, Robert Lo, Lawrence Jang, Vikram Duvvur, Ming Lim, Po-Yu Huang, Graham Neubig, Shuyan Zhou, Russ Salakhutdinov, and Daniel Fried. Visualwebarena: Eval-uating multimodal agents on realistic visual web tasks. In Pro-ceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 881–905, 2024. [15] Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. Screenspot-pro: Gui grounding for professional high-resolution computer use. In Proceedings of the 33rd ACM International Conference on Multimedia , pages 8778–8786, 2025. [16] Shiyao Li, Yingchun Hu, Xuefei Ning, Xihui Liu, Ke Hong, Xiaotao Jia, Xiuhong Li, Yaqi Yan, Pei Ran, Guohao Dai, et al. Mbq: Modality-balanced quantization for large vision-language models. In Proceedings of the IEEE/CVF Confer-ence on Computer Vision and Pattern Recognition (CVPR) ,pages 4167–4177, 2025. [17] Tianqi Li, Wenyu Fang, Xin He, Xue Geng, Xu Cheng, and Yun Liu. When w4a4 breaks camouflaged object detection: Token-group dual-constraint activation quantization. In Com-puter Vision – ECCV 2026, Part XIX , pages 77–95. Springer, 2026. [18] Wei Li, William Bishop, Alice Li, Chris Rawles, Folawiyo Campbell-Ajala, Divya Tyamagundlu, and Oriana Riva. On the effects of data scale on ui control agents. Advances in Neural Information Processing Systems , 37:92130–92154, 2024. [19] Ji Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang, Guangxuan Xiao, Xingyu Dang, Chuang Gan, and Song Han. Awq: Activation-aware weight quantization for on-device llm compression and acceleration. In Proceedings of Machine Learning and Systems , 2024. [20] Markus Nagel, Rana Ali Amjad, Mart Van Baalen, Christos Louizos, and Tijmen Blankevoort. Up or down? adaptive rounding for post-training quantization. In International con-ference on machine learning , pages 7197–7206. PMLR, 2020. [21] Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shi-jue Huang, et al. Ui-tars: Pioneering automated gui inter-action with native agents. arXiv preprint arXiv:2501.12326 ,2025. [22] Chris Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, et al. An-droidworld: A dynamic benchmarking environment for au-tonomous agents. In International Conference on Learning Representations , 2025. [23] Wenqi Shao, Mengzhao Chen, Zhaoyang Zhang, Peng Xu, Lirui Zhao, Zhiqian Li, Kaipeng Zhang, Gao Peng, Yu Qiao, and Ping Luo. Omniquant: Omnidirectionally calibrated quantization for large language models. In International Conference on Learning Representations , 2024. [24] Changyuan Wang, Ziwei Wang, Xiuwei Xu, Yansong Tang, Jie Zhou, and Jiwen Lu. Q-vlm: Post-training quantization for large vision-language models. Advances in Neural Infor-mation Processing Systems , 37:114553–114573, 2024. [25] Weiyun Wang, Zhangwei Gao, Lixin Gu, Hengjun Pu, Long Cui, Xingguang Wei, Zhaoyang Liu, Linglin Jing, Shenglong Ye, Jie Shao, et al. Internvl3.5: Advancing open-source multimodal models in versatility, reasoning, and efficiency. 
+
+arXiv preprint arXiv:2508.18265 , 2025. [26] Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, et al. Os-atlas: Foundation action model for generalist gui agents. In International Conference on Learning Representations , 2025. [27] Ziwei Xiang, Fanhu Zeng, Hongjian Fang, Rui-Qi Wang, Renxing Chen, Yanan Zhu, Yi Chen, Peipei Yang, and Xu-Yao Zhang. Fine-grained post-training quantization for large vision language models with quantization-aware integrated gradients. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 3500–3510, 2026. [28] Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh J Hua, Zhoujun Cheng, Dongchan Shin, Fangyu Lei, et al. Osworld: Benchmarking multimodal agents for open-ended tasks in real computer environments. Advances in Neural Information Processing Systems , 37:52040–52094, 2024. [29] Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang, Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang, Yuhui Xu, Zekun Wang, et al. Scaling computer-use ground-ing via user interface decomposition and synthesis. In Ad-vances in Neural Information Processing Systems , 2025. Datasets and Benchmarks Track. [30] Yuhao Xu, Yantai Yang, Zhenyang Fan, Yufan Liu, Yuming Li, Bing Li, and Zhipeng Zhang. Qvla: Not all channels are equal in vision-language-action model’s quantization. In The Fourteenth International Conference on Learning Represen-tations , 2026. [31] Tom Yeh, Tsung-Hsiang Chang, and Robert C Miller. Sikuli: using gui screenshots for search and automation. In Proceed-ings of the 22nd annual ACM symposium on User interface software and technology , pages 183–192, 2009. [32] JiangYong Yu, Sifan Zhou, Dawei Yang, Shuoyu Li, Shuo Wang, Xing Hu, Chen Xu, Zukang Xu, Changyong Shu, and Zhihang Yuan. Mquant: Unleashing the inference potential of multimodal large language models via static quantization. In Proceedings of the 33rd ACM International Conference on Multimedia , pages 1783–1792, 2025. [33] Jingxuan Zhang, Yunta Hsieh, Zhongwei Wan, Haokun Lin, Xin Wang, Ziqi Wang, Yingtie Lei, and Mi Zhang. Quantvla: Scale-calibrated post-training quantization for vision-language-action models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 39539–39549, 2026. [34] Xi Zhang, Hanwei Zhu, Jiamang Wang, Xiaolin Wu, and Weisi Lin. Modality-aware bit allocation for mixed-precision quantization of vision-language models. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) Findings , pages 9305–9315, 2026. [35] Zhong Zhang, Yaxi Lu, Yikun Fu, Yupeng Huo, Shenzhi Yang, Yesai Wu, Han Si, Xin Cong, Haotian Chen, Yankai Lin, et al. Agentcpm-gui: Building mobile-use agents with reinforcement fine-tuning. In Proceedings of the 2025 Confer-ence on Empirical Methods in Natural Language Processing: System Demonstrations , pages 155–180, 2025. [36] Shuyan Zhou, Frank F Xu, Hao Zhu, Xuhui Zhou, Robert Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan Bisk, Daniel Fried, et al. Webarena: A realistic web environment for building autonomous agents. In International Conference on Learning Representations , 2024.

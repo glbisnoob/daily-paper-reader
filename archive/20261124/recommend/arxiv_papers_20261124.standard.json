@@ -1,0 +1,300 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-24T05:48:03.750708+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 3,
+    "deep_cap": 6,
+    "deep_selected": 3,
+    "quick_candidates": 4,
+    "quick_skim_target": 11,
+    "quick_selected": 4
+  },
+  "deep_dive": [
+    {
+      "id": "2611.30235v1",
+      "source": "arxiv",
+      "title": "PixelOne: From Options to Pixels in a Single Forward for GUI Grounding",
+      "abstract": "GUI grounding requires precise clicks at low latency. Recent models such as GUI-Decisions and GUI-Swift predict coordinates in one forward pass using fixed global bins with local refinement. However, screenshot downsampling removes detail needed to locate small controls, while fixed bins cover larger pixel ranges at higher resolutions. We introduce PixelOne, which transfers spatial knowledge from a search teacher to a student that predicts clicks directly from screenshots at native resolution. The teacher uses VideoJEV's text-option scorer to select rows and columns and progressively zoom into candidate regions. The student inherits the teacher's parameters and matches its distributions over explored regions through spatial distillation alongside box supervision. At inference, the same decision head selects a visual token, and a lightweight pixel head predicts the click within it, all in one forward pass. A click-aligned loss encourages pixels inside the target box to score above those outside. Across four benchmarks, PixelOne-Pro-35B-A3B achieves 83.8% mean accuracy, the highest among the evaluated single-forward grounders, with a mean latency of 0.43 s per target.",
+      "authors": [
+        "Kanghui Tian",
+        "Shuai Dong",
+        "Yuhan Zhu",
+        "Congcong Wang",
+        "Ji Zhao",
+        "Tianxiang Jiang",
+        "Zhixiong Zhang",
+        "Shengyuan Ding",
+        "Yi Wang",
+        "Jiaqi Wang",
+        "Yu Qiao"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "published": "2026-11-23 08:04:09+00:00",
+      "link": "https://arxiv.org/pdf/2611.30235v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "GUI grounding predicting precise click coordinates from native-resolution screenshots",
+      "llm_evidence_cn": "GUI视觉定位，从原生分辨率截图直接预测精确点击坐标",
+      "llm_evidence": "GUI视觉定位，从原生分辨率截图直接预测精确点击坐标",
+      "canonical_evidence": "GUI视觉定位，从原生分辨率截图直接预测精确点击坐标",
+      "llm_tldr_en": "PixelOne distills a zoom-based search teacher into a student that predicts GUI click coordinates in one forward pass at native screenshot resolution, avoiding detail loss from downsampling and coarse fixed bins.",
+      "llm_tldr_cn": "现有GUI定位模型依赖固定全局分箱和局部细化，截图降采样会丢失小控件细节，高分辨率下分箱又覆盖过大像素范围。PixelOne提出将基于文本选项打分器逐级放大搜索的教师模型蒸馏为学生模型，使其在原生分辨率截图上单次前向直接预测点击坐标。学生通过空间蒸馏匹配教师在各探索区域上的分布并结合框监督。该工作实现了低延迟且精确的GUI元素视觉定位。",
+      "llm_tldr": "现有GUI定位模型依赖固定全局分箱和局部细化，截图降采样会丢失小控件细节，高分辨率下分箱又覆盖过大像素范围。PixelOne提出将基于文本选项打分器逐级放大搜索的教师模型蒸馏为学生模型，使其在原生分辨率截图上单次前向直接预测点击坐标。学生通过空间蒸馏匹配教师在各探索区域上的分布并结合框监督。该工作实现了低延迟且精确的GUI元素视觉定位。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "How can vision language models ground natural language instructions to GUI elements and plan reliable actions?",
+      "matched_requirement_id": "req-7",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.30170v1",
+      "source": "arxiv",
+      "title": "GUI-Q: Task-Sensitive Granularity and Relation-Preserving Quantization for GUI Agents",
+      "abstract": "Graphical user interface (GUI) agents enable automated interactions with mobile, web, and desktop interfaces. However, their large memory footprint and repeated model calls hinder deployment on resource-constrained devices, motivating post-training quantization (PTQ) without full retraining. Quantization can degrade GUI response accuracy and distort the instruction-vision affinities and local spatial relations needed for GUI target selection. Small coordinate errors can cause missed clicks, while early action errors can alter subsequent interface states and disrupt task execution. Local reconstruction error alone does not directly assess whether these responses and relations are preserved. We propose GUI-Q, a PTQ framework that targets response and relation preservation with 4-bit weights and 16-bit activations (W4A16). Task-Sensitive Granularity Allocation (TSGA) allocates finer groups under a scale-byte budget by combining response sensitivity with the measured reduction in activation-weighted distortion. Relation-Preserving Symmetry Selection (RPSS) then selects symmetric or asymmetric grids to preserve instruction-vision affinities and local spatial relations in GUIs. Across three GUI-capable models, GUI-Q improves mean grounding TargetHit by 8.04 to 12.55 points over the strongest evaluated 4-bit configurations, while reducing static peak graphics processing unit (GPU) memory by 49.9% to 56.2% relative to bfloat16 (BF16). Fixed-output replay with packed 4-bit execution provides 1.7 to 2.8 times model-call speedups. The code will be released.",
+      "authors": [
+        "Tianqi Li",
+        "Yang Wang",
+        "Xin He",
+        "Le Zhang",
+        "Yun Liu"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV"
+      ],
+      "published": "2026-11-23 07:15:53+00:00",
+      "link": "https://arxiv.org/pdf/2611.30170v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "quantization preserving instruction-vision affinity and spatial relations for GUI target selection",
+      "llm_evidence_cn": "量化保持指令-视觉亲和力与空间关系以支持 GUI 目标定位",
+      "llm_evidence": "量化保持指令-视觉亲和力与空间关系以支持 GUI 目标定位",
+      "canonical_evidence": "量化保持指令-视觉亲和力与空间关系以支持 GUI 目标定位",
+      "llm_tldr_en": "GUI agents are memory-heavy and hard to deploy, yet post-training quantization distorts the instruction-vision affinities and local spatial relations needed for accurate GUI target selection. GUI-Q introduces task-sensitive granularity and relation-preserving quantization, reducing coordinate errors that cause missed clicks and downstream task failures.",
+      "llm_tldr_cn": "GUI 智能体虽能自动操作移动端、网页与桌面界面，但模型体积大、调用频繁，难以部署在资源受限设备上。训练后量化虽可压缩模型，却会损害指令与视觉的亲和力以及局部空间关系，微小坐标误差即可导致点击失败并连锁破坏后续任务。为此作者提出 GUI-Q 量化框架，按任务敏感粒度分配比特并保持界面元素间关系。该工作使量化后的 GUI 智能体在保持定位与动作精度的同时显著降低内存开销，提升实际可部署性。",
+      "llm_tldr": "GUI 智能体虽能自动操作移动端、网页与桌面界面，但模型体积大、调用频繁，难以部署在资源受限设备上。训练后量化虽可压缩模型，却会损害指令与视觉的亲和力以及局部空间关系，微小坐标误差即可导致点击失败并连锁破坏后续任务。为此作者提出 GUI-Q 量化框架，按任务敏感粒度分配比特并保持界面元素间关系。该工作使量化后的 GUI 智能体在保持定位与动作精度的同时显著降低内存开销，提升实际可部署性。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "How can vision language models ground natural language instructions to GUI elements and plan reliable actions?",
+      "matched_requirement_id": "req-7",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.30190v1",
+      "source": "arxiv",
+      "title": "Same Executions, Different Gaps: Judgment Rules in Web-Agent Evaluation",
+      "abstract": "Success-rate gains guide the development of web agents. Yet knowing which agent ranks first does not tell us how much confidence to place in its reported advantage. We study the comparison itself: how success is defined, what evidence supports the judgments, and how the difference between agents is estimated. On fixed web-agent executions, changing a judge from predicting likely completion to requiring recorded support can remove most of a reported lead without changing the ranking. This effect persists when unresolved completion is distinguished from supported failure. Controlled source additions explain how missing relations between task requirements, objects and observations can conceal a difference or create an apparent advantage. We also find that making both agents' score estimates more accurate can make their difference less accurate, because their original errors partly canceled. To estimate a chosen outcome difference, we combine judge predictions with reference labels for sampled task pairs. Across four released execution systems, regression fitted on the same 50 labeled pairs reduces estimation error relative to direct paired sampling. The results give agent researchers a practical basis for assessing claimed improvements: make the comparison target explicit, retain the evidence needed to check it, and use paired labels to estimate the difference directly.",
+      "authors": [
+        "Zelong Wang",
+        "Weiyue Li",
+        "Fei Xue",
+        "Junru Zhu"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CL"
+      ],
+      "published": "2026-11-23 07:35:54+00:00",
+      "link": "https://arxiv.org/pdf/2611.30190v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "judgment rules and evaluation protocol for web agents",
+      "llm_evidence_cn": "网页智能体评测中的判定规则与评估协议",
+      "llm_evidence": "网页智能体评测中的判定规则与评估协议",
+      "canonical_evidence": "网页智能体评测中的判定规则与评估协议",
+      "llm_tldr_en": "Web agents are ranked by success rate, yet the reliability of reported leads is rarely examined. This work varies judging rules on fixed executions, showing that requiring recorded evidence instead of predicted completion removes most reported advantages while rankings stay the same.",
+      "llm_tldr_cn": "网页智能体的开发通常以成功率提升为导向，但排名差异背后的判定依据与可信度缺乏系统考察。作者在固定的智能体执行轨迹上比较不同判定规则，分析成功定义、证据支持方式与差异估计对结论的影响。结果显示，将判定从预测任务完成改为要求记录证据后，多数领先优势消失而排名保持不变。该研究揭示了评测判定规则对结论的敏感性，呼吁为网页智能体建立更严格的证据标准。",
+      "llm_tldr": "网页智能体的开发通常以成功率提升为导向，但排名差异背后的判定依据与可信度缺乏系统考察。作者在固定的智能体执行轨迹上比较不同判定规则，分析成功定义、证据支持方式与差异估计对结论的影响。结果显示，将判定从预测任务完成改为要求记录证据后，多数领先优势消失而排名保持不变。该研究揭示了评测判定规则对结论的敏感性，呼吁为网页智能体建立更严格的证据标准。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "benchmarks and evaluation protocols for GUI agents on realistic computer tasks",
+      "matched_requirement_id": "req-6",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2611.29847v1",
+      "source": "arxiv",
+      "title": "MobileGrail: Learning Compact Guardrails for On-Device deployable Mobile GUI Agent Safety",
+      "abstract": "Runtime guardrails protect mobile GUI agents by assessing each proposed action before execution, but existing guardrails rely on cloud hosted large multimodal models, exposing every screen to a remote server, including private information such as payments, messages, and medical records. We propose MobileGrail, an on-device deployable model that addresses both. It maintains a recurrent task state that retains only the evidence subsequent safety decisions depend on, so that authorization and execution progress persist beyond the short context. To intervene early while keeping the safety boundary precise, it learns two labels, unsafe and block: unsafe marks the action that commits a violation, whereas block may be issued at any step of an intervention window, which spans from the first action that the user's authorization no longer explains to the committing action itself. To support training, we build an environment of 32 applications whose backends verify the effect of every action, supplying verified labels for supervision and rewards for reinforcement learning to calibrate intervention timing. We also build MobileVeto, an offline benchmark of unsafe trajectories largely on held-out applications, each paired with a benign counterpart. On MobileVeto, MobileGrail built on Qwen3.5-2B intercepts 76.2% of violations, up from 64.5% for its prompted backbone, while reducing premature intervention from 58.6% to 5.2%, outperforming the cloud-based OS-Sentinel on both. We further conduct online evaluation on GhostEIBench, where MobileGrail guarding a Qwen3.8-27B agent reduces fully successful attacks from 13 to 3 of 110 tasks while raising task completion from 48 to 58. Quantized to 4 bits, MobileGrail runs on a Snapdragon 8 Elite at a median latency of 4.7 s, comparable to the 5.1s of cloud-hosted Gemini 3.8 Flash.",
+      "authors": [
+        "Zhiyu Zhang",
+        "Yuankai Li",
+        "Muhao Chen"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CR",
+        "cs.LG"
+      ],
+      "published": "2026-11-23 00:09:33+00:00",
+      "link": "https://arxiv.org/pdf/2611.29847v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "on-device runtime guardrails for mobile GUI agents",
+      "llm_evidence_cn": "面向移动 GUI 智能体的端侧运行时安全护栏",
+      "llm_evidence": "面向移动 GUI 智能体的端侧运行时安全护栏",
+      "canonical_evidence": "面向移动 GUI 智能体的端侧运行时安全护栏",
+      "llm_tldr_en": "Existing mobile GUI agent guardrails send every screen to cloud multimodal models, leaking private information. MobileGrail is an on-device deployable guardrail that keeps a recurrent task state and learns unsafe and block labels, enabling early and precise intervention without exposing screens remotely.",
+      "llm_tldr_cn": "移动 GUI 智能体在执行动作前需要运行时护栏检查，但现有护栏依赖云端大模型，会把包含支付、消息与医疗记录的屏幕上传服务器，带来隐私风险。作者提出 MobileGrail，一种可端侧部署的护栏模型，用循环任务状态只保留后续安全决策所需的证据，并学习不安全与阻断两类标签以提前干预。该方法在保证安全边界精确的同时避免了屏幕外传，为移动端 GUI 智能体的实际部署提供了隐私友好的安全方案。",
+      "llm_tldr": "移动 GUI 智能体在执行动作前需要运行时护栏检查，但现有护栏依赖云端大模型，会把包含支付、消息与医疗记录的屏幕上传服务器，带来隐私风险。作者提出 MobileGrail，一种可端侧部署的护栏模型，用循环任务状态只保留后续安全决策所需的证据，并学习不安全与阻断两类标签以提前干预。该方法在保证安全边界精确的同时避免了屏幕外传，为移动端 GUI 智能体的实际部署提供了隐私友好的安全方案。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Methods for general purpose GUI agents that autonomously complete desktop, web, and mobile tasks.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2611.29977v1",
+      "source": "arxiv",
+      "title": "Conartist: Adaptive Agentic Red-Teaming of Computer-Using Agents against Multi-Step Prompt Injection",
+      "abstract": "Harnesses secure Computer-Using Agents by enforcing security constraints and defending against prompt injection attacks. However, we find that two core security mechanisms of agent harnesses remain vulnerable. First, consistency checking prevents agents from deviating from legitimate user objectives, while attackers can bypass it by embedding malicious actions that appear logically consistent with legitimate task execution. Second, risk auditing proactively examines high-risk operations. Yet, the auditing process itself would introduce additional exploitable actions that violate security boundaries. To evaluate above defects we found, we propose Conartist, a cascaded adaptive prompt injection framework comprising two progressive stages. First, Conartist employs a goal-pollution strategy to establish deceptive causal dependencies between legitimate user objectives and malicious operations, progressively embedding attack steps into legitimate task workflows. However, these task-coupled attacks remain susceptible to risk auditing. To address this limitation, Conartist further analyzes security-auditing feedback from controlled attack exploration to identify exploitable auditing patterns. Conartist then adaptively refines its deception strategies to either avoid triggering risk auditing or induce additional high-risk operations. Extensive experiments across five backbone models demonstrate the effectiveness of Conartist, achieving attack success rates of 32.12% on 576-instance tool use benchmark and 66.67% in the Reddit GUI benchmark, outperforming the SOTA attack by 14.41 and 29.17, respectively. By analyzing one of the most popular Agent, Openclaw, we furthermore concluded seven realistic exploitable attack patterns, which reveals that security mechanisms designed to prevent malicious actions can themselves be manipulated to facilitate attacks.",
+      "authors": [
+        "Jiaqi Rong",
+        "Yunchen Lu",
+        "Lihai Nie",
+        "Yan Jia",
+        "Tong Li",
+        "Zheli Liu"
+      ],
+      "primary_category": "cs.CR",
+      "categories": [
+        "cs.CR",
+        "cs.AI"
+      ],
+      "published": "2026-11-23 03:41:22+00:00",
+      "link": "https://arxiv.org/pdf/2611.29977v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "red-teaming computer-using agents with multi-step prompt injection",
+      "llm_evidence_cn": "针对计算机使用智能体的多步提示注入红队测试",
+      "llm_evidence": "针对计算机使用智能体的多步提示注入红队测试",
+      "canonical_evidence": "针对计算机使用智能体的多步提示注入红队测试",
+      "llm_tldr_en": "Harnesses protect Computer-Using Agents with consistency checks and risk auditing, but both can be bypassed. Conartist is a cascaded adaptive prompt-injection framework that builds logically consistent malicious multi-step actions, exposing systematic gaps in agent security evaluation.",
+      "llm_tldr_cn": "现有计算机使用智能体依赖一致性检查与风险审计来抵御提示注入，但这两类安全机制仍存在被绕过的漏洞。作者提出 Conartist 级联自适应提示注入框架，构造看似与合法任务逻辑一致的恶意多步动作来攻击智能体。实验发现一致性检查可被自洽的恶意操作绕过，而风险审计过程本身又引入新的可利用动作。该工作揭示了智能体安全护栏的系统性缺陷，为计算机使用智能体的鲁棒评测与防护设计提供了依据。",
+      "llm_tldr": "现有计算机使用智能体依赖一致性检查与风险审计来抵御提示注入，但这两类安全机制仍存在被绕过的漏洞。作者提出 Conartist 级联自适应提示注入框架，构造看似与合法任务逻辑一致的恶意多步动作来攻击智能体。实验发现一致性检查可被自洽的恶意操作绕过，而风险审计过程本身又引入新的可利用动作。该工作揭示了智能体安全护栏的系统性缺陷，为计算机使用智能体的鲁棒评测与防护设计提供了依据。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Reinforcement learning and benchmark evaluation for computer use agents in multi step cross application workflows.",
+      "matched_requirement_id": "req-9",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2611.30075v1",
+      "source": "arxiv",
+      "title": "Context-Grounded Skill Internalization for Vision-Language Agents",
+      "abstract": "Skill internalization offers a way for agents to learn useful behaviors from skills and use them without explicit guidance in context at inference time. A common approach is to generate demonstration trajectories with the skill in context and then fine-tune the same model on its own trajectories with the skill removed. However, this leads to the problem that the model may learn to reference the removed skill, which we named as context misalignment (CoMi). In this work, we first analyze agent behaviors related to CoMi under this common pipeline. Across ALFWorld, WebShop, and ARC-AGI-1, skill-removed fine-tuning consistently results in CoMi: 12.2-46.0% of test trajectories reference the removed skill. To address this problem, we develop Context-Grounded Skill Internalization (CGSI). CGSI uses a sentence detector to identify unsupported references and then masks or rewrites the selected sentences before fine-tuning. Experimental results demonstrate the effectiveness of CGSI and reveal two key findings. (i) Compared with directly fine-tuning with the skill removed, CGSI reduces CoMi at test time by 72.5-94.6% while preserving task success. (ii) Compared with existing reinforcement learning-based skill-internalization baselines, CGSI achieves comparable performance with substantially less training time. CGSI also significantly reduces processing costs compared with large-scale trajectory auditing and correction.",
+      "authors": [
+        "Jinlin Liu",
+        "Yumeng He",
+        "Qihan Huang",
+        "Kevin Qinghong Lin",
+        "Han Peng"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-23 05:32:01+00:00",
+      "link": "https://arxiv.org/pdf/2611.30075v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "vision-language agents internalizing skills, evaluated on WebShop",
+      "llm_evidence_cn": "视觉语言智能体技能内化，在 WebShop 上评测",
+      "llm_evidence": "视觉语言智能体技能内化，在 WebShop 上评测",
+      "canonical_evidence": "视觉语言智能体技能内化，在 WebShop 上评测",
+      "llm_tldr_en": "Skill-removed fine-tuning causes context misalignment in vision-language agents; the paper analyzes this failure across ALFWorld, WebShop and ARC-AGI-1 and proposes context-grounded skill internalization to keep learned behaviors usable without skill prompts.",
+      "llm_tldr_cn": "视觉语言智能体常通过在上下文中给出技能并生成轨迹、再去除技能微调来实现技能内化，但模型会残留对已删除技能的引用，作者称之为上下文错位。该文在 ALFWorld、WebShop 与 ARC-AGI-1 上系统分析了这一现象，发现 12.2% 至 46.0% 的测试轨迹仍引用被删除的技能。为此提出上下文接地的技能内化方法，使智能体在推理时不依赖显式技能提示仍能复现行为。该工作为可复用的视觉语言智能体技能学习提供了更稳健的训练范式。",
+      "llm_tldr": "视觉语言智能体常通过在上下文中给出技能并生成轨迹、再去除技能微调来实现技能内化，但模型会残留对已删除技能的引用，作者称之为上下文错位。该文在 ALFWorld、WebShop 与 ARC-AGI-1 上系统分析了这一现象，发现 12.2% 至 46.0% 的测试轨迹仍引用被删除的技能。为此提出上下文接地的技能内化方法，使智能体在推理时不依赖显式技能提示仍能复现行为。该工作为可复用的视觉语言智能体技能学习提供了更稳健的训练范式。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "large language model and vision-language agents that interact with graphical user interfaces",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2611.30193v1",
+      "source": "arxiv",
+      "title": "Visual-RFT++: Extending Visual Reinforcement Fine-Tuning to Multimodal Tool Use",
+      "abstract": "Reinforcement Fine-Tuning (RFT) has recently become a central paradigm for advancing Large Reasoning Models (LRMs), as demonstrated by systems such as OpenAI's o3 and the R1 series. Despite significant progress in LLMs, how to leverage RFT to unify visual perception, step-by-step reasoning, and agentic tool use into one coherent training paradigm remains an open challenge. In this work, we present Visual Reinforcement Fine-Tuning++ (Visual-RFT++), a unified framework that extends RFT to both visual perception tasks and multimodal agentic workflows, enabling LVLMs to reason with images, act upon images, and evaluate their own outputs using verifiable reward. With Visual-RFT++, open-source LVLMs not only show significant gains on diverse visual perception tasks, but also acquire agentic abilities such as web searching for real-time information and code-based image manipulation (e.g., cropping, rotation, and analysis). Across visual perception tasks, including fine-grained classification, few-shot detection, reasoning grounding, and open-vocabulary detection, Visual-RFT++ delivers strong gains over SFT, including a +24.3 percentage points improvement in one-shot fine-grained classification and +21.0 percentage points on COCO's 4-shot setting and +15.4 percentage points on LVIS with around several hundred samples. To evaluate agentic behaviors, we introduce the Multimodal Agentic Tool Bench (MAT) with MAT-Search and MAT-Coding. Visual-RFT++ surpasses its baseline by +18.6 F1 / +13.0 EM percentage points on MAT-Coding and +10.3 F1 / +8.7 EM percentage points on MAT-Search. It also shows gains of 29.3 F1 and 25.9 EM percentage points on multi-hop QA benchmarks such as 2Wiki and HotpotQA, demonstrating strong cross-modal generalization. Visual-RFT++ introduces a data-efficient and reward-driven framework that strengthens both visual reasoning and agentic adaptability.",
+      "authors": [
+        "Ziyu Liu",
+        "Zeyi Sun",
+        "Xiaoyi Dong",
+        "Yuhang Cao",
+        "Haodong Duan",
+        "Dahua Lin",
+        "Jiaqi Wang",
+        "Yuhang Zang"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV"
+      ],
+      "published": "2026-11-23 07:36:15+00:00",
+      "link": "https://arxiv.org/pdf/2611.30193v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "RL fine-tuning for LVLM agentic tool use transferable to GUI agent training",
+      "llm_evidence_cn": "面向LVLM智能体工具使用的强化微调可迁移至GUI智能体训练",
+      "llm_evidence": "面向LVLM智能体工具使用的强化微调可迁移至GUI智能体训练",
+      "canonical_evidence": "面向LVLM智能体工具使用的强化微调可迁移至GUI智能体训练",
+      "llm_tldr_en": "Visual-RFT++ extends reinforcement fine-tuning to multimodal agentic tool use, enabling LVLMs to reason with and act on images via verifiable rewards; the paradigm is transferable to GUI agents despite lacking explicit GUI evaluation.",
+      "llm_tldr_cn": "现有强化微调虽推动大推理模型发展，但如何统一视觉感知、逐步推理与智能体工具使用仍是难题。Visual-RFT++提出统一框架，将强化微调扩展到视觉感知任务和多模态智能体工作流，使LVLM能基于图像推理、行动并用可验证奖励自评。实验显示开源LVLM在多种视觉任务上显著提升，为GUI智能体的强化学习训练提供了可迁移的方法基础。",
+      "llm_tldr": "现有强化微调虽推动大推理模型发展，但如何统一视觉感知、逐步推理与智能体工具使用仍是难题。Visual-RFT++提出统一框架，将强化微调扩展到视觉感知任务和多模态智能体工作流，使LVLM能基于图像推理、行动并用可验证奖励自评。实验显示开源LVLM在多种视觉任务上显著提升，为GUI智能体的强化学习训练提供了可迁移的方法基础。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "reinforcement learning methods for training GUI agents on interactive computer tasks",
+      "matched_requirement_id": "req-5",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    }
+  ]
+}

@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-11-22 06:00 ~ 2026-11-23 06:00 (UTC+8)</span>
+      <span class="dpr-home-dashboard-kicker">2026-11-23 06:00 ~ 2026-11-24 06:00 (UTC+8)</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 0 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 7 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>0</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>4</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-23 02:17:27 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-24 05:51:28 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,9 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日无新推荐，系统未产出可展示论文。</p>
+<p>今日共筛选 7 篇论文（精读 3 篇、速读 4 篇），重点考察 GUI 智能体的定位效率、量化部署与安全防护。</p>
+<p>最值得关注两条线：PixelOne（9.0/10）用单次前向从选项直达像素、刷新 GUI grounding 效率，GUI-Q（8.0/10）以任务敏感粒度与关系保持量化压缩 GUI 智能体。</p>
+<p>普通读者可先读 PixelOne 理解“少一步推理”的价值，再顺带看 MobileGrail 等安全类工作，建立效率与风险并重的判断。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +80,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">3 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="PixelOne: From Options to Pixels in a Single Forward for GUI Grounding">PixelOne: From Options to Pixels in a Single Forward for GUI Grounding</span></li><li><span class="dpr-home-dashboard-paper-title" title="GUI-Q: Task-Sensitive Granularity and Relation-Preserving Quantization for GUI Agents">GUI-Q: Task-Sensitive Granularity and Relation-Preserving Quantization for GUI Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="Same Executions, Different Gaps: Judgment Rules in Web-Agent Evaluation">Same Executions, Different Gaps: Judgment Rules in Web-Agent Evaluation</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>3</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -91,12 +93,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">0 篇</strong>
+    <strong class="dpr-home-dashboard-count">4 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="MobileGrail: Learning Compact Guardrails for On-Device deployable Mobile GUI Agent Safety">MobileGrail: Learning Compact Guardrails for On-Device deployable Mobile GUI Agent Safety</span></li><li><span class="dpr-home-dashboard-paper-title" title="Conartist: Adaptive Agentic Red-Teaming of Computer-Using Agents against Multi-Step Prompt Injection">Conartist: Adaptive Agentic Red-Teaming of Computer-Using Agents against Multi-Step Prompt Injection</span></li><li><span class="dpr-home-dashboard-paper-title" title="Context-Grounded Skill Internalization for Vision-Language Agents">Context-Grounded Skill Internalization for Vision-Language Agents</span></li></ul>
   </div>
-
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>4</strong></span></div>
 </section>
 </div>
 

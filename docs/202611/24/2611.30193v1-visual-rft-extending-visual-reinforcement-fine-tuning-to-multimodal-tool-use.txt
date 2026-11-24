@@ -1,0 +1,741 @@
+Title: Visual-RFT++: Extending Visual Reinforcement Fine-Tuning to Multimodal Tool Use
+
+URL Source: https://arxiv.org/pdf/2611.30193v1
+
+Published Time: Tue, 24 Nov 2026 04:44:35 GMT
+
+Number of Pages: 18
+
+Markdown Content:
+JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 1
+
+# Visual-RFT++: Extending Visual Reinforcement Fine-Tuning to Multimodal Tool Use 
+
+Ziyu Liu, Zeyi Sun, Xiaoyi Dong, Yuhang Cao, Haodong Duan, Dahua Lin, Jiaqi Wang, Yuhang Zang B
+
+Abstract —Reinforcement Fine-Tuning (RFT) has recently be-come a central paradigm for advancing Large Reasoning Models (LRMs), as demonstrated by systems such as OpenAI’s o3 and the R1 series. Despite significant progress in LLMs, how to leverage RFT to unify visual perception, step-by-step reasoning, and agentic tool use into one coherent training paradigm remains an open challenge. In this work, we present Visual Reinforcement Fine-Tuning++ (Visual-RFT++), a unified framework that extends RFT to both visual perception tasks and multimodal agentic workflows, enabling LVLMs to reason with images, act upon images, and evaluate their own outputs using verifiable reward. With Visual-RFT++, open-source LVLMs not only show significant gains on diverse visual perception tasks, but also acquire agentic abilities such as web searching for real-time information and code-based image manipulation (e.g., cropping, rotation, and analysis). Across visual perception tasks, including fine-grained classification, few-shot detection, reasoning grounding, and open-vocabulary detection, Visual-RFT++ delivers strong gains over SFT, including a +24.3 percentage points improvement in one-shot fine-grained classification and +21.0 percentage points on COCO’s 4-shot setting and +15.4 percentage points on LVIS with around several hundred samples. To evaluate agentic behaviors, we introduce the Multimodal Agentic Tool Bench (MAT) with MAT-Search and MAT-Coding. Visual-RFT++ surpasses its baseline by +18.6 F1 / +13.0 EM percentage points on MAT-Coding and +10.3 F1 / +8.7 EM percentage points on MAT-Search. It also shows gains of 29.3 F1 and 25.9 EM percentage points on multi-hop QA benchmarks such as 2Wiki and HotpotQA, demonstrating strong cross-modal generalization. Visual-RFT++ introduces a data-efficient and reward-driven framework that strengthens both visual reasoning and agentic adaptability. Our code is available at https://github.com/Liuziyu77/Visual-RFT. 
+
+Index Terms —Large Vision Language Models, Reinforcement Finetuning, Agent 
+
+I. I NTRODUCTION 
+
+Large Reasoning Models (LRMs) such as OpenAI o1 [1] and o3 [2] represent the frontier of AI models that spend more computation “thinking” before answering, exhibiting strong multi-step reasoning and tool-augmented decision-making abilities across both textual and visual modalities. A key factor behind these advancements is Reinforcement Fine-Tuning (RFT) 1, which enables models to adapt to new domains with only dozens to thousands of examples through reward-driven learning. Although the implementation details of o1 and o3 remain proprietary, open-source efforts such as DeepSeek 
+
+Ziyu Liu and Zeyi Sun are with Shanghai Jiao Tong University. Yuhang Zang, Xiaoyi Dong, Yuhang Cao, Haodong Duan, Jiaqi Wang are with Shanghai AI Laboratory. Dahua Lin is with The Chinese University of Hong Kong. Corresponding author: Yuhang Zang (zangyuhang@pjlab.org.cn). 
+
+> 1
+
+https://openai.com/form/rft-research-program mAP                
+
+> mouse fork hot dog cat airplane suitcase parking meter sandwich train hair drier toilet toaster snowboard frisbee bear
+> (a) OV Results on COCO
+> mAP casserole die egg role futon garbage handsaw hippopotamus kitchen table mallet omelet shot glass stepladder suger bowl
+> (b) OV Results on LVIS
+> mAP bus train fire hygrant stop sign cat dog bed toilet
+> (c) Few-shot Results on COCO (d) Reasoning Grounding on LISA (e) CLS on Fine-Grained Datasets
+> 20.0 22.5 25.0 27.5 30.0 32.5 35.0 37.5 40.0
+> mIoU_test mIoU_val gIoU_test
+> Reasoning Grounding on LISA
+> 30 40 50 60 70 80 90 100
+> 4-shot Fine-Grained Classification Qwen2-VL-2B Qwen2-VL-2B + SFT Qwen2-VL-2B + Visual-RFT
+> Qwen2-VL-2B Qwen2-VL-2B + SFT Qwen2-VL-2B + Visual-RFT Qwen2-VL-2B Qwen2-VL-2B + SFT Qwen2-VL-2B + Visual-RFT
+> Metrics
+> Average Flower102 Pets37 Aircraft Cars
+> Categories +10.7 +4.2 +9.1 +25.9 +16.6 +19.7 +28.9 +38.5 Accuracy Scores
+
+Fig. 1: Our Visual R einforcement Fine-Tuning++ (Visual-RFT++) performs better than previous Supervised Fine-Tuning (SFT) on a variety of tasks, such as Open Vocabulary(OV)/Few-shot Detection, Reasoning Grounding, and Fine-grained Classification. 
+
+R1 [3] suggest that verifiable rewards [4], [5], which rely on rule-based correctness checks rather than learned preference models [6]–[8], play an essential role in reproducing RFT behavior. A major advantage of RFT over traditional Supervised Fine-Tuning (SFT) lies in its data efficiency. SFT (see Fig. 2 (a)) requires curated “ground-truth” annotations and large-scale datasets, while RFT evaluates the model’s own responses and updates its policy depending on correctness, enabling effective learning through trial and error [1], [9]. A commonly held belief is that RFT applies only to tasks such as math and code generation. Math and coding exhibit clear and objective final answers or test cases, making their rewards relatively straightforward to verify. However, recent developments in multimodal LRMs highlight a growing need for RFT not only for visual perception but also for agentic decision-making with tools, such as web browsing [10], code execution [11], and image manipulation [2]. Motivated by this emerging trend, we revisit the role of RFT in multimodal settings and demonstrate that it can be extended far beyond math and code, enabling models to learn both visual perception and visual agentic behaviors through verifiable reward. To this end, we propose Visual R einforcement Fine-
+
+Tuning++ (Visual-RFT++), which empowers Large Vision-Language Models (LVLMs) with both visual perception capa-bilities (e.g., fine-grained classification, grounding, few-shot detection, open-vocabulary detection) and agentic tool-use arXiv:2611.30193v1 [cs.CV] 23 Nov 2026 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 2Data-driven Fine-tuning 
+
+> Question ：
+> This is an image containing a plant. Please identify the species of the plant based on the image.
+
+Verifiable Reward  
+
+> 𝐀 = 𝐀 𝐀𱰀𝐀𴀀𝐀𴰀 + 𝐀 𝐀𰠀𰠀
+
+Completions Policy Optimization 
+
+Reinforcement Finetuning 
+
+Prompts 
+
+Detection Classification 
+
+Open Vocabulary Detection Few-shot Detection Reasoning Grounding Fine-Grained Few-shot CLS      
+
+> its bright yellow flowers and small, greenish-brown buds.The petals are often orange or red at the base, and the flowers are often clustered together. The leaves are green and have a slightly wavy edge. </think><answer> wallflower </answer> Reasoning:<think> The image appears to be of a wallflower, which is characterized by
+> Question ：Output the bounding box in the image corresponding to the instruction: the pokeymon that can perform Thunderbolt. Output the thinking process in <think> </think> and your grouding b o x . F o l l o w i n g " < t h i n k > t h i n k i n g p r o c e s s < / t h i n k > <answer>(x1,y1),(x2,y2)</answer>)" format.
+> Thunderbolt is a move that can be used by several Pokémon. In the image, there are several Pokémon, including Pikachu, which is known for its Thunderbolt move. Pikachu is located in the bottom right corner of the image. </think> <answer> (696,300),(999,999) </answer>
+> Reasoning:<think> The instruction is to find the bounding box of the Pokémon that can perform Thunderbolt.
+
+(c) Applications of Visual-RFT++ (b) Visual Reinforcement FineTuning++ (Visual-RFT++) (a) Visual Instruction Tuning 
+
+> LVLMs
+
+Limited Data (10-1000) Large-scale dataset  
+
+> Multimodal Agentic Reward
+> Visual Perception Reward
+> 𝐀 = 𝐀(𝐀𱰀𝐀), 𝐀𝐀 𴀀𝐀𴰀𰠀𝐀 𝐀, 𱰀𴰀𝐀𵐀𝐀𲐀𝐀𱠀𵐀
+
+Wild Data: Domain-specific Data: 
+
+Reasoning 
+
+Input Output Input Output 
+
+> LVLMs
+> Prompts
+
+Limited Data (10-1000) General Data: 
+
+Grounding 
+
+Recognize the text within the [579, 110, 726, 209] of the image... 
+
+How many meters difference is there between the mountain peak in the image and the world's second-highest summit? <think> I'll start by cropping the image to keep only the area indicated in the question... </think> <code> ```python import cv2 import numpy ...``` </code> <think> I can now base my answer on the region that has been cropped from the original image... </think> <answer> JUR TOWN HALL RD AYE </answer> 
+
+> <information> K2, with an elevation of 8,611 meters (28,251 feet), is the second-highest....</information> <information> Mount Everest, known as .... Its elevation (snow height) of 8,848.86 meters </information>
+
+Feedback results: 
+
+8844 - 8849 = 5 meters The text in the specified area appears to be "AYE". 
+
+<think> The image shows Mount Everest.... I will start by identifying the elevation of Mount Everest. </think> <search> Elevation of Mount Everest </search> <think> The height of Mount Everest is 8,848.86 meters. I will now identify the height of the second-highest mountain. </think> <search> Elevation of the second-highest mountain </search> <think> Now, we have the height of both ...</think> <answer> 238 </answer> 
+
+Execute Environment 
+
+Visual-RFT++ LVLM 
+
+> +reasoning +tool calling
+> direct inference
+
+Visual-RFT++ LVLM  
+
+> +reasoning +tool calling
+> direct inference
+
+Feedback results: 
+
+Searching from Env 
+
+Multimodal Agentic Tasks 
+
+> Tools
+
+Fig. 2: Overview of Visual-RFT++. Compared to the (a) Visual Instruction Tuning that is data-hungry, (b) our Visual Reinforcement Fine-Tuning++ (Visual-RFT++) is more data efficient with limited data. (c) We successfully empower Large Vision-Language Models (LVLMs) with RFT on a series of multimodal tasks, and present examples of the model’s reasoning process at the bottom. 
+
+abilities (e.g., web search, code-based image understanding), as shown in Fig. 1. To extend RFT on visual tasks, we present the imple-mentation details of Visual-RFT++ in Fig. 2 (b). For each input, Visual-RFT++ first samples multiple trajectories from an LVLM, each containing structured reasoning and a final answer. We then apply task-specific rule-based verifiable rewards to guide policy learning with algorithms such as GRPO [12]. For instance, we propose the Intersection over Union (IoU) reward for the object detection task. For agentic tasks, we further define rewards that verify tool-use behaviors. Rather than memorizing annotated answers as in SFT, Visual-RFT++ encourages LVLMs to explore solutions, reason step-by-step, invoke tools when needed, and optimize for outcomes aligned with our verifiable reward functions. The goal is to discover optimal solutions, rather than merely mimicking pre-defined answers. Our approach shifts the training paradigm from data scaling in SFT to the strategic design of varied reward functions tailored to specific multimodal tasks. As shown in Fig. 2 (c), the synergistic combination of verifiable rewards and visual perception abilities (e.g., detection, grounding, classification, agentic tasks) allows our model to achieve rapid and data-efficient mastery of new concepts, facilitated by a detailed reasoning process. We validate the effectiveness of Visual-RFT++ across a broad spectrum of visual perception and multimodal agentic JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 3
+
+tasks. For visual perception, Visual-RFT++ achieves substantial improvements over SFT on fine-grained classification, few-shot detection, reasoning grounding, and open-vocabulary detection. In the one-shot fine-grained classification setting with only a few hundred samples, Visual-RFT++ improves accuracy by 24.3 percentage points while SFT exhibits a 4.3-percentage-point drop. In few-shot object detection, Visual-RFT++ also demonstrates strong data efficiency, achieving mAP gains of 21.0 percentage points on COCO four-shot and 15.4 percentage points on LVIS. On the LISA dataset [13], which requires reasoning-grounded localization, Visual-RFT++ surpasses specialized models such as GroundedSAM [14]. Moreover, Visual-RFT++ generalizes effectively to new and rare categories in open-vocabulary detection, with the 2B model improving nAP from 9.6 to 27.9 on COCO [15] new classes and from 2.7 to 20.7 on LVIS [16] rare categories. Beyond perception tasks, Visual-RFT++ also equips LVLMs with strong multimodal agentic abilities. To facilitate training and evaluation, we introduce the Multimodal Agentic Tool Bench (MAT), which includes MAT-Search and MAT-Coding. MAT is designed to measure agentic reasoning accuracy, tool execution correctness, and multimodal generalization. On MAT-Coding and MAT-Search, Visual-RFT++ achieves competitive performance. Notably, the Qwen2.5-VL-3B model achieves higher F1 than direct-inference GPT-4o on MAT-Coding task, and the Qwen2.5-VL-7B model improves upon the baseline by 18.56 F1 and 13.00 EM percentage points. On the MAT-Search task, the 7B model further achieves gains of 10.28 F1 and 8.66 EM percentage points. In addition, Visual-RFT++ generalizes strongly to out-of-domain multi-hop QA datasets, exhibiting consistent improvements across challenging benchmarks. Together, these results demonstrate that Visual-RFT++ pro-vides a unified and data-efficient approach that enhances visual perception and multimodal agentic behaviors. Here, “unified” refers to a common GRPO-based reinforcement fine-tuning methodology with task-specific verifiable rewards. A preliminary version of this work (Visual-RFT [17]) was accepted at ICCV 2025. In this extended version, we substantially expand the original framework into Visual-RFT++, upgrading the scope, methodology, and experimental coverage in several key dimensions:  
+
+> •
+
+Visual-RFT++ extends the use of RFT from perception-only settings to multimodal agentic reasoning, enabling LVLMs to perform tool-augmented tasks such as task decomposition, web-based retrieval and code-driven image manipulation.  
+
+> •
+
+We introduce a more comprehensive and modular reward design, covering both perception correctness signals and verification mechanisms tailored for agentic tasks, offering a unified verifiable-reward framework for diverse multimodal tasks.  
+
+> •
+
+We develop the Multimodal Agentic Tool Bench (MAT), a new benchmark suite consisting of MAT-Search and MAT-Coding, which systematically evaluates tool-use reasoning and multimodal agentic capabilities not studied in the original Visual-RFT.  
+
+> •
+
+We provide substantially expanded experiments, including evaluations on visual perception, multimodal agentic tasks, and out-of-domain multi-hop QA, showing that Visual-RFT++ achieves significant improvements over supervised fine-tuning and baseline LVLMs.  
+
+> •
+
+In addition to methodological extensions, we conduct extensive ablation studies to examine how different reward designs affect model performance. We also analyze the advantages of Visual-RFT++ over other tool-based approaches, highlighting its superior reliability and gener-alization across diverse multimodal tasks.  
+
+> •
+
+Moreover, we provide deeper analysis of our reward and pipeline design mechanisms, as well as the data construc-tion process, particularly for multimodal agentic tasks. This analysis offers insights into why RFT enables stronger visual understanding, more reliable agentic reasoning, and how effective RFT algorithms can be designed. II. R ELATED WORKS 
+
+Large Vision Language Models (LVLMs) like GPT-4o [18] achieve excellent visual understanding ability by integrating both visual and textual data. This integration enhances the models’ ability to understand complex multimodal inputs and enables more advanced AI systems [19]–[29] capable of processing and responding to both images and text. Generally, the training of LVLMs involves two steps: (a) pre-training and (b) post-training, which contains supervised fine-tuning and reinforcement learning. Post-training is crucial in improving the model’s response quality, instruction following ability, and reasoning abilities. While significant research has focused on using reinforcement learning to enhance LLMs during post-training [30]–[40], the progress for LVLMs has been slower. In this paper, we propose Visual-RFT++. Our method uses GRPO-based reinforcement optimization and verifiable rewards to enhance not only the model’s visual perception and reasoning abilities, but also its multimodal agentic capabilities. 
+
+Reinforcement Learning Recently, with the emergence of reasoning models like OpenAI’s o1 [1], the research focus in Large Language Models (LLMs) has increasingly shifted towards enhancing the models’ reasoning capabilities through reinforcement learning (RL) techniques. Studies have explored improving LLMs’ performance in reasoning tasks such as solving mathematical problems [12], [41]–[44] and coding [45]– [48]. A notable breakthrough in this area is Deepseek-R1-Zero [3], which introduced a new approach to achieving robust reasoning capabilities using only RL, eliminating the super-vised fine-tuning (SFT) stage. Recent studies have extended reinforcement learning with verifiable rewards to LVLMs. R1-V [49], VLM-R1 [50], Vision-R1 [51], Seg-Zero [52], MM-Eureka [53], MMR1 [54], LMM-R1 [55], OpenVLThinker [56], Curr-ReFT [57], and Reason-RFT [58] collectively investigate multimodal VQA, mathematical reasoning, grounding, and segmentation. Although these methods share GRPO-style optimization or verifiable rewards, their task definitions, output spaces, supervision scales, and evaluation protocols differ substantially. Building on Visual-RFT [59], Visual-RFT++ complements these efforts by studying fine-grained classifi-cation, few-shot detection, reasoning grounding, and open-vocabulary detection under a unified reward formulation, and further extending the framework to multimodal agentic settings. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 4Question: the part of the vehicle that can be opened? 
+
+> Reference Model Policy Model
+
+# ···            
+
+> Reasoning: <think> The vehicle has a door that can be opened. The door is located on the right side of the vehicle, near the top. </think>
+> Policy Gradient Optimization
+> Question: What spices is the flower in the image?
+> Reasoning <think> The image appears to be of a columbine flower. The flower has five light yello w petals and a yellow center, which are characteristic features of this species. The flo wer also has a purple or lavender color on the petals, which is typical for this plant. Th e presence of a small insect on the flower is also a common feature of columbine flower s. </think> <answer> columbine </answer>
+> Verifiable Reward 𝐀 𝐀𱀀𝐀 =𝐀, 𝐀𲠀 𝐀 𝐀𱀀𝐀𰠀 = 𝐀𫠀 𝐀𱀀𝐀𰠀
+> 𝐀, 𝐀𝐀𝐀𰠀𝐀𲐀𝐀𝐀𰠀
+> IoU Reward & CLS Reward
+> 𝐀 𝐀𝐀𝐀 =𲠀(𝐀𝐀𝐀), 𝐀𲠀 𝐀𱀀𝐀𝐀𝐀 𝐀, 𝐀𝐀𝐀𰠀𝐀𲐀𝐀𝐀𰠀
+
+Fig. 3: Framework of Visual-RFT++ for Visual Perceptions. Given the question and visual image inputs, the policy model generates multiple responses containing reasoning steps. Then the verifiable reward such as IoU reward and CLS reward is used with the policy gradient optimization algorithm to update the policy model. 
+
+Multimodal Agentic Reinforcement Learning and Evalua-tion. Recent agentic-RL methods train LVLMs to interact with external tools during visual reasoning. OpenThinkIMG [60], DeepEyes [61], Pixel-Reasoner [62], and VisTA [63] pri-marily study visual operations such as cropping, zooming, and grounding, while GUI-R1 [64] focuses on actions in graphical user interfaces. ToolRL [65] and Nemotron-Research-Tool-N1 [66] instead emphasize text-based function calling. Related benchmarks also target different application scenarios: GAIA [67] evaluates general-assistant tasks involving browsing and tool use, AgentBench [68] covers heterogeneous interactive environments, and VisualWebArena [69] focuses on website interaction. MAT instead targets two multimodal tool-use settings: MAT-Search requires iterative web querying with evidence integration, while MAT-Coding requires image analy-sis followed by code-based image processing for answering. MAT therefore differs from existing methods and benchmarks in terms of task definitions, application scenarios, and tool spaces. Visual-RFT++ further connects these agentic settings with perception-oriented visual reinforcement fine-tuning. III. M ETHODS 
+
+A. Preliminary 
+
+Reinforcement Learning with Verifiable Rewards. Reinforce-ment Learning with Verifiable Rewards (RLVR) [3]–[5] is a novel training approach designed to enhance language models in tasks with objectively verifiable outcomes, such as math and coding. Unlike previous Reinforcement Learning from Human Feedback (RLHF) [6]–[8], which relies on a trained reward model, RLVR uses a direct verification function to assess correctness. This approach simplifies the reward mechanism while maintaining strong alignment with the task’s inherent correctness criteria. Given the input question q, the policy model πθ generates responses o and receives the verifiable reward. More specifically, RLVR optimizes the following objective: 
+
+max 
+
+> πθ
+
+Eo∼πθ (q) [RRLVR (q, o )] (1) 
+
+= [ R(q, o ) − βKL [πθ (o|q) ∥ πref (o|q)]] , (2) where πref is the reference model before optimization, R is the verifiable reward function, and β is the hyper-parameter controlling the KL-divergence. The verifiable reward function 
+
+R takes the question and output pair (q, o ) as inputs, and checks if the ground-truth answer matches the prediction o:
+
+R(q, o ) = 
+
+(
+
+1, if o = ground truth ,
+
+0, otherwise . (3) 
+
+DeepSeek R1-Zero and GRPO. The DeepSeek R1-Zero algorithm eliminates dependence on supervised fine-tuning (SFT) by employing reinforcement learning for training, specif-ically through its Group Relative Policy Optimization (GRPO) framework. Unlike reinforcement learning algorithms such as PPO [70] that require a critic model to evaluate policy performance, GRPO compares groups of candidate responses directly, eliminating the need for an additional critic model. For a given question q, GRPO first generates G distinct responses 
+
+{o1, o 2, ..., o G} from the current policy πθold . Then GRPO takes actions based on these responses and denotes the obtained rewards as {r1, r 2, ..., r G}. By computing their mean and standard deviation for normalization, GRPO determines the relative quality of these responses: 
+
+Ai = ri − mean ({r1, . . . , r G})
+
+std ({r1, . . . , r G}) , (4) where Ai represents the relative quality of the i-th answer. GRPO encourages the model to favor better answers with a high reward value within the group. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 5
+
+B. Visual-RFT++ for Visual Perception 
+
+The framework of Visual-RFT++ for visual perception is shown in Fig. 3. The multimodal input data from the user consists of images and questions. The policy model πθ outputs a reasoning process and generates a group of responses based on the input. Each response is passed through a verifiable reward function to compute the reward. After group computation of the rewards for each output, the quality of each response is evaluated and used to update the policy model. To ensure the stability of the policy model training, Visual-RFT++ uses KL divergence to limit the difference between the policy model and the reference model. We will further discuss how to design the verifiable reward for visual perception tasks in Sec. III-B1, and the data preparation steps in Sec. III-B2. 
+
+1) Verifiable Reward in Visual Perception: The reward model is a key component in reinforcement learning (RL) that aligns models with preference alignment algorithms, which can be as straightforward as a verification function that checks for exact matches between predictions and ground-truth answers. The RL training process in the recent DeepSeek-R1 [3] model achieves a significant improvement in the model’s reasoning ability through the verifiable reward design. To transfer this strategy to the visual domain, we design different rule-based verifiable reward functions for various visual perception tasks. 
+
+IoU Reward in Detection Tasks. For the detection task, the model’s output consists of bounding boxes (bboxes) and corresponding confidences. The reward function for the detection task should adequately consider the Intersection-over-Union (IoU) metric, which is used to compute the mean Average Precision (mAP) in evaluation. Therefore, we design an IoU and confidence-based reward function Rd. First, for the model’s output box and confidence, we sort these boxes based on their confidence, denoted as {b1, b 2, ..., b n}. We then match each bi with the ground truth bbox, {bg
+
+> 1
+
+, b g
+
+> 2
+
+, ..., b gm}, and calculate the IoU, while setting an IoU threshold τ . Bounding boxes with an IoU below this threshold τ are considered invalid, and unmatched bboxes have an IoU of 0. After matching, we obtain the IoU and confidence for each box from the initial set, denoted as {iou 1 : c1, iou 2 : c2, ..., iou n : cn}.We then use these IoU results and confidence to construct our reward Rd. Our reward Rd consists of three parts, including the IoU reward, Confidence reward, and Format reward: 
+
+Rd = RIoU + Rconf + Rformat . (5) The IoU reward RIoU is the average IoU of all the bounding boxes in the model’s output, 
+
+RIoU = iou 1 + iou 2 + ... + iou n
+
+n . (6) The confidence reward Rconf is related to IoU. For each bounding box, if the iou i is non-zero, indicating a successful match, the confidence reward for this single box rc as the predicted confidence is computed as: 
+
+rci =
+
+ ci , if iou i̸ = 0 ,
+
+1 − ci , if iou i = 0 . (7) This means that for successfully matched boxes, the higher the confidence, the better. If the iou i is zero, indicating a failed match, the lower the confidence reward rc for this box, the TABLE I: Prompts used to construct the dataset. We have listed the detection prompt and classification prompt separately.          
+
+> Detection Prompt: Detect all objects belonging to the category ’ {category }’in the image, and provide the bounding boxes (between 0 and 1000, integer) and confidence... The output answer format should be as follows: <think >
+> ... </think >< answer >[’Position’: [x1, y1, x2, y2], ’Confidence’: number, ...] </answer >Please strictly follow the format.
+> Classification Prompt: This is an image containing a plant. Please identify the species of the plant based on the image... The output answer format should be as follows: <think >... </think > < /think >species name </answer >Please strictly follow the format.
+
+better. The overall confidence reward Rconf for the model’s output is the average of the confidence rewards of all the bounding boxes in that output, 
+
+Rconf =
+
+Pni=1 rci 
+
+n . (8) The format reward Rformat is used to encourage the model prediction to adhere to the required HTML tag format of 
+
+<think > and <answer > (will be detailed in Sec. III-B2). 
+
+CLS Reward in Classification Tasks. In classification tasks, the reward function we use consists of two parts: accuracy reward Racc and format reward Rformat . The accuracy reward is determined by comparing the model’s output class with the ground truth class, yielding a value of 1 for correct classification and 0 for incorrect classification: 
+
+Rcls = Racc + Rformat . (9) 
+
+2) Data Preparation: To train Visual-RFT++ on various visual perception tasks, we need to construct the multimodal training dataset. Similar to DeepSeek-R1, to enhance the model’s reasoning ability and apply this ability to improve visual perception, we designed a prompt format for Visual-RFT++ to guide the model to output its reasoning process before providing the final answer. The prompts used for detection and classification tasks are shown in Tab I. During the training process, we use the format reward to guide the model to output its reasoning process and the final answer in a structured format. The reasoning process is key to the model’s self-learning and improvement during reinforcement fine-tuning, while the reward determined by the answer directs the model’s optimization. 
+
+C. Visual-RFT++ for Multimodal Agentic Tasks 
+
+Fig. 4 shows the overall framework of Visual-RFT++ for multimodal agentic tasks, which is applied to two multimodal agentic scenarios: search and coding. Given multimodal inputs, the policy model πθ generates a sequence of responses that include both intermediate reasoning steps (e.g., <think> ) and action decisions, such as invoking a search tool or generating Python code to solve complex tasks. In the search setting, the model is presented with complex multimodal multi-hop VQA queries that often involve multiple sub-questions and require external factual knowledge. Such queries are difficult to resolve using only in-context knowledge or Chain-of-Thought (CoT) prompting. Therefore, the model must be capable of reasoning, decomposing the original ques-tion into manageable sub-tasks, and invoking tools to retrieve JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 6(a) Searching  
+
+> <think> <information> <answer> <think>
+
+(b) Coding   
+
+> process image
+> <feedback>
+> How many years passed between the completion of this structure and the outbreak of the First World War?
+> Searching Tool
+> Coding Tool
+> execute
+> Input Input
+> Policy Optimization Reference Model
+> Policy model KL losss step2-reward stepN-reward Verifiable Reward
+> <search>
+> step1-reward
+
+···   
+
+> <think>
+> Env <information>
+> Env <think>
+> <search>
+> <analyse> Verifiable Reward
+> <think>
+> <answer>
+> Env
+> ```python <code> ```
+> Visual-RFT++
+> I would be grateful if you could translate the text from this image, specifically the portion...
+> Environment
+
+Fig. 4: Framework of Visual-RFT++ for Multimodal Agentic Tasks. We successfully empower LVLMs with multimodal agentic capabilities, including (a) agentic search and (b) agentic coding, enabling them to solve complex multimodal tasks through reasoning, decomposition, and tool interaction. relevant information from external sources. To address these challenges, Visual-RFT++ trains the model to autonomously analyze and decompose multi-hop queries and solve them through iterative interactions with a web search engine. In the agentic coding setting, the input image may suffer from visual degradation or contain redundant content, where only specific regions are relevant to the question. These conditions impose a significant burden on the model’s visual understanding capabilities. Visual-RFT++ is designed to handle this by training the model to actively generate executable code conditioned on the visual question. The model submits the code to an external environment to preprocess the image (e.g., rotation, cropping), thereby extracting useful information and enabling accurate question answering. During training, the model typically requires multiple reasoning steps or repeated tool invocations to complete a single task. To guide this process, we design a rule-based verifiable reward that evaluates both the model’s tool usage and final answers. Rewards are assigned at each step and provide learning signals for policy optimization. We will further discuss how to design the verifiable reward for multimodal agentic tasks in Sec. III-D. 
+
+D. Verifiable Reward in Multimodal Agentic Tasks 
+
+The design of reward functions plays a critical role in determining the effectiveness of reinforcement learning. The rewards we design for agentic tasks follow a similar structure to those used in visual perception, consisting of a combination of format rewards and accuracy rewards. 
+
+Format Reward. In agentic tasks, we require the model to generate outputs that strictly follow a predefined format. This form of structured reward encourages the model to engage in step-by-step reasoning and to invoke tools as instructed, thereby improving the reliability of tool execution. In both the Coding and Searching tasks, the model’s reasoning process is enclosed within ‘ <think></think> ’ tags. When the model needs to invoke a search or code execution tool, it outputs a ‘ <search></search> ’ or ‘ <code></code> ’tag, respectively. The content within each tool tag, either the search query or the generated code, is then extracted and used to interact with the external environment: 
+
+Rformat (o) = I [o contains valid tags ] . (10) 
+
+Accuracy Rewards. The accuracy reward in Visual-RFT++ is modular. For the final answers in both the searching and coding tasks, we use the F1 score as the reward to evaluate answer quality ( RF 1). F1 rewards offer greater tolerance than exact match, providing smoother and more informative learning signals. This design better captures the fluency and variability of natural language responses, and contributes to more stable reinforcement learning. For evaluating the effectiveness of search tool usage, we compute the semantic similarity between the model-generated search query and the ground-truth query using a Sentence Transformer. Compared to F1-based rewards, semantic similar-ity rewards ( Rsem ) are more robust to surface-level variations and better reflect whether the model captures the true intent of the retrieval objective. This is especially important for open-ended or paraphrased queries, where lexical overlap may be low but semantic equivalence still holds. For the coding component, we assign a reward of 1 to all outputs that fall within executable code blocks, without directly supervising the content of the generated code. Instead of evaluating the correctness of the code itself, we allow the model to freely synthesize code based on its own reasoning. This design encourages flexibility and open-ended problem-solving. In preliminary experiments, we observed that applying strict correctness-based rewards to code generation led the model to converge on a small set of deterministic solutions, which in turn reduced its ability to generalize across diverse visual reasoning scenarios. By removing content-level supervision on code, we promote broader exploration and maintain the agentic JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 7Is this painting housed in the same location as the Mona Lisa? <think> The image shows the painting "The Starry Night," a famous work by Vincent van Gogh. ...... The first step is to identify where "The Starry Night" is currently housed. </think> <search> Museum where The Starry Night is housed </search> <think> The Starry Night is located at the Museum of Modern Art in New York. The next step is to find the current location of the Mona Lisa. </think> <search> Museum where the Mona Lisa is housed </search> <think> The Starry Night is in the Museum of Modern Art in New York, while the Mona Lisa is in the Louvre in Paris. Therefore, they are not housed in the same location. </think> <information> Since 1941, the painting has been permanently housed at the Museum of Modern Art in New York, donated by Lillie P. Bliss. </information> <information> Mona Lisa... has been on permanent display at the Louvre in Paris since 1797. </information> 
+
+Multi-Modal Inputs Action1: Environment: Action2: Environment: Action3: 
+
+> <answer> No </answer>
+
+Final Answer: 
+
+(a) Human annotation for MAT-Search (train&val) 
+
+> Which tab is selected?
+
+Multi-Modal Inputs 
+
+(b) Automatic annotation for MAT-Coding (train&val) 
+
+> <think> The orientation and poor lighting of the image together obscure key content. </think> <problem> {'rotation', 'dark'} </problem>
+
+Action1: 
+
+> <think> This requires a 90-degree counterclockwise rotation and brightness amplification. </think>
+> <code> ```python import cv2 # Load the image image = cv2.imread('path_to_input_image.jpg') # Step 1: Rotate 90 degrees clockwise rotated = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE) # Step 2: Enhance brightness brightened = cv2.convertScaleAbs(rotated, alpha=1.5, beta=50) # Save the processed image cv2.imwrite('path_to_output_image.jpg', brightened) ```</code>
+
+Action2: <think> Rotation and brightness correction have made the content legible. </think> 
+
+Action3: 
+
+> <answer> Account; "Account" tab </answer>
+
+Final Answer: 
+
+> distortion
+
+Fig. 5: Data Annotation Pipeline of our proposed Multimodal Agentic Tool Bench (MAT): (a) MAT-Search, a manually annotated and verified dataset for agentic search, and (b) MAT-Coding, an automatically generated dataset for agentic coding with a structured pipeline. All contents within the action blocks are generated by the model itself; no distortion-type labels are provided as input at inference time. 
+
+nature of decision making. 
+
+Racc (q, o ) = 
+
+
+
+RF1 (oans , a ), if o in ( < answer > ),Rsem (osearch , s ), if o in ( < search > ),
+
+1, if o in ( < code > ). (11) 
+
+a) Total Rewards: The total reward used in agentic tasks combines two components: a format reward that encourages the model to follow the required output structure, and an accuracy reward that evaluates the quality of answers and tool usage. The format reward ensures proper tagging for reasoning and tool invocation, while the accuracy reward provides feedback on the final answer and search content. The overall reward function is defined as: 
+
+Rtotal (q, o ) = Rformat (o) + Racc (q, o ). (12) 
+
+Multi-Turn Reward. For multi-turn agentic interactions, we decompose each complete trajectory into multiple trajectory-prefix samples according to the interaction turns. Specifically, a trajectory containing T model responses is converted into T
+
+training samples, each retaining the preceding model actions and tool feedback as context and ending at the corresponding response. GRPO is then applied independently to each prefix, and the reward is computed only for its final response. Therefore, rewards are neither accumulated nor discounted across turns. This decomposition enables the model to condition each action on the preceding interaction history while assigning credit only to the action generated at the current turn. IV. M ULTIMODAL AGENTIC TOOL (MAT) B ENCHMARK 
+
+Given that existing benchmarks for agentic search are predominantly language-only [71]–[75], and that there is a lack of standardized evaluation protocols for multimodal agentic coding tasks, we construct and annotate a new benchmark to fill this gap. We refer to the full dataset as the Multimodal Agentic Tool Bench (MAT), which comprises two sub-settings: MAT-Search and MAT-Coding. Specifically, we create a set of multimodal multi-hop VQA examples for evaluating agentic searching capabilities, and another set of VQA examples involving image distortions that require tool-based image processing for agentic coding. 
+
+MAT-Search. For the agentic search task, as illustrated in Fig. 5 (a), we manually construct a multimodal multi-hop VQA dataset. Specifically, we build the MAT-Search benchmark by annotating 150 high-quality multimodal multi-hop VQA examples. The questions in MAT-Search vary in difficulty and require different levels of reasoning depth—more complex queries involve more inference steps and factual knowledge, challenging the model’s ability to handle composite problems and retrieve relevant external information. Each example is carefully crafted and verified by human annotators to ensure clarity, consistency, and suitability for evaluating agentic reasoning and tool use. 
+
+MAT-Coding. For the agentic coding task, as shown in Fig. 5 (b), we design an automated data annotation pipeline. Starting from existing VQA examples, we apply various types of image distortions—including rotation, brightness adjustment, blurring, noise injection, and hybrid distortions—to increase the difficulty of visual understanding. Under this setup, directly reasoning over the processed image is challenging for the model. We annotate 200 test samples to evaluate the model’s ability to complete the image distortion tasks. While the model may attempt to answer questions directly from the processed image, it must overcome various forms of visual noise and irrelevant content. In contrast, advanced agentic systems, such as OpenAI-o3 and our Visual-RFT++, can invoke code, manipulate the image, and then utilize the processed result to more effectively complete the VQA task. 
+
+MAT Training Data. While OpenAI-o3 demonstrates strong capabilities in agentic search and coding, existing open-source multimodal models perform poorly on such tasks. Therefore, we construct a multimodal agentic training dataset JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 8
+
+for Visual-RFT++. Given the simplicity and regularity of the search task format, we carefully annotate 20 multimodal QA examples requiring multi-step reasoning, each paired with a well-defined chain of thought and final answer, which are used to train Visual-RFT++ in the agentic search setting. In contrast, the agentic coding task involves more complex workflows, including the model’s autonomous generation of code. To support this, we construct a training set of 1,200 examples to enable effective learning under this setting. 
+
+Data Splits, Difficulty, and Quality Control. We divide both benchmarks into Simple and Hard subsets. For MAT-Search, difficulty is determined primarily by the number of retrieval hops and supporting evidence pieces required to derive the answer; for MAT-Coding, Simple examples contain a single distortion, whereas Hard examples combine multiple distortions. The training and evaluation sets described above are constructed independently, with no overlap in questions or images. Two PhD-level experts independently inspected all evaluation examples. For MAT-Search, they verified question clarity, visual grounding, reasoning and retrieval chains, and final answers; for MAT-Coding, they checked source images, distortion labels, required image-processing operations, and QA consistency. Ambiguous, incorrectly labeled, or unreliable examples were revised or removed. Training and evaluation questions were written by different annotators and involve disjoint entity sets. V. E XPERIMENTS 
+
+A. Experimental Setup 
+
+We design separate evaluation protocols for visual perception tasks and multimodal agentic tasks, and conduct extensive experiments across a wide range of benchmarks. 
+
+Visual Perception. Our method is adaptable to various visual perception tasks. We employ a few-shot learning approach, providing the model with a minimal number of samples for training. For image classification and object detection tasks, we adopt a few-shot setting to evaluate the model’s fine-grained discriminative and recognition capability, applying reinforcement learning on limited data. Then, for the LISA [13] dataset focusing on reasoning grounding, which demands strong reasoning abilities, we train the model using Visual-RFT++ and assess its reasoning and perception performance. Lastly, for open-vocabulary object detection, we evaluate the model’s generalization capability by training the Qwen2-VL-2/7B [19] using Visual-RFT++ on a subdivided COCO dataset containing 48 base classes. We then test it on 17 novel classes from COCO and 13 rare classes from LVIS [16]. The model’s visual perception and reasoning abilities are assessed in an open-vocabulary detection setting. In our detection experiments, we first prompt the model to check whether the category is present in the image, the model then predicts bounding boxes for categories that exist in the images. 
+
+Multimodal Agentic Tasks For agentic search, we use the Serper API as the retrieval tool, providing access to Google’s search engine. We will release the cached top-k search results used in our experiments, together with the corresponding queries and retrieval configuration (including k), through TABLE II: Few-shot results on Fine-grained Classification datasets. We evaluated four fine-grained image classification datasets under 1-shot,4-shot and 8-shot. Baseline results are from InPK [80] under 4-shot setting.                                                                                  
+
+> Models Average Flower102 Pets37 Aircraft Cars196 CoOp [81] 62.7 70.7 89.4 24.9 65.7 MaPLe [82] 67.7 80.8 92.1 29.0 68.7 CoCoOp [83] 68.9 82.6 93.0 30.9 69.1 PromptSRC [84] 72.3 91.3 93.2 32.8 71.8 Qwen2-VL-2B 56.0 54.8 66.4 45.9 56.8
+> +SFT ( 1-shot )51.7 56.6 54.7 65.3 30.0
+> +Visual-RFT++ 80.3 +24.3 70.8 +16.0 84.1 +17.7 72.5 +26.6 93.8 +37.0
+> +SFT ( 4-shot )55.6 58.5 55.5 67.9 40.5
+> +Visual-RFT++ 81.9 +25.9 71.4 +16.6 86.1 +19.7 74.8 +28.9 95.3 +38.5
+> +SFT( 8-shot )60.3 59.6 71.4 69.2 40.9
+> +Visual-RFT++ 85.1 +29.1 77.7 +22.9 90.2 +23.8 75.9 +30.0 96.5 +39.7
+
+our project repository. This API-based approach avoids the overhead of building a full RAG system and better reflects how agents interact with external environments in real-world settings. We evaluate our method on three settings: (1) agentic coding on our proposed MAT-Coding, (2) agentic search on our proposed MAT-Search; (3) generalize to existing multihop QA benchmarks, including 2WikiMultihopQA [72], HotpotQA [73], MuSiQue [74], and Bamboogle [75]. For all settings, we use F1 and Exact Match (EM) metrics, where F1 captures token-level overlap and EM requires an exact string match with the ground-truth answer. 
+
+Training Details. For the multimodal agentic experiments, we use AdamW with a learning rate of 1 × 10 −6. Training is performed on 8 GPUs with a per-device batch size of 1 and a gradient accumulation factor of 2, yielding an effective prompt batch size of 16. We sample eight responses per prompt, resulting in 128 generated responses per optimization update. The maximum completion length is 2,048 tokens, and generation uses do_sample=True with a temperature of 1.0. Training uses BF16 and DeepSpeed ZeRO-3, with parameters and optimizer states offloaded to CPU. We set 
+
+max_pixels=401408 and the KL coefficient to β = 0 .04 .For the perception experiments, the IoU threshold is set to 
+
+τ = 0 .5. On the same 8-GPU setup, 100 training steps take approximately 76 minutes for MAT-Coding and 60 minutes for MAT-Search. 
+
+B. Experiment Results on Visual Perception 1) Few-Shot Classification: To demonstrate the extensive generalization ability of Visual-RFT++ in the visual domain, we conduct few-shot experiments on fine-grained image classi-fication. We selected four datasets: Flower102 [76], Pets37 [77], FGVC-Aircraft [78], and Car196 [79], which contain dozens to hundreds of similar categories, making the task significantly more difficult to the classification task. As shown in Tab. II, with just one shot of data, Visual-RFT++ already delivers a significant performance boost (+24.3 percentage points). In contrast, SFT shows a noticeable decline (-4.3 percentage points) with the same minimal amount of data. Under the 4-shot setting, the performance of SFT is still slightly lower than the baseline, while the reinforcement fine-tuned model with Visual-RFT++ achieves an average JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 9SFT            
+
+> <answer> globe-flower </answer>
+> <think> The image shows a yellow buttercup flower w ith a green stem and green leaves in the background. Buttercups are a type of flowering plant in the butte rcup family. They are known for their bright yellow fl owers and are commonly found in meadows and grassl ands. </think>
+> <answer> buttercup </answer>
+> SFT
+> <answer> hedgehog </answer>
+> <think> The dog in the image appears to be a Japanese Chin, also known as a Japanese Spaniel. This breed is known for it s small size, fluffy coat, and distinctive black and white colo ration. The Japanese Chin is a popular pet and is known for i ts friendly and affectionate nature. </think>
+> <answer> Japanese Chin (or Japanese Spaniel) <answer>
+> This is an image containing a pet. Please identify the species of the pet based on the image This is an image containing a flower. Please identify the species of the flower based on the image
+> Visual RFT Visual RFT
+
+Fig. 6: Qualitative results of Fine-Grained Image Classification. The thinking process significantly improves the reasoning ability of LVLMs, leading to higher image classification performance. 
+
+TABLE III: Few-Shot results on COCO dataset of 8 categories. 
+
+We conducted 1-shot, 4-shot and 8-shot experiments on 8 categories from the COCO dataset.                                                                             
+
+> Models mAP bus train fire hydrant stop sign cat dog bed toilet
+> Qwen2-VL-2B 19.6 19.0 15.8 25.8 18.4 29.9 23.2 14.6 9.8
+> +SFT ( 1-shot )19.5 18.3 17.4 23.1 18.2 28.0 23.4 17.3 10.4
+> +Visual-RFT++ 33.6 23.4 35.7 39.1 23.8 54.3 42.5 19.5 30.8
+> ∆+14.0 +4.4 +19.9 +13.3 +5.4 +24.4 +19.3 +4.9 +21.0
+> +SFT( 4-shot )25.2 25.4 23.6 26.6 21.5 35.6 30.6 18.4 19.9
+> +Visual-RFT++ 40.6 30.0 40.6 45.7 35.0 60.9 44.9 24.6 43.1
+> ∆+21.0 +11.0 +24.8 +19.9 +16.6 +31.0 +21.7 +10.0 +33.3
+> +SFT ( 8-shot )30.2 25.8 35.1 29.4 21.9 44.5 39.0 22.6 23.5
+> +Visual-RFT++ 47.4 36.2 47.9 50.4 47.7 65.2 57.0 30.4 44.0
+> ∆+27.8 +17.2 +32.1 +24.6 +29.3 +35.3 +33.8 +15.8 +34.2
+
+performance improvement of 25.9 percentage points. Under the 8-shot settings, as the amount of data increases, SFT’s performance slightly exceeds the baseline. However, SFT still lags significantly behind Visual-RFT++. In Fig.6, we present some inference cases of the model after reinforcement fine-tuning when handling fine-grained classification tasks. These results demonstrate the strong generalization ability of Visual-RFT++ and its capacity to learn from limited data. TABLE IV: Few-shot results on LVIS dataset of 6 rare categories. 
+
+We conducted 10-shot experiments on 6 rare categories from the LVIS dataset.                                                               
+
+> Models mAP buggy die kitchen-table omelet papaya stepladder Qwen2-VL-2B 4.0 2.9 1.2 13.4 4.7 1.5 0.0
+> +SFT 10.0 7.0 7.6 34.1 4.7 6.3 0.0
+> +Visual-RFT++ 19.4 9.1 19.6 42.2 20.4 14.5 10.9
+> ∆+15.4 +6.2 +18.4 +29.2 +15.7 +13.0 +10.9
+> Qwen2-VL-7B 15.4 19.7 21.9 14.5 18.1 18.5 0.0
+> +SFT 27.6 26.9 21.9 49.7 29.2 25.2 12.7
+> +Visual-RFT++ 33.8 26.2 27.8 70.6 23.5 21.2 29.3
+> ∆+18.4 +6.5 +5.9 +56.1 +5.4 +2.7 +29.3
+
+2) Few-Shot Object Detection: Few-shot learning challenges traditional visual-language models and large-scale vision-language models (LVLMs). Reinforcement fine-tuning provides a new solution to this problem by enabling the model to quickly learn and understand with a small amount of data. We selected eight categories from the COCO dataset, with 1, 4 and 8 images per category, to construct training sets with limited data. For the LVIS dataset, we select 6 rare categories. Since the training images for these rare categories are very sparse, with each category having between 1 and 10 images, we approximated this as a 10-shot setting. We then train the Qwen2-VL-2/7B model for 200 steps using both reinforcement fine-tuning and SFT, to evaluate the model’s learning ability with limited data. As shown in Tab. III and Tab. IV, although both SFT and reinforcement fine-tuning can improve the model’s recogni-tion accuracy under the few-shot setting, the model after reinforcement fine-tuning consistently outperforms the SFT model by a large margin, maintaining a significant lead. On the COCO [15] categories, as the training data increases, the SFT model reaches an average mAP of approximately 30 ,while the reinforcement fine-tuned model approaches 47 . In the LVIS [16] few-shot experimental results shown in Tab. IV, for the six more challenging rare categories in LVIS, reinforcement fine-tuning still outperforms SFT. The results in Tab. III and Tab. IV clearly demonstrate the exceptional performance of reinforcement fine-tuning in the few-shot setting, where the model achieves a significant improvement in visual perception capabilities through reinforcement learning with only a small amount of data. 
+
+3) Reasoning Grounding: Another crucial aspect of vision-language intelligence is grounding the exact object according to user needs. Previous specialized detection systems lack reasoning abilities and fail to fully understand the user’s intentions. Pioneered by LISA [13], previous works enable large language models (LLMs) to output control tokens for other models (such as SAM [85]) or directly predict bounding box coordinates [19], [86] through supervised fine-tuning. In our work, we explore the use of Visual-RFT++ in this task and find that reinforcement learning (RL) leads to significant improvements over supervised fine-tuning. We fine-tune the Qwen2-VL-2B/7B models [19] using Visual-RFT++ and supervised fine-tuning (SFT) on the LISA training set, which consists of 239 images with reasoning grounding objects. We follow the same test setting with LISA and compare the results of SFT and our method, both with 500 fine-tuning steps. As shown in Tab. V, Visual-RFT++ JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 10 SFT Visual RFT 
+
+Birds often need a stable surface to land on and rest. What in the picture could provide a suitable landing spot for a bird?   
+
+> <think> The bird is perched on a concrete ledge, which provides a stable surface for the bird to land on and rest. The ledge is also visible in the image. </think> SFT
+
+Output the bounding box in the image corresponding to the instruction: What object in the room is mainly used as a sitting tool for writing or using an electronic device?            
+
+> <think> The chair in the room is mainly used as a sitting tool f o r w r i t i n g o r u s i n g a n electronic device. </think>
+> The athlete in the picture s e e ms to b e v e r y e x c i t e d about the competition results. If she needs to maintain clear vision underwater, what item should she wear over her eyes?
+> Visual RFT
+> SFT
+> Visual RFT
+> <think>
+> T h e i m a g e s h o w s aa t h l e t e i n ap o o l e x p r e s s i n g a s t r o n g emotion of surprise or excitement. The athlete is wearing goggles over her eyes. To maintain clear vision underwater, she should wear goggles over her eyes.
+> </think>
+> <answer>(350,187),(574, 612)</answer>
+
+Fig. 7: Qualitative results of reasoning grounding on LISA [13]. Thinking process significantly improves reasoning grounding ability with Visual-RFT++. 
+
+TABLE V: Reasoning Grounding Results on LISA [13] .Visual-RFT++ surpasses SFT in reasoning grounding with 239 training images. 
+
+Model mIoU test mIoU val gIoU test 
+
+OV-Seg [87] 28.4 30.5 26.1 X-Decoder [88] 28.5 29.1 24.3 GroundedSAM [14] 26.2 28.6 21.3 Qwen2-VL-2B 26.9 30.1 25.3 
+
++ SFT 28.3 29.7 25.3 
+
++ Visual-RFT++ 37.6 +10.7 34.4 +4.3 34.4 +9.1 
+
+Qwen2-VL-7B 40.4 45.2 38.0 
+
++ SFT 39.1 43.9 37.2 
+
++ Visual-RFT++ 43.9 +3.5 47.1 +1.9 43.7 +5.6 
+
+TABLE VI: Open Vocabulary Object Detection Results on COCO dataset. We trained on 48 base categories for 10-shot and tested on 17 novel categories. 
+
+Models nAP bAP mAP 
+
+Qwen2-VL-2B 9.6 5.6 6.7 
+
++ SFT 16.7 12.4 13.5 
+
++ Visual-RFT++ 27.9 +18.3 20.3 +14.7 22.2 +15.5 
+
+Qwen2-VL-7B 25.0 17.6 19.5 
+
++ SFT 26.9 18.4 20.6 
+
++ Visual-RFT++ 32.3 +7.3 23.6 +6.0 25.9 +6.4 
+
+significantly improves the final results in terms of bounding box IoU compared to SFT. Additionally, we prompt SAM [85] with the Qwen2-VL predicted bounding box to generate the segmentation mask (evaluated using gIoU). Visual-RFT++ sig-nificantly enhances grounding ability and outperforms previous specialized detection systems. Qualitative results are visualized in Fig. 7, where the thinking process significantly improves the ability to reason and grounding accuracy. Through Visual-RFT++, Qwen2-VL learns to think critically and carefully examine the image to produce accurate grounding results. 
+
+4) Open Vocabulary Object Detection: To further demon-strate the powerful generalization ability of reinforcement fine-tuning, we conduct open vocabulary object detection experiments. We constructed a 10-shot training set by selecting 
+
+Fig. 8: Open Vocabulary Results Compared with Specialized Classification Models. We display the performance of different models in the figure, using nAP50 as the evaluation metric. 
+
+10 images per category from the 48 base categories of the COCO dataset. We perform Visual-RFT++ and SFT on the Qwen2-VL-2/7B model [19] using this data, and test the model on 17 new categories it has never seen before. As shown in Tab. VI, after reinforcement fine-tuning, the Qwen2-VL-2/7B model achieves an average nAP increase of 
+
+18 .3 and 7.3 on 17 new categories from the COCO dataset. The Visual-RFT++ transfers its detection capabilities from the COCO base categories to the new COCO categories. In Fig. 8, we compare Visual-RFT++’s performance with several other detection models [94]–[98] using nAP50 as the evaluation metric. Both Qwen2-VL-2B and Qwen2-VL-7B models show significant improvements, with the 7B model outperforming the specialized model DE-ViT [94] under 10-shot setting. This demonstrates that Visual-RFT++ has a significant impact on improving the performance and generalization ability in visual recognition for LVLMs. 
+
+C. Experiment Results on Multimodal Agentic Tasks 1) Results on MAT-Coding: We evaluate our method on the MAT-Coding benchmark. Compared to the base Qwen2.5-VL-3B/7B models, Visual-RFT++ enables models to autonomously JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 11 
+
+TABLE VII: Results of MAT. We conducted experiments on MAT, including MAT-Coding and MAT-Search, and the table presents the evaluation results of several open-source and proprietary models on our benchmark. We use F1 score and Exact Match (EM) to evaluate model performance.                                                                                                                                                                                           
+
+> Models Reasoning with Tools MAT-Coding MAT-Search Simple Hard Avg Simple Hard Avg
+> F1 EM F1 EM F1 EM F1 EM F1 EM F1 EM
+> GPT-4o [89] ✗47.12 38.57 27.57 15.38 34.41 23.5 68.55 61.33 53.61 42.67 61.08 52.00 OpenAI-o3 [2] ✓70.38 65.38 75.00 70.59 72.99 68.33 79.72 70.67 63.74 52.00 71.73 61.33 LLaVa-v1.5-7B [90] ✗19.50 12.86 9.30 5.38 12.87 8.00 56.55 52.00 30.32 25.33 43.44 38.67 LLaVa-Next-7B [91] ✗30.78 17.14 17.11 10.00 21.89 12.5 63.27 56.00 38.75 29.33 51.01 42.67 LLaVa-OneVision-7B [20] ✗39.86 28.57 16.05 11.54 24.38 17.5 61.78 54.67 31.66 26.67 46.72 40.67 Xcomposer2.5 [28] ✗36.06 22.86 19.90 10.77 25.56 15.0 60.16 54.67 31.93 28.00 46.04 41.33 InternVL2.5-8B [92] ✗39.48 28.57 26.62 13.85 31.12 19.00 61.72 53.33 41.69 33.33 51.70 43.33 Qwen2.5-VL-3B [93] ✗46.29 35.71 17.98 13.85 27.89 21.50 57.54 50.67 33.11 26.67 45.32 38.67 + Visual-RFT++ ✓49.78 40.00 28.42 13.08 35.90 22.50 56.41 50.67 45.55 36.00 50.98 43.33
+> ∆–+3.49 +4.29 +10.44 -0.78 +8.01 +1.0 -1.13 +0.0 +12.44 +9.33 +5.66 +4.66
+> Qwen2.5-VL-7B [93] ✗55.23 40.00 19.67 11.54 32.12 21.50 67.40 61.33 39.59 32.00 53.49 46.67 + Visual-RFT++ ✓60.10 51.43 45.60 25.38 50.68 34.50 71.78 66.67 55.77 44.00 63.77 55.33
+> ∆–+4.87 +11.43 +25.93 +13.84 +18.56 +13.00 +4.38 +5.37 +16.18 +12.00 +10.28 +8.66
+
+analyze distorted or misaligned images—including both de-graded and crop-requiring inputs—generate preprocessing code, and complete the QA pipeline, showcasing their agentic capabilities in reasoning, task decomposition, and tool use. As shown in Tab.VII, the Qwen2.5-VL-7B model achieves substantial improvements with Visual-RFT++, gaining +18.56 F1 and +13.00 EM on average. The gains are especially notable on the Hard subset, where base models struggle due to limited reasoning and no tool-use ability. With Visual-RFT++, the model invokes code-based tools (e.g., repair, crop), resulting in strong performance gains. Example cases are shown in Fig.9. The 3B model also benefits from Visual-RFT++, with consistent F1 improvements. EM remains stable due to strict formatting requirements, but the F1 gains reflect improved task completion ability enabled by agentic reasoning with tool. 
+
+Statistical Reliability. Given the compact MAT test sets, we report 95% bootstrap confidence intervals and paired significance tests. On MAT-Search, Visual-RFT++ achieves 63.77 F1 (95% CI [61 .9, 65 .4] ), significantly outperforming GPT-4o (61.08 F1, CI [59 .3, 62 .8] ; paired bootstrap p < 0.05 ), while OpenAI-o3 remains significantly higher (71.73 F1, 
+
+p < 0.001 ). We also observe that OpenAI-o3, with native tool-use ability, achieves the highest performance, surpassing GPT-4o. Its ability to reason and manipulate images via code highlights the strength of agentic multimodal models. In summary, Visual-RFT++ significantly improves model performance on MAT-Coding, especially for harder tasks. By introducing agentic capabilities, it enables LVLMs to reason, invoke tools, and solve complex visual problems effectively. 
+
+2) Results on MAT-Search: We compare our proposed method against several open-source and proprietary models on MAT-Search. As shown in Tab. VII, Visual-RFT++ improves the average F1 score by 5.66 percentage points and the EM score by 4.66 percentage points on Qwen2.5-VL-3B. On Qwen2.5-VL-7B, the improvements are even more significant, with F1 and EM gains of 10.28 percentage points and 8.66 percentage points, respectively. These gains highlight the effectiveness of reinforcement fine-tuning with verifiable rewards in equipping the model with structured multimodal reasoning and tool-use capabilities. Visual-RFT++ enables step-by-step planning and dynamic evidence acquisition, which are crucial for solving complex multi-hop queries. Additionally, we include comparisons with traditional approaches such as RAG and CoT in our ablation study (V-D) to further validate the benefits of our method. On MAT-Search, Visual-RFT++ with Qwen2.5-VL-7B ex-ceeds direct-inference GPT-4o without external tools. In the controlled comparison in Tab. XII, GPT-4o with the same search tool achieves higher scores, while Visual-RFT++ improves over the same-backbone ReAct baseline by 8.04 F1 and 7.33 EM percentage points. Similar to MAT-Coding, we also note that OpenAI’s o3, with its inherently strong reasoning ability, still demonstrates superior performance on MAT-Search and outperforms all open-source models. This underscores the need for further research into the agentic capabilities of open-source multimodal models. 
+
+3) Results on Existing Multi-Hop QA Benchmarks: To further evaluate the generalization ability of Visual-RFT++, we conducted comprehensive experiments on several existing text-only multi-hop QA benchmarks, including 2WikiMultihopQA [72], HotpotQA [73], MuSiQue [74], and Bamboogle [75]. Here we apply Visual-RFT++ to Qwen2.5-VL-3B/-7B mod-els using 20 manually annotated multimodal multi-hop VQA training examples (see Sec. IV). Since our training is performed on VQA-style data involving both visual and textual modalities, there exists a clear modality and input-type gap between our training set and these language-only QA benchmarks [72]– [75]. As such, the out-of-domain evaluations provide a strong testbed for validating the cross-modal generalization capability of Visual-RFT++. Tab. VIII presents a comparison with various baselines built on Qwen2.5-3B/7B, covering traditional approaches such as Chain-of-Thought (CoT) and Retrieval-Augmented Generation (RAG), as well as reinforcement learning-based methods like Search-R1 and ZeroSearch. As shown in Tab. VIII, Visual-JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 12 <think> Cropping is required first to focus on the r elevant region specified by the question. </think> <problem> {'crop'} </problem> <think> Let's start by writing code that uses the bounding box to extract the needed image segment. </think> <query> Recognize the text within the [798, 481, 948, 612] of the image. The coordinates have been normalized ranging from 0 to 1000 by the image width and height. </query> <code> # Load the image img = cv2.imread('input_image.jpg') img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB) # Support bbox is [x_min, y_min, x_max, y_max] bbox = [x_min, y_min, x_max, y_max] # Get image size height, width = img.shape[:2] # Convert the bbox to pixel coordinates x_min = int(bbox[0] / 1000 * width) y_min = int(bbox[1] / 1000 * height) x_max = int(bbox[2] / 1000 * width) y_max = int(bbox[3] / 1000 * height) # Crop image cropped = img[y_min:y_max, x_min:x_max] # Save image cropped_bgr = cv2.cvtColor(cropped, cv2.COLOR_RGB2BGR) cv2.imwrite('output_image.jpg', cropped_bgr) </code> <think> I've cropped the image to the bounding box, so the next step is to interpret it and answer accordingly. </think> 
+
+> tool calling feedback  inputs
+
+<answer>FOOD DIRECTORY</answer> 
+
+Reasoning With Tools 
+
+> Output the final answer
+
+Reasoning :
+
+> Think first and analyse problems
+
+Tool-calling :
+
+> Write python code and execute
+
+Reasoning :  
+
+> Receive feedback and reflect
+> <information >
+> •‘The LEGO Group history - About Us’, ‘ The name ‘LEGO’ is an abbreviation of the two Danish words “leg godt”, meaning “play well”. It‘s our name and it’s our ideal. The LEGO Group was founded in ... ’
+> •'r/etymology on Reddit: TIL that the name of the company LEGO ...', 'The name of the company LEGO comes from the Danish phrase "leg godt", which means "play well ...'’
+> <information>
+
+Question: What is the original meaning of the brand name in the language of the country the brand is located?             
+
+> <information >
+> •'Locations - About Us - LEGO.com', 'The LEGO Group Headquarters in Billund, Denmark ... We want to let you know that we are placing cookies on your device that remember your choices on LEGO.com, ...’
+> •'The Lego Group - Wikipedia', 'Lego A/S, also known as The Lego Group, is a Danish construction toy production company based in Billund, Denmark ...’
+> <information>
+> <think> The image provided is the logo for LEGO, which is a well-known toy company. To determine the original meaning of the brand name in the language of the country where it is located, I need to identify the country associated with LEGO and then translate the word "LEGO" into that language.
+> </think> <search> Country where LEGO is headquartered </search> < t h i n k > N o w t h a t I ' v e i d e n t i f i e d t h a t L E G O i s headquartered in Denmark, I need to find out the original meaning of the brand name "LEGO" in Danish. </think> <search> Original meaning of "LEGO" in Danish </search> <think> With the information gathered, I can now conclude that the original meaning of the brand name "LEGO" in Danish is "play well." This aligns with the abbreviation of the two Danish words "leg godt," which literally translates to "play well." </think> <answer> Play well </answer>
+
+Reasoning With Tools 
+
+> Output the final answer
+
+Reasoning :
+
+> think first and decompose the task, plan the first search
+
+Tool-calling :
+
+> Web search and return iformation
+
+Evaluation :
+
+> integrating information
+
+Reasoning :
+
+> plan the next step and search query
+
+Tool-calling :
+
+> Web search and return iformation
+> inputs
+
+Fig. 9: Visualization Inference Cases of Visual-RFT++. Demonstrating Visual-RFT++’s multimodal agentic capabilities: processing an image and answering a question via code generation and execution ( left ), and solving multi-hop VQA through query decomposition and search tool invocation ( right ). 
+
+RFT++ yields substantial performance gains on these out-of-domain multi-hop QA benchmarks. The Qwen2.5-VL-3B model improves by 21.06 F1 and 17.25 EM percentage points over the baseline. The 7B model further surpasses all baselines, with average EM gains of 25.91 percentage points over direct inference. These improvements stem from Visual-RFT++ ’s ability to perform task decomposition and dynamic tool use, enabling step-by-step reasoning with flexible interaction with external information. Despite using only 20 training examples, Visual-RFT++ achieves superior data efficiency and strong generalization across unseen domains. Moreover, Visual-RFT++ is built on LVLMs and outperforms several LMM-based methods, showcasing strong modality transfer and task generalization capabilities. 
+
+4) Analysis: Beyond final-answer performance, we further examine whether Visual-RFT++ learns effective tool-use be-haviors and their practical overhead in both agentic settings. Specifically, we analyze query formulation, search patterns, and failure modes on MAT-Search, as well as code executability, operation consistency, and the effects of image manipulation on MAT-Coding. 
+
+Search Behavior Diagnostics. To further examine whether these gains reflect improved tool use, we analyze the model’s search behavior. During training, the semantic similarity between generated and annotated target queries reaches 0.95 and 0.92 for the 7B and 3B models, respectively. Among 100 manually inspected test trajectories, 86% of the generated queries are relevant to the current reasoning sub-goal, while only 13.2% of the search actions are invalid or redundant. The number of tool calls also adapts to task difficulty: Simple questions typically require 2–3 searches, whereas Hard questions require 3–5. Remaining failures mainly arise from incorrect initial visual recognition, incomplete evidence collection, or repeated query reformulation in long reasoning chains. 
+
+Coding Behavior Diagnostics. Beyond final-answer ac-curacy, we examine whether the generated programs are executable and perform the intended image operations. Overall, 98.5% and 96.5% of the expected coding steps from the 7B and 3B models produce executable code, respectively, indicating that basic executability is rarely the primary bottleneck. For the 7B model, 86.34% of the generated programs match the intended operation family, with higher rates for dark (94.6%) and overexposure (90.9%) than for rotation180 (68.2%), where incorrect rotation angles or directions remain common. As illustrated in Fig. 9, appropriate cropping or restoration can expose question-relevant content, whereas incorrect operations may remove useful evidence and hurt the final answer. Thus, executable code alone is insufficient; accurate visual diagnosis and operation selection are also essential for effective tool use. 
+
+Efficiency Analysis. Tool use introduces additional inference overhead compared with direct prediction. Across MAT, tool-JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 13 
+
+TABLE VIII: Results on Existing Text-Only Multihop QA Benchmarks. Our Visual-RFT++ outperforms strong baselines such as Search-o1 [99], Search-R1 [100], and ZeroSearch [101].                                                                                                                                                                                           
+
+> Models Reasoning with Tools 2Wiki [72] HotpotQA [73] MuSiQue [74] Bamboogle [75] Avg
+> F1 EM F1 EM F1 EM F1 EM F1 EM
+> Qwen-2.5-7B-Instruct [93] + Direct Inference ✗–25.00 –18.30 –3.10 –12.00 –14.60 + CoT ✗–11.00 –9.20 –2.20 –23.20 –11.40 + IRCoT ✗–14.90 –13.30 –7.20 –22.40 –14.45 + RAG ✗–23.50 –29.90 –5.80 –20.80 –20.00 + Search-o1 [99] ✓–17.60 –18.70 –5.80 –29.60 –17.93 + Search-R1 [100] ✓–41.40 –37.00 –14.60 –36.80 –32.45 + ZeroSearch [101] ✓–43.12 –29.21 –19.72 –35.20 –31.81
+> Qwen2.5-VL-3B-Instruct [93] + Direct Inference ✗31.60 26.40 22.90 15.84 9.64 2.36 10.82 5.60 18.74 12.55 + RAG ✗35.14 26.92 35.08 23.67 15.08 7.61 28.37 19.20 28.42 19.35 + Visual-RFT++ ✓49.77 39.13 41.33 30.10 19.10 11.58 49.01 38.40 39.80 29.80
+> ∆–+18.17 +12.73 +18.43 +14.26 +9.46 +9.22 +38.19 +32.80 +21.06 +17.25
+> Qwen2.5-VL-7B-Instruct [93] + Direct Inference ✗27.90 22.15 25.35 17.35 9.45 2.61 14.07 5.60 19.19 11.93 + RAG ✗31.58 21.74 36.33 24.09 15.36 7.61 27.60 19.20 27.72 18.16 + Visual-RFT++ ✓63.09 51.99 48.00 36.48 22.71 14.07 60.15 48.80 48.49 37.84
+> ∆–+35.19 +29.84 +22.65 +19.13 +13.26 +11.46 +46.08 +43.20 +29.30 +25.91
+
+Fig. 10: Ablation Study. We evaluated Visual-RFT++ and SFT across different steps and classification datasets. Visual-RFT++ demonstrated superior performance and generalization capability compared to SFT. 
+
+enabled inference requires 2.79 × as many tokens and incurs 
+
+1.53 × the average inference latency. Together with the tool-call frequencies reported above, these statistics characterize the practical trade-off between performance improvements and inference cost. 
+
+D. Ablation Study 
+
+Generalization Ability. To further compare the performance and generalization capability of SFT and Visual-RFT++, we conduct the following ablation experiment. We use a 2-shot setting on the Flower102 dataset, training models separately with Visual-RFT++ and SFT. The models are then tested on both the Flowers and Pets datasets. The results under different step settings are shown in Fig. 10. In the left chart, the accuracy of both Visual-RFT++ and SFT on the Flowers increases with the number of training steps, gradually reaching saturation. Notably, Visual-RFT++ demonstrates a significant advantage over SFT when working with a small amount of data. In contrast, in the right chart, the accuracy of SFT on the Pets dataset drops sharply, falling well below the baseline. This decline is due to the model being trained on the Flower dataset, highlighting SFT’s limited TABLE IX: Ablation Study on the reward design of multimodal agent.                                      
+
+> Task Reward Simple Hard Avg
+> F1 EM F1 EM F1 EM
+> MAT EM 53.50 45.71 43.00 23.85 46.68 31.50 Coding F1 60.10 51.43 45.60 25.38 50.68 34.50 MAT EM 59.23 53.33 53.37 41.33 56.30 47.33 Search F1 71.78 66.67 55.77 44.00 63.77 55.33
+
+TABLE X: Ablation Study with Direct inference/CoT/RAG baselines on MAT-Search.                                                                
+
+> Task Method Simple Hard Avg
+> F1 EM F1 EM F1 EM
+> Qwen2.5 Direct 57.54 50.67 33.11 26.67 45.32 38.67 -VL CoT 37.84 30.67 31.03 24.00 34.43 27.33 -3B RAG 49.42 45.33 39.07 32.00 44.25 38.67 Visual-RFT++ 56.41 50.67 45.55 36.00 50.98 43.33 Qwen2.5 Direct 67.40 61.33 39.59 32.00 53.49 46.67 -VL CoT 57.57 49.33 46.65 32.00 52.11 40.67 -7B RAG 59.14 56.00 42.44 36.00 50.79 46.00 Visual-RFT++ 71.78 66.67 55.77 44.00 63.77 55.33
+
+generalization ability. Meanwhile, Visual-RFT++ maintains its ability to distinguish fine-grained categories on the Pets dataset, showcasing its strong generalization performance even when the training and testing data domains differ. 
+
+Reward Design. To assess our reward design ( III-D), we replace the F1 score-based reward with an EM-based alternative for both agentic search and coding. As shown in Tab. IX, while EM-based training offers a slight improvement over the baseline, it consistently underperforms F1-based training. This underscores the benefits of using the F1 score as a training signal: it provides smoother, more informative gradients by accounting for partial correctness, is more tolerant of linguistic variation, and facilitates stable training. Consequently, the F1 score-based reward is our default reward design. JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 14 
+
+TABLE XI: Ablation study of different coding reward designs on MAT-Coding.             
+
+> Method MAT-Coding F1 EM
+> Baseline (Qwen2.5-VL-7B) 32.12 21.50 + Visual-RFT++ (Ours) 50.68 34.50 + w/o Code Reward 35.64 23.50 + Execution-success Reward 51.31 34.00 + Strict Code Reward 28.37 19.50
+
+Comparison with RAG and CoT baselines. Visual-RFT++ achieves a substantial performance improvement over the baseline on MAT-Search. To further evaluate model capabilities, we compare it with several traditional approaches, including Retrieval-Augmented Generation (RAG) and Chain-of-Thought (CoT). As shown in Tab. X, CoT facilitates reasoning in multi-hop question answering by encouraging step-by-step inference. However, it lacks access to external knowledge, limiting its ability to answer fact-based questions. In contrast, RAG can retrieve relevant external information but struggles with rea-soning and problem decomposition, making it less effective on MAT-Search. Visual-RFT++ overcomes the limitations of both approaches by integrating strong reasoning, task decomposition, and tool-use abilities, significantly outperforming both RAG and CoT. Additionally, we observe that methods based on CoT prompt-ing or standard RAG not only fail to improve performance, but also in some cases, lead to degradation. This suggests that for base models without task-specific adaptation, directly injecting external information (e.g., content retrieved via RAG) can be ineffective or even counterproductive due to information interference. In contrast, models trained with Visual-RFT++ learn not only how to invoke tools, but also how to selectively utilize relevant external information to support complex reasoning. 
+
+Ablation on the Coding Reward. We further compare different intermediate reward designs for MAT-Coding in Tab. XI. Removing the code reward decreases F1 and EM by 15.04 and 11.00 points, respectively, demonstrating the importance of intermediate supervision for learning tool-based actions. The stricter execution-success reward achieves comparable performance to our code-block reward ( +0 .63 F1 and −0.50 EM). The small difference is consistent with the coding behavior diagnostics above (Sec. V-C4), which show that most generated code actions are already executable. By contrast, encouraging similarity to a reference implementation (Strict Code Reward) substantially degrades performance, indicating that such constraints may penalize functionally valid alternative implementations. 
+
+Controlled Comparison with Tool-Enabled Baselines. 
+
+To distinguish the effect of reinforcement fine-tuning from that of tool access alone, we compare Visual-RFT++ with controlled tool-enabled baselines under the same external environments. On MAT-Search, Visual-RFT++ outperforms the strongest Qwen2.5-VL-7B tool-enabled baseline, ReAct, by 8.04 F1 and 7.33 EM points. On MAT-Coding, it exceeds Python/code-execution prompting by 12.86 F1 and 9.00 EM points. Equipping GPT-4o with the same tools also produces TABLE XII: Controlled comparison with tool-enabled base-lines on MAT. Tool-enabled methods use the same external environment within each task.                              
+
+> Backbone Method F1 EM MAT-Search
+> Qwen2.5-VL-7B Direct 53.49 46.67 + ReAct 55.73 48.00 + RAG 50.79 46.00 + IRCoT 55.27 47.33 + Visual-RFT++ 63.77 55.33
+> GPT-4o Direct 61.08 52.00 + Search tool 72.07 66.00 MAT-Coding
+> Qwen2.5-VL-7B Direct 32.12 21.50 + Python execution 37.82 25.50 + Visual-RFT++ 50.68 34.50
+> GPT-4o Direct 34.41 23.50 + Python execution 58.99 37.00
+
+TABLE XIII: MAT-Search results with different backbones. The best result within each backbone is highlighted in bold.              
+
+> Backbone Method F1 EM
+> Qwen2.5-VL-7B Baseline 53.49 46.67 + Visual-RFT++ 63.77 55.33
+> Qwen3.5-9B Baseline 62.33 56.00 + Visual-RFT++ 70.42 62.67
+
+substantial improvements, reflecting its stronger inherent tool-using capabilities. The controlled same-backbone comparisons show that tool access alone does not account for the gains of Visual-RFT++; reinforcement fine-tuning further improves how the model invokes tools and uses their outputs. 
+
+Transferability Across Backbones. To examine whether the improvements are specific to Qwen2.5-VL, we further apply Visual-RFT++ to the stronger Qwen3.5-9B backbone [102]. As shown in Tab. XIII, Visual-RFT++ improves its MAT-Search performance from 62.33/56.00 to 70.42/62.67 F1/EM, corresponding to gains of 8.09 F1 and 6.67 EM points. Together with the improvements of 10.28 F1 and 8.66 EM on Qwen2.5-VL-7B [93], these results support the transferability of Visual-RFT++ across the two evaluated backbones. 
+
+Baseline Comparison Fairness. To control for the backbone difference in Tab. VIII, we retrain Search-R1 [100] on the same Qwen2.5-VL-7B-Instruct backbone [93] using its original text-based training data. As shown in Tab. XIV, Visual-RFT++ achieves 48.49 F1 and 37.84 EM, outperforming the same-backbone Search-R1 by 6.13 F1 and 7.27 EM points. Notably, before reinforcement fine-tuning, Qwen2.5-VL-7B has a lower average EM than the text-only Qwen2.5-7B backbone used in Tab. VIII (11.93 vs. 14.60). These results reduce the potential confounding effect of backbone differences in the original comparison. 
+
+Sensitivity to GRPO Hyperparameters. We first examine the GRPO group size G and KL coefficient β on both agentic tasks. As shown in Tab. XV, increasing G from 4 to 8 improves F1 by 2.23 points on MAT-Search and 2.73 points on MAT-Coding, whereas increasing it further to 16 provides relatively JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 15 
+
+TABLE XIV: Same-backbone comparison averaged over four text-only multi-hop QA benchmarks. 
+
+Method F1 EM 
+
+Baseline (Qwen2.5-VL-7B) 19.19 11.93 + Search-R1 42.36 30.57 + Visual-RFT++ 48.49 37.84 
+
+TABLE XV: Sensitivity analysis of the GRPO group size G
+
+and KL coefficient β on MAT-Search and MAT-Coding. 
+
+Method MAT-Search MAT-Coding F1 EM F1 EM 
+
+Baseline (Qwen2.5-VL-7B) 53.49 46.67 32.12 21.50 Visual-RFT++ ( G = 8 , β = 0 .04 ) 63.77 55.33 50.68 34.50 Visual-RFT++ ( G = 4 , β = 0 .04 ) 61.54 53.33 47.95 32.50 Visual-RFT++ ( G = 16 , β = 0 .04 ) 64.03 56.67 51.74 35.00 Visual-RFT++ ( G = 8 , β = 0 .02 ) 63.58 55.33 50.67 34.00 Visual-RFT++ ( G = 8 , β = 0 .08 ) 63.12 54.67 51.06 35.50 
+
+modest additional gains. We therefore use G = 8 to balance performance and rollout cost. The results are also stable across 
+
+β ∈ { 0.02 , 0.04 , 0.08 }, with F1 varying by at most 0.65 points on MAT-Search and 0.39 points on MAT-Coding. We use 
+
+β = 0 .04 by default. 
+
+Sensitivity to the IoU Threshold. We further vary the IoU threshold τ under the 8-shot few-shot detection setting of Tab. III. As shown in Tab. XVI, τ = 0 .5 achieves the highest mAP. A lower threshold admits more low-quality box matches, whereas a higher threshold produces fewer positive matches and sparser supervision. We therefore use τ = 0 .5 in the main experiments. 
+
+Sensitivity to Reward Weights. We also vary the relative weights of the format, IoU, and confidence rewards by halving each component individually from the default 1:1:1 setting. The default setting achieves 47.40 mAP, while reducing the format-, IoU-, or confidence-reward weight yields 45.73, 44.04, and 44.96 mAP, respectively. These results show that all three components contribute to performance, with the IoU and confidence rewards having a relatively larger influence on localization accuracy. 
+
+Multi-Seed Evaluation. To evaluate the stability of the reward-design ablation, we repeat the EM- and F1-based reward experiments using three random seeds. As shown in Tab. XVII, the multi-seed mean results remain close to the single-seed results in Tab. IX, with standard deviations ranging from 0.7 to 1.2. VI. C ONCLUSION 
+
+We introduce Visual Reinforcement Fine-Tuning++ (Visual-RFT++), a unified RFT framework that extends the GRPO-based reinforcement learning strategy to both visual perception and multimodal agentic reasoning. Through the combination of GRPO optimization and modular rule-based rewards, Visual-RFT++ enables LVLMs to acquire visual understanding, grounded reasoning, and tool-use capabilities with minimal supervision. Experimentally, Visual-RFT++ delivers strong TABLE XVI: Sensitivity analysis of the IoU threshold τ under the few-shot detection setting of Tab. III.                                         
+
+> Method mAP bus train fire hydrant stop sign cat dog bed toilet
+> SFT baseline 30.2 25.8 35.1 29.4 21.9 44.5 39.0 22.6 23.5 Ours ( τ= 0 .5)47.4 36.2 47.9 50.4 47.7 65.2 57.0 30.4 44.0
+> Ours ( τ= 0 .3)45.1 33.6 45.2 48.7 44.3 62.8 54.9 28.4 42.4 Ours ( τ= 0 .7)43.6 31.2 43.5 47.6 42.1 62.8 53.4 27.1 40.6
+
+TABLE XVII: Multi-seed evaluation of the EM- and F1-based reward settings. Results are reported as mean ± standard deviation over three random seeds. 
+
+Task Reward Evaluation Metric F1 EM 
+
+MAT-Coding EM 46 .34 ± 0.8 32 .00 ± 1.0
+
+F1 50 .86 ± 0.9 35 .00 ± 1.0
+
+MAT-Search EM 56 .72 ± 0.8 48 .00 ± 0.7
+
+F1 63 .94 ± 0.7 55 .33 ± 1.2
+
+gains across fine-grained classification, few-shot detection, reasoning grounding, and open-vocabulary detection, consis-tently outperforming supervised fine-tuning. It also equips models with effective multimodal agentic behaviors, leading to advanced performance on our Multimodal Agentic Tool Bench (MAT) and strong generalization to multi-hop QA benchmarks. REFERENCES [1] A. Jaech, A. Kalai, A. Lerer, A. Richardson, A. El-Kishky, A. Low, A. Helyar, A. Madry, A. Beutel, A. Carney et al. , “Openai o1 system card,” arXiv:2412.16720 , 2024. 1, 3 [2] OpenAI, “Openai o3 and o4-mini system card,” https://openai.com/ index/o3-o4-mini-system-card/, 2025, accessed: 2025-04-16. 1, 11 [3] D. Guo, D. Yang, H. Zhang, J. Song, R. Zhang, R. Xu, Q. Zhu, S. Ma, P. Wang, X. Bi et al. , “Deepseek-r1: Incentivizing reasoning capability in llms via reinforcement learning,” arXiv preprint arXiv:2501.12948 ,2025. 1, 3, 4, 5 [4] N. Lambert, J. Morrison, V. Pyatkin, S. Huang, H. Ivison, F. Brahman, L. J. V. Miranda, A. Liu, N. Dziri, S. Lyu et al. , “Tulu3: Pushing frontiers in open language model post-training,” arXiv preprint arXiv:2411.15124 ,2024. 1, 4 [5] K. Team, A. Du, B. Gao, B. Xing, C. Jiang, C. Chen, C. Li, C. Xiao, C. Du, C. Liao et al. , “Kimi k1. 5: Scaling reinforcement learning with llms,” arXiv preprint arXiv:2501.12599 , 2025. 1, 4 [6] L. Ouyang, J. Wu, X. Jiang, D. Almeida, C. Wainwright, P. Mishkin, C. Zhang, S. Agarwal, K. Slama, A. Ray et al. , “Training language models to follow instructions with human feedback,” NeurIPS , vol. 35, pp. 27 730–27 744, 2022. 1, 4 [7] C. Y. Liu, L. Zeng, J. Liu, R. Yan, J. He, C. Wang, S. Yan, Y. Liu, and Y. Zhou, “Skywork-Reward: Bag of tricks for reward modeling in llms,” arXiv preprint arXiv:2410.18451 , 2024. 1, 4 [8] Y. Zang, X. Dong, P. Zhang, Y. Cao, Z. Liu, S. Ding, S. Wu, Y. Ma, H. Duan, W. Zhang et al. , “Internlm-xcomposer2. 5-reward: A simple yet effective multi-modal reward model,” arXiv preprint arXiv:2501.12368 ,2025. 1, 4 [9] OpenAI, “Openai o3-mini system card,” 2025. [Online]. Available: https://openai.com/index/o3-mini-system-card/ 1 [10] X. Li, J. Jin, G. Dong, H. Qian, Y. Zhu, Y. Wu, J.-R. Wen, and Z. Dou, “Webthinker: Empowering large reasoning models with deep research capability,” arXiv preprint arXiv:2504.21776 , 2025. 1 [11] X. Li, H. Zou, and P. Liu, “Torl: Scaling tool-integrated rl,” arXiv preprint arXiv:2503.23383 , 2025. 1 [12] Z. Shao, P. Wang, Q. Zhu, R. Xu, J. Song, X. Bi, H. Zhang, M. Zhang, Y. Li, Y. Wu et al. , “Deepseekmath: Pushing the limits of mathematical reasoning in open language models,” arXiv preprint arXiv:2402.03300 ,2024. 2, 3 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 16 
+
+[13] X. Lai, Z. Tian, Y. Chen, Y. Li, Y. Yuan, S. Liu, and J. Jia, “Lisa: Reasoning segmentation via large language model,” in CVPR , 2024, pp. 9579–9589. 3, 8, 9, 10 [14] S. Liu, Z. Zeng, T. Ren, F. Li, H. Zhang, J. Yang, Q. Jiang, C. Li, J. Yang, H. Su et al. , “Grounding dino: Marrying dino with grounded pre-training for open-set object detection,” in ECCV . Springer, 2024, pp. 38–55. 3, 10 [15] T.-Y. Lin, M. Maire, S. Belongie, J. Hays, P. Perona, D. Ramanan, P. Doll´ ar, and C. L. Zitnick, “Microsoft coco: Common objects in context,” in ECCV . Springer, 2014, pp. 740–755. 3, 9 [16] A. Gupta, P. Dollar, and R. Girshick, “Lvis: A dataset for large vocabulary instance segmentation,” in CVPR , 2019, pp. 5356–5364. 3, 8, 9 [17] Z. Liu, Z. Sun, Y. Zang, X. Dong, Y. Cao, H. Duan, D. Lin, and J. Wang, “Visual-rft: Visual reinforcement fine-tuning,” arXiv preprint arXiv:2503.01785 , 2025. 3 [18] OpenAI, “Hello gpt-4o,” 2024. [Online]. Available: https://openai.com/ index/hello-gpt-4o/ 3 [19] P. Wang, S. Bai, S. Tan, S. Wang, Z. Fan, J. Bai, K. Chen, X. Liu, J. Wang, W. Ge et al. , “Qwen2-vl: Enhancing vision-language model’s perception of the world at any resolution,” arXiv preprint arXiv:2409.12191 , 2024. 3, 8, 9, 10 [20] B. Li, Y. Zhang, D. Guo, R. Zhang, F. Li, H. Zhang, K. Zhang, P. Zhang, Y. Li, Z. Liu et al. , “Llava-onevision: Easy visual task transfer,” arXiv preprint arXiv:2408.03326 , 2024. 3, 11 [21] Z. Liang, Y. Xu, Y. Hong, P. Shang, Q. Wang, Q. Fu, and K. Liu, “A survey of multimodel large language models,” TPAMI , 2024. 3 [22] J. Zhang, J. Huang, S. Jin, and S. Lu, “Vision-language models for vision tasks: A survey,” TPAMI , 2024. 3 [23] P. Xu, W. Shao, K. Zhang, P. Gao, S. Liu, M. Lei, F. Meng, S. Huang, Y. Qiao, and P. Luo, “Lvlm-ehub: A comprehensive evaluation benchmark for large vision-language models,” TPAMI , 2025. 3 [24] A. J. Wang, P. Zhou, M. Z. Shou, and S. Yan, “Enhancing visual grounding in vision-language pre-training with position-guided text prompts,” TPAMI , 2024. 3 [25] Y. Zeng, X. Zhang, H. Li, J. Wang, J. Zhang, and W. Zhou, “X 22-vlm: All-in-one pre-trained model for vision-language tasks,” TPAMI , 2024. 3[26] Y. Wei, M. R. Min, G. Vosselman, L. E. Li, and M. Y. Yang, “Planner3d: Llm-enhanced graph prior meets 3d indoor scene explicit regularization,” 
+
+TPAMI , 2025. 3 [27] J. Ji, H. Wang, C. Wu, Y. Ma, X. Sun, and R. Ji, “Jm3d & jm3d-llm: Elevating 3d representation with joint multi-modal cues,” TPAMI , 2025. 3[28] P. Zhang, X. Dong, Y. Zang, Y. Cao, R. Qian, L. Chen, Q. Guo, H. Duan, B. Wang, L. Ouyang et al. , “Internlm-xcomposer-2.5: A versatile large vision language model supporting long-contextual input and output,” 
+
+arXiv preprint arXiv:2407.03320 , 2024. 3, 11 [29] A. Liu, B. Feng, B. Xue, B. Wang, B. Wu, C. Lu, C. Zhao, C. Deng, C. Zhang, C. Ruan et al. , “Deepseek-v3 technical report,” arXiv preprint arXiv:2412.19437 , 2024. 3 [30] D. M. Ziegler, N. Stiennon, J. Wu, T. B. Brown, A. Radford, D. Amodei, P. Christiano, and G. Irving, “Fine-tuning language models from human preferences,” arXiv:1909.08593 , 2019. 3 [31] N. Stiennon, L. Ouyang, J. Wu, D. Ziegler, R. Lowe, C. Voss, A. Radford, D. Amodei, and P. F. Christiano, “Learning to summarize with human feedback,” in NeurIPS , 2022. 3 [32] L. Ouyang, J. Wu, X. Jiang, D. Almeida, C. Wainwright, P. Mishkin, C. Zhang, S. Agarwal, K. Slama, A. Ray et al. , “Training language models to follow instructions with human feedback,” in NeurIPS , 2022. 3[33] R. Ramamurthy, P. Ammanabrolu, K. Brantley, J. Hessel, R. Sifa, C. Bauckhage, H. Hajishirzi, and Y. Choi, “Is reinforcement learning (not) for natural language processing: Benchmarks, baselines, and building blocks for natural language policy optimization,” in ICLR ,2023. 3 [34] Y. Zang, W. Li, J. Han, K. Zhou, and C. C. Loy, “Contextual object detection with multimodal large language models,” IJCV , 2024. 3 [35] T. Carta, C. Romac, T. Wolf, S. Lamprier, O. Sigaud, and P.-Y. Oudeyer, “Grounding large language models in interactive environments with online reinforcement learning,” in ICLR , 2023. 3 [36] Z. Sun, S. Shen, S. Cao, H. Liu, C. Li, Y. Shen, C. Gan, L.-Y. Gui, Y.-X. Wang, Y. Yang et al. , “Aligning large multimodal models with factually augmented rlhf,” arXiv preprint arXiv:2309.14525 , 2023. 3 [37] C. V. Snell, I. Kostrikov, Y. Su, S. Yang, and S. Levine, “Offline RL for natural language generation with implicit language q learning,” in 
+
+ICLR , 2023. 3 [38] M. Abdulhai, I. White, C. Snell, C. Sun, J. Hong, Y. Zhai, K. Xu, and S. Levine, “Lmrl gym: Benchmarks for multi-turn reinforcement learning with language models,” arXiv preprint arXiv:2311.18232 , 2023. 3[39] Y. Zhou, A. Zanette, J. Pan, S. Levine, and A. Kumar, “Archer: Training language model agents via hierarchical multi-turn rl,” in ICML , 2024. 3 [40] S. Yao, J. Zhao, D. Yu, N. Du, I. Shafran, K. R. Narasimhan, and Y. Cao, “React: Synergizing reasoning and acting in language models,” in ICLR , 2023. 3 [41] A. Yang, B. Zhang, B. Hui, B. Gao, B. Yu, C. Li, D. Liu, J. Tu, J. Zhou, J. Lin et al. , “Qwen2. 5-math technical report: Toward mathematical expert model via self-improvement,” arXiv preprint arXiv:2409.12122 ,2024. 3 [42] H. Ying, S. Zhang, L. Li, Z. Zhou, Y. Shao, Z. Fei, Y. Ma, J. Hong, K. Liu, Z. Wang et al. , “Internlm-math: Open math large language models toward verifiable reasoning,” arXiv preprint arXiv:2402.06332 ,2024. 3 [43] Z. Cai, M. Cao, H. Chen, K. Chen, K. Chen, X. Chen, X. Chen, Z. Chen, Z. Chen, P. Chu et al. , “Internlm2 technical report,” arXiv preprint arXiv:2403.17297 , 2024. 3 [44] T. Q. Luong, X. Zhang, Z. Jie, P. Sun, X. Jin, and H. Li, “Reft: Reasoning with reinforced fine-tuning,” arXiv preprint arXiv:2401.08967 , 2024. 3 [45] B. Hui, J. Yang, Z. Cui, J. Yang, D. Liu, L. Zhang, T. Liu, J. Zhang, B. Yu, K. Lu et al. , “Qwen2. 5-coder technical report,” arXiv preprint arXiv:2409.12186 , 2024. 3 [46] F. Jiao, G. Guo, X. Zhang, N. F. Chen, S. Joty, and F. Wei, “Preference optimization for reasoning with pseudo feedback,” arXiv preprint arXiv:2411.16345 , 2024. 3 [47] Y. Zhang, S. Wu, Y. Yang, J. Shu, J. Xiao, C. Kong, and J. Sang, “o1-coder: an o1 replication for coding,” arXiv preprint arXiv:2412.00154 ,2024. 3 [48] K. Zhang, G. Li, Y. Dong, J. Xu, J. Zhang, J. Su, Y. Liu, and Z. Jin, “Codedpo: Aligning code models with self generated and verified source code,” arXiv preprint arXiv:2410.05605 , 2024. 3 [49] L. Chen, L. Li, H. Zhao, Y. Song, and Vinci, “R1-v: Reinforcing super generalization ability in vision-language models with less than $3,” https://github.com/Deep-Agent/R1-V, 2025, accessed: 2025-02-02. 3 [50] H. Shen, P. Liu, J. Li, C. Fang, Y. Ma, J. Liao, Q. Shen, Z. Zhang, K. Zhao, Q. Zhang, R. Xu, and T. Zhao, “Vlm-r1: A stable and generalizable r1-style large vision-language model,” arXiv preprint arXiv:2504.07615 , 2025. 3 [51] W. Huang, B. Jia, Z. Zhai, S. Cao, Z. Ye, F. Zhao, Z. Xu, Y. Hu, and S. Lin, “Vision-r1: Incentivizing reasoning capability in multimodal large language models,” ArXiv , vol. abs/2503.06749, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:276902576 3 [52] Y. Liu, B. Peng, Z. Zhong, Z. Yue, F. Lu, B. Yu, and J. Jia, “Seg-zero: Reasoning-chain guided segmentation via cognitive reinforcement,” ArXiv , vol. abs/2503.06520, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:276903615 3 [53] F. Meng, L. Du, Z. Liu, Z. Zhou, Q. Lu, D. Fu, T. Han, B. Shi, W. Wang, J. He et al. , “MM-Eureka: Exploring the frontiers of multimodal reasoning with rule-based reinforcement learning,” arXiv preprint arXiv:2503.07365 , 2025. 3 [54] S. Leng, J. Wang, J. Li, H. Zhang, Z. Hu, B. Zhang, Y. Jiang, H. Zhang, X. Li, L. Bing, D. Zhao, W. Lu, Y. Rong, A. Sun, and S. Lu, “Mmr1: Enhancing multimodal reasoning with variance-aware sampling and open resources,” ArXiv , vol. abs/2509.21268, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:281525776 3 [55] Y. Peng, G. Zhang, M. Zhang, Z. You, J. Liu, Q. Zhu, K. Yang, X. Xu, X. Geng, and X. Yang, “Lmm-r1: Empowering 3b lmms with strong reasoning abilities through two-stage rule-based rl,” ArXiv , vol. abs/2503.07536, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:276928495 3 [56] W. Hu, X. Chen, G.-T. Yan, Y. Deng, N. Peng, and K.-W. Chang, “Openvlthinkerv2: A generalist multimodal reasoning model for multi-domain visual tasks,” ArXiv , vol. abs/2604.08539, 2026. [Online]. Available: https://api.semanticscholar.org/CorpusID:287256391 3 [57] H. Deng, D. Zou, R. Ma, H. Luo, Y. Cao, and Y. Kang, “Boosting the generalization and reasoning of vision language models with curriculum reinforcement learning,” ArXiv , vol. abs/2503.07065, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:276903531 3 [58] H. Tan, Y. Ji, X. Hao, X. Chen, P. Wang, Z. Wang, and S. Zhang, “Reason-rft: Reinforcement fine-tuning for visual reasoning of vision language models,” Advances in Neural Information Processing Systems 38 , 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID: 281842907 3 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 17 
+
+[59] Z. Liu, Z. Sun, Y. Zang, X. Dong, Y. Cao, H. Duan, D. Lin, and J. Wang, “Visual-rft: Visual reinforcement fine-tuning,” arXiv preprint arXiv:2503.01785 , 2025. 3 [60] Z. yu Su, L. Li, M. Song, Y. Hao, Z. Yang, J. Zhang, G. Chen, J. Gu, J. Li, X. Qu, and Y. Cheng, “Openthinkimg: Learning to think with images via visual tool reinforcement learning,” ArXiv , vol. abs/2505.08617, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:278534476 4 [61] Z. Zheng, M. Yang, J. Hong, C. Zhao, G. Xu, L. Yang, C. Shen, and X. Yu, “Deepeyes: Incentivizing ”thinking with images” via reinforcement learning,” ArXiv , vol. abs/2505.14362, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:278769859 4 [62] A. Su, H. Wang, W. Ren, F. Lin, and W. Chen, “Pixel reasoner: Incentivizing pixel-space reasoning with curiosity-driven reinforcement learning,” ArXiv , vol. abs/2505.15966, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:278789415 4 [63] Z. Huang, Y. Ji, A. S. Rajan, Z. Cai, W. Xiao, J. Hu, and Y. J. Lee, “Visualtoolagent (vista): A reinforcement learning framework for visual tool selection,” ArXiv , vol. abs/2505.20289, 2025. [Online]. Available: https://api.semanticscholar.org/CorpusID:278910554 4 [64] R. Luo, L. Wang, W. He, and X. Xia, “Gui-r1 : A generalist r1-style vision-language action model for gui agents,” ArXiv , vol. abs/2504.10458, 2025. [Online]. Available: https://api.semanticscholar. org/CorpusID:277781711 4 [65] C. Qian, E. C. Acikgoz, Q. He, H. Wang, X. Chen, D. Hakkani-T¨ ur, G. Tur, and H. Ji, “Toolrl: Reward is all tool learning needs,” arXiv preprint arXiv:2504.13958 , 2025. 4 [66] S. Zhang, Y. Dong, J. Zhang, J. Kautz, B. Catanzaro, A. Tao, Q. Wu, Z. Yu, and G. Liu, “Nemotron-research-tool-n1: Tool-using language models with reinforced reasoning,” arXiv preprint arXiv:2505.00024 ,2025. 4 [67] G. Mialon, C. Fourrier, C. Swift, T. Wolf, Y. LeCun, and T. Scialom, “Gaia: a benchmark for general ai assistants,” ArXiv , vol. abs/2311.12983, 2023. [Online]. Available: https://api.semanticscholar.org/CorpusID: 265351664 4 [68] X. Liu, H. Yu, H. Zhang, Y. Xu, X. Lei, H. Lai, Y. Gu, Y. Gu, H. Ding, K. Men, K. Yang, S. Zhang, X. Deng, A. Zeng, Z. Du, C. Zhang, S. Shen, T. Zhang, S. Shen, Y. Su, H. Sun, M. Huang, Y. Dong, and J. Tang, “Agentbench: Evaluating llms as agents,” ArXiv , vol. abs/2308.03688, 2023. [Online]. Available: https://api.semanticscholar.org/CorpusID:260682249 4 [69] J. Y. Koh, R. Lo, L. K. Jang, V. Duvvur, M. C. Lim, P.-Y. Huang, G. Neubig, S. Zhou, R. Salakhutdinov, and D. Fried, “Visualwebarena: Evaluating multimodal agents on realistic visual web tasks,” in ACL ,2024. [Online]. Available: https://api.semanticscholar.org/CorpusID: 271915493 4 [70] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, “Prox-imal policy optimization algorithms,” arXiv preprint arXiv:1707.06347 ,2017. 4 [71] S. G. Patil, T. Zhang, X. Wang, and J. E. Gonzalez, “Gorilla: Large language model connected with massive apis,” NeurIPS , vol. 37, pp. 126 544–126 565, 2024. 7 [72] X. Ho, A.-K. D. Nguyen, S. Sugawara, and A. Aizawa, “Constructing a multi-hop qa dataset for comprehensive evaluation of reasoning steps,” 
+
+arXiv preprint arXiv:2011.01060 , 2020. 7, 8, 11, 13 [73] Z. Yang, P. Qi, S. Zhang, Y. Bengio, W. W. Cohen, R. Salakhutdinov, and C. D. Manning, “Hotpotqa: A dataset for diverse, explainable multi-hop question answering,” arXiv preprint arXiv:1809.09600 , 2018. 7, 8, 11, 13 [74] H. Trivedi, N. Balasubramanian, T. Khot, and A. Sabharwal, “Musique: Multihop questions via single-hop question composition,” TACL , vol. 10, pp. 539–554, 2022. 7, 8, 11, 13 [75] O. Press, M. Zhang, S. Min, L. Schmidt, N. A. Smith, and M. Lewis, “Measuring and narrowing the compositionality gap in language models,” 
+
+arXiv preprint arXiv:2210.03350 , 2022. 7, 8, 11, 13 [76] M.-E. Nilsback and A. Zisserman, “Automated flower classification over a large number of classes,” in ICVGIP , 2008. 8 [77] O. M. Parkhi, A. Vedaldi, A. Zisserman, and C. Jawahar, “Cats and dogs,” in CVPR , 2012. 8 [78] S. Maji, E. Rahtu, J. Kannala, M. Blaschko, and A. Vedaldi, “Fine-grained visual classification of aircraft,” arXiv preprint arXiv:1306.5151 ,2013. 8 [79] J. Krause, M. Stark, J. Deng, and L. Fei-Fei, “3d object representations for fine-grained categorization,” in ICCV workshops , 2013. 8 [80] S. Zhou, J. Wei, S. He, Y. Zhou, C. Zhang, J. Zou, N. Xie, and Y. Yang, “InPK: Infusing prior knowledge into prompt for vision-language models,” 
+
+arXiv preprint arXiv:2502.19777 , 2025. 8 [81] K. Zhou, J. Yang, C. C. Loy, and Z. Liu, “Learning to prompt for vision-language models,” IJCV , vol. 130, pp. 2337 – 2348, 2021. 8 [82] M. U. Khattak, H. A. Rasheed, M. Maaz, S. H. Khan, and F. S. Khan, “Maple: Multi-modal prompt learning,” CVPR , pp. 19 113–19 122, 2022. 8[83] K. Zhou, J. Yang, C. C. Loy, and Z. Liu, “Conditional prompt learning for vision-language models,” CVPR , pp. 16 795–16 804, 2022. 8 [84] M. U. Khattak, S. T. Wasim, M. Naseer, S. S. Khan, M. Yang, and F. S. Khan, “Self-regulating prompts: Foundational model adaptation without forgetting,” ICCV , pp. 15 144–15 154, 2023. 8 [85] A. Kirillov, E. Mintun, N. Ravi, H. Mao, C. Rolland, L. Gustafson, T. Xiao, S. Whitehead, A. C. Berg, W.-Y. Lo et al. , “Segment anything,” in ICCV , 2023, pp. 4015–4026. 9, 10 [86] H. Rasheed, M. Maaz, S. Shaji, A. Shaker, S. Khan, H. Cholakkal, R. M. Anwer, E. Xing, M.-H. Yang, and F. S. Khan, “Glamm: Pixel grounding large multimodal model,” in CVPR , 2024, pp. 13 009–13 018. 9[87] F. Liang, B. Wu, X. Dai, K. Li, Y. Zhao, H. Zhang, P. Zhang, P. Vajda, and D. Marculescu, “Open-vocabulary semantic segmentation with mask-adapted clip,” in CVPR , 2023, pp. 7061–7070. 10 [88] X. Zou, Z.-Y. Dou, J. Yang, Z. Gan, L. Li, C. Li, X. Dai, H. Behl, J. Wang, L. Yuan et al. , “Generalized decoding for pixel, image, and language,” in CVPR , 2023, pp. 15 116–15 127. 10 [89] A. Hurst, A. Lerer, A. P. Goucher, A. Perelman, A. Ramesh, A. Clark, A. Ostrow, A. Welihinda, A. Hayes, A. Radford et al. , “Gpt-4o system card,” arXiv preprint arXiv:2410.21276 , 2024. 11 [90] H. Liu, C. Li, Y. Li, and Y. J. Lee, “Improved baselines with visual instruction tuning,” in CVPR , 2024, pp. 26 296–26 306. 11 [91] F. Li, R. Zhang, H. Zhang, Y. Zhang, B. Li, W. Li, Z. Ma, and C. Li, “Llava-next-interleave: Tackling multi-image, video, and 3d in large multimodal models,” arXiv preprint arXiv:2407.07895 , 2024. 11 [92] Z. Chen, W. Wang, Y. Cao, Y. Liu, Z. Gao, E. Cui, J. Zhu, S. Ye, H. Tian, Z. Liu et al. , “Expanding performance boundaries of open-source multimodal models with model, data, and test-time scaling,” 
+
+arXiv preprint arXiv:2412.05271 , 2024. 11 [93] S. Bai, K. Chen, X. Liu, J. Wang, W. Ge, S. Song, K. Dang, P. Wang, S. Wang, J. Tang et al. , “Qwen2. 5-vl technical report,” arXiv preprint arXiv:2502.13923 , 2025. 11, 13, 14 [94] X. Zhang, Y. Wang, and A. Boularias, “Detect every thing with few examples,” in Conference on Robot Learning , 2023. [Online]. Available: https://api.semanticscholar.org/CorpusID:262217292 10 [95] S. Wu, W. Zhang, L. Xu, S. Jin, X. Li, W. Liu, and C. C. Loy, “Clipself: Vision transformer distills itself for open-vocabulary dense prediction,” 
+
+ArXiv , vol. abs/2310.01403, 2023. 10 [96] Z. Wang, W. Zhou, J. Xu, and Y. Peng, “Sia-ovd: Shape-invariant adapter for bridging the image-region gap in open-vocabulary detection,” 
+
+ArXiv , vol. abs/2410.05650, 2024. 10 [97] X. Zhou, R. Girdhar, A. Joulin, P. Krahenbuhl, and I. Misra, “Detecting twenty-thousand classes using image-level supervision,” ArXiv , vol. abs/2201.02605, 2022. 10 [98] A. Zareian, K. D. Rosa, D. H. Hu, and S.-F. Chang, “Open-vocabulary object detection using captions,” CVPR , pp. 14 388–14 397, 2020. 10 [99] X. Li, G. Dong, J. Jin, Y. Zhang, Y. Zhou, Y. Zhu, P. Zhang, and Z. Dou, “Search-o1: Agentic search-enhanced large reasoning models,” 
+
+arXiv preprint arXiv:2501.05366 , 2025. 13 [100] B. Jin, H. Zeng, Z. Yue, J. Yoon, S. Arik, D. Wang, H. Zamani, and J. Han, “Search-r1: Training llms to reason and leverage search engines with reinforcement learning,” arXiv preprint arXiv:2503.09516 , 2025. 13, 14 [101] H. Sun, Z. Qiao, J. Guo, X. Fan, Y. Hou, Y. Jiang, P. Xie, F. Huang, and Y. Zhang, “Zerosearch: Incentivize the search capability of llms without searching,” arXiv preprint arXiv:2505.04588 , 2025. 13 [102] Q. Team, “Qwen3.5: Accelerating productivity with native multimodal agents,” February 2026. [Online]. Available: https://qwen.ai/blog?id= qwen3.5 14 JOURNAL OF L ATEX CLASS FILES, VOL. 14, NO. 8, AUGUST 2021 18 
+
+Ziyu Liu is a PhD student at Shanghai Jiao Tong University, under the supervision of Prof. Dahua Lin. He is currently a research intern at Shanghai Arti-ficial Intelligence Laboratory, mentored by Yuhang Zang. His research interests focus on Large Vision Language Models, Reinforcement Fine-tuning, and Multimodal Agentic RL. 
+
+Zeyi Sun is a third-year PhD student in Information Engineering at Shanghai Jiao Tong University, under the supervision of Prof. Dahua Lin. He obtained his Bachelor’s degree in Computer Science from Beihang University in 2023. His research interests focus on Large Vision Language Models, Reinforcement Fine-tuning, and Multimodal Agentic RL. 
+
+Xiaoyi Dong is a Postdoctoral Fellow at MMLab, The Chinese University of Hong Kong. He also serves as a part-time consultant researcher at Shang-hai AI Laboratory. He obtained his Ph.D. degree at the University of Science and Technology of China in 2023. He has published more than 40 papers in top conferences and journals, such as CVPR/ICCV/ECCV, and has received than 8000 citations according to Google Scholar. His research interests focus on multimodel models and general representation learning. He is the recipient of the CAS President’s Scholarship. 
+
+Yuhang Cao is a researcher at the Shanghai Artificial Intelligence Laboratory. He received his Ph.D. from The Chinese University of Hong Kong in 2024, under the supervision of Prof. Dahua Lin. He has authored over 30 papers in top-tier conferences and journals, including CVPR, ICCV, and ECCV, and his work has received more than 6,000 citations according to Google Scholar. His research interests lie primarily in vision language models and image object detection. 
+
+Haodong Duan is a Post-Doctoral Researcher at Shanghai AI Laboratory. He received his Bachelor’s degree from Peking University and his Ph.D. from The Chinese University of Hong Kong. His research experience spans video understanding, large language models, and multimodal learning. He has published 30+ papers in top-tier conferences in computer vision and artificial intelligence, including CVPR, ECCV, ICCV, ACL, and NeurIPS, with more than 6,000 citations. Recently, he mainly works on the evaluation of large multimodal models. 
+
+Jiaqi Wang is currently a Research Scientist and Team Leader at Shanghai AI Laboratory, and an Adjunct Ph.D. Supervisor at Shanghai Jiao Tong University. He received his Ph.D. in 2021 from the Multimedia Laboratory at The Chinese University of Hong Kong (MMLab@CUHK), under the supervi-sion of Prof. Dahua Lin and in close collaboration with Prof. Chen Change Loy. His research interests span visual perception, vision-language models, and the creation of benchmarks and datasets. He has published over 50 papers in top-tier venues, including TPAMI, CVPR, ICCV, ECCV, NeurIPS, ICML, and ICLR, with more than 15,000 citations. His work has received broad recognition: two papers were named among the Most Influential Papers at ECCV 2024; one was selected as a Most Influential Paper at NeurIPS 2024; and another was nominated as an Award Candidate at CVPR 2023. He was also listed among the Stanford/Elsevier Top 2% Scientists in 2024. Jiaqi is the lead researcher of the InternLM-XComposer series of large multimodal models, which have collectively been downloaded over 4 million times and at one point ranked 5th out of more than 750,000 models on HuggingFace Trending. 
+
+Dahua Lin is an Associate Professor at the De-partment of Information Engineering, the Chinese University of Hong Kong, and the Director of CUHK-SenseTime Joint Laboratory. He received the B.Eng. degree from the University of Science and Technology of China (USTC) in 2004, the M. Phil. degree from the Chinese University of Hong Kong (CUHK) in 2006, and the Ph.D. degree from Massachusetts Institute of Technology (MIT) in 2012. Prior to joining CUHK, he served as a Research Assistant Professor at Toyota Technological Institute at Chicago, from 2012 to 2014. His research interests cover computer vision and machine learning. 
+
+Yuhang Zang is a researcher at Shanghai Artificial Intelligence Laboratory. He received the PhD degree from Nanyang Technological University in 2023, under the supervision of Prof. Chen Change Loy. Before that, he received the B.Eng degree from the University of Electronic Science and Technology of China in 2019. His research interests cover vision-language models and large language models.

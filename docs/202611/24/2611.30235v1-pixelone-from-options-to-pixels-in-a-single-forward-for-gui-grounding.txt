@@ -1,0 +1,967 @@
+Title: PixelOne: From Options to Pixels in a Single Forward for GUI Grounding
+
+URL Source: https://arxiv.org/pdf/2611.30235v1
+
+Published Time: Tue, 24 Nov 2026 04:48:38 GMT
+
+Number of Pages: 29
+
+Markdown Content:
+1 INTRODUCTION 
+
+# PixelOne: From Options to Pixels in a Single Forward for GUI Grounding 
+
+Kanghui Tian 1,2,* , Shuai Dong 1,2,4,* , Yuhan Zhu 2,5,* , Congcong Wang 2, †
+
+Ji Zhao 2,4,6 , Tianxiang Jiang 3,6 , Zhixiong Zhang 2,4,7 , Shengyuan Ding 1,2,4 
+
+Yi Wang 3, ‡, Jiaqi Wang 2, †, Yu Qiao 3,4, ‡
+
+> 1
+
+Fudan University , 2JD.com , 3Shanghai Artificial Intelligence Laboratory 
+
+> 4
+
+Shanghai Innovation Institute , 5Nanjing University 
+
+> 6
+
+University of Science and Technology of China , 7Shanghai Jiao Tong University 
+
+> ∗Equal contribution
+
+, †Project lead , ‡Corresponding authors 
+
+## Abstract 
+
+GUI grounding requires precise clicks at low latency. Recent models such as GUI-Decisions and GUI-Swift predict coordinates in one forward pass using fixed global bins with local refinement. However, screenshot downsampling removes detail needed to locate small controls, while fixed bins cover larger pixel ranges at higher resolutions. We introduce PixelOne , which transfers spatial knowledge from a search teacher to a student that predicts clicks directly from screenshots at native resolution. The teacher uses VideoJEV’s text-option scorer to select rows and columns and progressively zoom into candidate regions. The student inherits the teacher’s parameters and matches its distributions over explored regions through spatial distillation alongside box supervision. At inference, the same decision head selects a visual token, and a lightweight pixel head predicts the click within it, all in one forward pass. A click-aligned loss encourages pixels inside the target box to score above those outside. Across four benchmarks, PixelOne-Pro-35B-A3B achieves 83.8% mean accuracy, the highest among the evaluated single-forward grounders, with a mean latency of 0.43 s per target. 
+
+Page Code Models / Data 
+
+## 1 Introduction 
+
+A GUI agent translates instructions, such as “open the alignment menu”, into corresponding click locations on a screenshot [1, 3, 13, 22, 25, 28, 36, 39, 40, 42, 43]. This requires accurate visual grounding, particularly in high-resolution interfaces where small interactive targets are often surrounded by visually similar controls, making the preservation of fine-grained spatial details essential [14, 18, 45]. Consequently, a practical GUI agent is required to localize target elements accurately with low latency [2]. Spatial readouts predict clicks directly from scores over image regions or target masks [32, 34]. By contrast, fixed-slot methods such as GUI-Decisions and GUI-Swift predict distributions over global coordinate bins at predefined token positions and refine the coordinates using neighboring-bin probabilities [8, 31]. Both approaches avoid autoregressive coordinate generation and ground targets in a single forward pass. However, these models downsample high-resolution screenshots, removing details needed to locate small controls, while their global bins cover large pixel ranges at higher resolutions. These limitations motivate a direct readout 1arXiv:2611.30235v1 [cs.CV] 23 Nov 2026 0 0.5 1.0 1.5 2.0 
+
+Mean latency (s/target) 
+
+> 50 60 70 80 85
+> Mean accuracy (%)
+
+PixelOne-Pro-35B-A3B PixelOne-Pro-4B 
+
+> Qwen3.6-35B-A3B UI-Venus-2-9B GUI-Owl-1.5-4B GUI-Owl-1.5-8B GUI-AIMA-3B V2P-7B Qwen3.5-4B
+> PixelOne-35B-A3B PixelOne-4B
+> Seg2Click-9B Seg2Click-4B GUI-Decisions-2B GUI-Swift-4B GUI-Decisions-31B
+> 2.5
+
+lower is better    
+
+> PixelOne-Pro PixelOne Other single-forward Autoregressive
+
+ScreenSpot Pro      
+
+> PixelOne-Pro-35B-A3B 72.04
+> UI-Venus-2-9B 72.04
+> GUI-Owl-1.5-8B 69.64
+> PixelOne-Pro-4B 68.12
+> GUI-Owl-1.5-4B 66.10
+
+OSWorld-G      
+
+> UI-Venus-2-9B 78.24
+> PixelOne-Pro-35B-A3B 76.86
+> PixelOne-Pro-4B 71.18
+> GUI-Owl-1.5-8B 70.00
+> GUI-Owl-1.5-4B 66.86
+
+Figure 1 PixelOne-Pro on the accuracy–latency frontier. The main plot compares mean accuracy and latency across four benchmarks. The ScreenSpot Pro and OSWorld-G insets each compare both Pro models with the four highest-scoring external GUI-specialized baselines. The leaderboard bars use a truncated linear accuracy scale from 50% to 80%. Full results and timing details appear in Table 1 and Section S4.4. 
+
+that preserves image detail and predicts clicks at pixel granularity. Native decision models provide a starting point through an interface for scoring candidate options [7, 9, 12, 41, 47]. VideoJEV uses this interface to select textual answers and temporal intervals [48]. Extending it to pixel localization requires spatial candidates tied to screenshot regions and a way to resolve a click within the selected region. We introduce PixelOne , a teacher-student framework for accurate GUI grounding from full-resolution screen-shots in a single forward pass. During training, a search teacher learns to localize targets by choosing rows and columns from textual spatial options. It progressively narrows the target location across full-image and zoomed views using box supervision (Figure 2). The student inherits the teacher’s network and query/key decision head. The teacher also provides distributions over the regions explored during search, which com-plement the student’s box supervision. This transfer is possible because the same head scores both forms of spatial evidence (Figure 3): textual options in the teacher and visual tokens in the student. At inference, the student applies the shared decision head to visual tokens from the full-resolution screenshot and selects the token most relevant to the instruction. PixelOne determines the precise click within that region as the selected token localizes the target only to an area. A pixel head predicts this point using features from the same forward pass. Assigning high probability to pixels inside the target does not guarantee the top-ranked pixel is a valid click. We therefore introduce a click-aligned objective that encourages valid pixels to score higher than pixels outside the target. PixelOne returns a click location with one visual encoding and one pass through the language model, without iterative search or autoregressive coordinate generation. We train PixelOne in two settings: the standard version updates language LoRA and both readout heads, whereas PixelOne-Pro updates the entire model. Across four benchmarks, PixelOne-Pro-35B-A3B achieves 83.8% mean accuracy at an average latency of 0.43 s per click, ranking first among the evaluated single-forward grounders. Pro-4B reaches 80.6% at 0.32 s, and both models lie on the accuracy–latency frontier (Table 1 and Figure 1). Ablations across both model scales demonstrate the benefits of spatial distillation and the click-aligned objective (Tables 2, 4 and 5). 2(a) Native option scoring                
+
+> A1B2C3D4
+> “insert the pie with doughnut into the word document”
+> Text options
+> Which column? ABCDWhich row? 1234
+> each option ends in <|option_end|>
+> Native decision head
+> ABCD
+> one forward
+> Round 1: 4 ×4 cells over the full screenshot
+> (b) Search refinement
+> 22best leaf Round 2: 8 ×8Round 3: 8 ×8
+> (c) Training and inference
+> VideoJEV
+> released weights
+> Intermediate teacher
+> rollout, relabel
+> Search teacher (T3)
+> search teacher
+> Offline cache
+> ROIs and leaves Box-supervised adaptation Mixed-state training run once
+> PixelOne
+> one visual encoding, one LM forward
+> Box supervision + Spatial distillation
+> KD
+> shared weights + a new pixel head
+
+Figure 2 From spatial search to single-forward grounding. (a) The teacher scores row and column choices with VideoJEV’s native head. (b) The teacher refines candidate regions through zoomed search. (c) The student inherits the teacher’s shared parameters and learns from its spatial distributions to predict a click with one visual encoding and one model forward. 
+
+Our contributions are: • Native pixel-decision interface. We adapt VideoJEV’s head to visual tokens and resolve clicks with a lightweight pixel head trained with a click-aligned objective. • Search-to-pixel learning. We share decision parameters across textual search options and visual tokens, transferring both the teacher’s weights and its spatial distributions to the student. • Accurate and efficient grounding. PixelOne grounds full-resolution screenshots in one forward pass at 4B and 35B-A3B, with both Pro variants on the evaluated accuracy–latency frontier. 
+
+## 2 Related Work 
+
+Coordinate generation and direct readout. Autoregressive grounders represent coordinates and action fields as text [6, 24, 30, 38]. This flexible interface requires sequential decoding, whereas direct readouts predict locations in a single forward pass. GUI-Actor and V2P score visual patches with a dedicated head, while GUI-AIMA supervises attention within the backbone [5, 34, 46]. Seg2Click instead predicts action masks at the pixel level [32]. Fixed-slot methods such as GUI-Decisions and GUI-Swift take another route, reading coordinates from predefined positions through the vocabulary head [8, 31]. Although these methods avoid sequential decoding, precise grounding still depends on sufficient image detail and reliably converting spatial scores into clicks. 
+
+Spatial detail and inference cost. Higher-resolution screenshots preserve the detail needed to locate small targets but increase inference cost [10]. GUI-Decisions and GUI-Swift limit the number of visual tokens and therefore downsample large screenshots [8, 31]. They also predict coordinates using fixed global bins with refinement from neighboring-bin probabilities; as resolution increases, each bin covers a larger pixel range. Other methods recover local detail through additional computation. Zoomed search processes cropped regions, while Re-Prefill uses attention to guide a second prefill stage [18, 19]. InnerZoom avoids another round of image encoding by refining regional evidence within the decoder layers, although it still generates coordinates autoregressively [21]. An alternative is to move spatial refinement into training, allowing the model to learn from detailed local views without repeating the process at inference time. 
+
+Transferring search knowledge to direct prediction. Methods that transfer knowledge from refined views differ in what they teach the student. Region-to-Image Distillation turns zoomed regions into question 3(a) JEV: text options     
+
+> Screenshot Vision encoder Instruction + text options
+> Language backbone Option states hc
+> Query q
+> NATIVE · Decision head
+> W , W kq: learned projections
+
+a = 10 + b c ‖(WWhh‖)‖(WWqq‖)     
+
+> kkcc2⊤qq2
+> 10 b: fixed scale · : shared bias
+> ac
+> Option probabilities
+> softmax(a)
+> ABCD
+
+(b) PixelOne: spatial options and pixel readout     
+
+> Screenshot Vision encoder Instruction + query token
+> Language backbone Visual states hj
+> Query q
+> NATIVE · Decision head
+> W , W kq: learned projections
+
+a = 10 + b j ‖(WWhh‖)‖(WWqq‖)  
+
+> kkjj2⊤qq2
+> 10 b: fixed scale · : shared bias
+
+NEW · Pixel head 
+
+v = W LN(h ) j v j 
+
+> (γ, β) = W LN(q) f
+> Query modulation
+> v ⊙ (1 + tanh γ) + β j
+> 3 × 3 DWConv + residual
+> token grid
+
+MLP        
+
+> 128 → 128 → 1024
+> Token scores aj
+> j= argmax a *jj
+> select token 32 × 32 pixels argmax
+> Click
+> Pixel scores zj k *
+
+One visual encoding · one backbone forward Figure 3 One decision head, two kinds of options. (a) The teacher uses the native decision head to score text options. (b) PixelOne reuses this head to select a visual token and adds a pixel head to locate the click within it. 
+
+and answer pairs for models that process the full image [33]. Native decision models provide a different signal by assigning probabilities to a set of options [9, 12, 23, 47]. These options may represent actions from an accessibility tree, as in Jev-Mobile, or regions proposed by a segmenter, as in AffordJEV [17, 44]. VideoJEV further shows that the same scoring interface can evaluate textual answers and temporal intervals from video evidence [48]. PixelOne uses this interface for spatial search and transfers both the learned parameters and the resulting distributions over image regions to a direct predictor. The student then scores visual tokens and predicts a precise click from the full-resolution screenshot in one forward pass. 
+
+## 3 Method 
+
+PixelOne takes a screenshot I and an instruction u as input and predicts a click location ˆp. The prediction is considered correct if ˆp lies inside the target box B. Our goal is to predict this point directly from the full screenshot while learning from the finer spatial decisions made during search. To this end, we first train a teacher to locate the target through a sequence of row and column choices (Figure 2). We then transfer its knowledge to a student that operates without search. The student uses the teacher’s decision head to select a visual token and a lightweight pixel head to determine the click within that token (Figure 3). It inherits the teacher’s parameters and learns from both the teacher’s spatial distributions and the target box. At inference time, the student receives only (I, u ) and predicts the click with one visual encoding and one pass through the model. 
+
+3.1 From Native Options to Spatial Localization 
+
+VideoJEV’s native interface scores candidate options rather than predicting image coordinates directly [48]. We adapt this interface to spatial localization by representing a target through row and column choices on a grid. Applying the same choices to progressively zoomed crops gradually narrows the target region. A single forward pass scores all questions associated with one search state. For each question, let q denote the hidden state after the option list and hc the hidden state at the end of candidate c. The native query/key head assigns candidate c the score 
+
+ac = α (Wkhc)⊤(Wq q)
+
+∥Wkhc∥ ∥ Wq q∥ + b. (1) 4Here Wq q and Wkhc denote the native affine projections, with their biases implicit. The scale α = 10 and bias b remain fixed during teacher training. Softmax is applied separately to the row, column, and visibility option sets. The three-round search (T3) begins with a 4 × 4 grid over the full screenshot. The score of each cell is the product of its row and column probabilities. The teacher retains the two cells with the highest scores. In each of the next two rounds, the teacher places an 8×8 grid over a crop corresponding to each retained cell. For every crop, it receives both the enlarged crop and a full-image overview that marks the crop location. It also answers a visibility question that asks whether the target is present in the crop. A child score is obtained by multiplying its row and column probabilities by the visibility probability of the crop and the score of its parent. The teacher then retains the two highest-scoring children across both crops. After the third round, it returns the center of the best final cell as ˆpT . The two crop states in each refinement round are processed as a batch, resulting in three language-model calls and five visual-encoder calls per target (Figure 2). We first train the teacher on global and local states derived from target boxes. We then run the partially trained teacher on a subset of the training examples and collect the states visited during search. For each visited crop, the center of the target box defines the row and column labels whenever it falls inside the crop. The visibility label is positive when the crop fully contains the target box and negative when the crop does not overlap it. For partial overlaps, we omit the visibility loss while retaining any valid row and column supervision. Training then continues on a mixture of visited states and states derived from target boxes [29]. Finally, we freeze the teacher and cache its search traces (Section S2.2). The teacher’s weights initialize the student, while the cached distributions provide spatial supervision. 
+
+3.2 From Search to Single-Forward Pixels 
+
+The student transfers the learned decision parameters from textual options to visual tokens in the screenshot. Each of the N tokens represents an s × s image patch, where s = 32 .
+
+Selecting a region. A single forward pass produces a state hj for each visual token and a query state q after the instruction. We apply the decision head in Equation (1) to obtain a score aj for every token. Scoring each token against the query makes the resulting scores depend on the instruction. 
+
+Selecting a pixel. A visual token identifies only an image region, so a lightweight pixel head predicts the precise point within it. The head uses the same token states, conditions them on the query q, and produces a logit zjk for each of the s2 pixel centers k in token j (Section S2.1). Let Vj denote the set of valid pixel indices in token j, excluding padding outside the original image. Decoding first selects the token with the highest score and then the highest scoring valid pixel within that token: 
+
+j∗ = arg max 
+
+> j
+
+aj , k∗ = arg max 
+
+> k∈Vj∗
+
+zj∗k. (2) The predicted click is ˆp = pj∗k∗ , where pjk denotes the coordinate of pixel center k in the original image. The native head selects the target region, and the pixel head determines the precise location within it (Figure 3). Both operate on features from the same forward pass, without encoding additional crops or generating coordinates autoregressively. 
+
+3.3 Transferring Spatial Knowledge 
+
+The teacher transfers spatial knowledge to the student in two ways. First, the student inherits the teacher’s backbone and native decision head, while its pixel head is initialized separately. Second, the teacher’s search traces provide soft spatial targets that describe how probability is distributed over the explored regions. 
+
+Turning search traces into spatial targets. Each search trace ends in a set of leaf regions Rℓ. The corresponding log score sℓ accumulates the visibility, row, and column scores along the path to leaf ℓ. We convert these scored regions into a distribution over pixels by spreading each leaf’s weight uniformly across 5its area. When multiple leaves cover the same pixel, their contributions are added: 
+
+mjk ∝ X
+
+> ℓ
+
+esℓ−max r sr |Pjk ∩ Rℓ||Rℓ| , (3) where Pjk denotes the unit square associated with pixel k in token j. We normalize the resulting values over all pixels in the original image so that P 
+
+> j,k
+
+mjk = 1 . The teacher mass assigned to token j is then 
+
+mj = P 
+
+> k
+
+mjk . This projection allows the same search trace to supervise both token selection and pixel prediction. 
+
+Distilling over observed regions. A search trace provides teacher evidence only within the regions covered by its leaves. Pixels outside these regions remain unobserved and should not be treated as negatives for distillation (Figure S1a). We therefore restrict matching to the observed tokens O = {j : mj > 0} and, within each such token, the observed pixels Oj = {k : mjk > 0}.Let mO = ( mj )j∈O denote the teacher masses over observed tokens and mj,O j = ( mjk )k∈Oj the corresponding masses over observed pixels in token j. We soften and normalize a mass vector using 
+
+[TT (v)] i = v1/T i
+
+P 
+
+> r
+
+v1/T r
+
+. (4) We then define ˜mO = TT (mO ) and ˜mj,O j = TT (mj,O j ). Here the sum runs over the entries of v, and we use 
+
+T = 2 . The spatial distillation objective is 
+
+LKD = T 2h
+
+DKL 
+
+  ˜mO ∥ σ(aO /T )
+
++ X
+
+> j∈O
+
+mj DKL 
+
+  ˜mj,O j ∥ σ(zj,O j /T )i
+
+, (5) where σ denotes softmax, aO = ( aj )j∈O , and zj,O j = ( zjk )k∈Oj . The first term matches the teacher distribu-tion over observed tokens. The second matches the conditional pixel distribution within each observed token and weights it by the token’s original mass mj . Region KD provides an alternative that retains the token term but replaces pixel-level matching with leaf-region mass matching (Section S3.3). We apply LKD only when the teacher’s final click ˆpT lies inside the target box B. This gate does not affect box supervision, which is applied to every training example. 
+
+3.4 Learning to Select Valid Clicks 
+
+A target box contains many valid click locations, whereas inference must return a single point. We therefore supervise token selection and within-token pixel selection separately, using the box to determine the valid choices at each level. 
+
+Token-level supervision. Let Vj denote the indices of valid image pixels in token j, and let pjk be the center of pixel k in original-image. We define Aj = {k ∈ Vj : pjk ∈ B} as the target pixels in token j and 
+
+JB = {j : Aj̸ = ∅} as the tokens containing at least one such pixel. The token loss maximizes the probability assigned to these tokens: 
+
+Lcoarse = − log X
+
+> j∈JB
+
+softmax( a)j . (6) 
+
+Pixel-level winner loss. At the pixel level, high total probability on the target pixels does not necessarily produce a valid argmax. For example, ten target pixels with probability 0.09 each account for 90% of the probability mass, but a non-target pixel with probability 0.10 still determines the click. We therefore compare each target pixel with all non-target pixels in the same token: 
+
+ℓjk = log 
+
+
+
+1 + X 
+
+> v∈Vj\Aj
+
+ezjv −zjk 
+
+
+
+. (7) 6This loss decreases as target pixel k outranks its non-target competitors. For the selected token j∗, if 
+
+ℓj∗k < log 2 for some k ∈ Aj∗ , then P  
+
+> v∈Vj∗\Aj∗
+
+ezj∗v −zj∗k < 1. Each term is therefore below one, so every non-target pixel scores below this target pixel and the argmax click lies inside B. The loss and decoder use the same valid-image-pixel mask, so this sufficient condition applies directly at inference (Proposition S1 and Section S3.1). To learn from multiple valid clicks without fixing a single target point, we apply this loss to the highest-scoring fraction ρ of the target pixels: 
+
+Lpix (j, B ) = 1
+
+|Sj |
+
+X
+
+> k∈Sj
+
+ℓjk , |Sj | = ⌈ρ |Aj |⌉ , (8) where Sj contains the |Sj | target pixels with the highest current logits zjk . Membership in Sj is selected without differentiation. Gradients flow through the selected target logits and their non-target competitors in Equation (7). The main-table PixelOne models use ρ = 0 .2, denoted Top20. Setting |Sj | = 1 gives the single-winner variant used in Table 3, while Section S6.3 also compares these choices with ρ = 1 . A token with no non-target image pixels has zero pixel loss. 
+
+Joint objective. Let R ⊆ JB contain the tokens whose pixel logits are read for box supervision (Sec-tion S2.1). Additional readouts used for distillation do not change R or the averaging below. We combine the corresponding pixel losses with token-level supervision: 
+
+LGT = Lcoarse + 1
+
+|R|
+
+X
+
+> j∈R
+
+Lpix (j, B ). (9) The complete objective adds spatial distillation when the teacher’s final click lies inside the target box: 
+
+L = LGT + λ 1[ˆ pT ∈ B] LKD , (10) where λ = 0 .5. Every example contributes box supervision, while a correct teacher click enables the additional spatial distillation term. Omitting this term gives the GT-only objective. Algorithm 1 summarizes training and inference. 
+
+Model variants. PixelOne and the fully fine-tuned PixelOne-Pro share the same readout and training objective. Their optimization details are provided in Section S2.3. 
+
+Algorithm 1 PixelOne training and inference  
+
+> 1:
+
+Train T3; cache traces for KD.  
+
+> 2:
+
+Initialize from T3, or resume a trained student.  
+
+> 3:
+
+for each training step do  
+
+> 4:
+
+Sample (I, u, B ); load its KD trace if needed.  
+
+> 5:
+
+Forward once; score tokens and read GT/pred pixels.  
+
+> 6:
+
+L ← L GT . 
+
+> 7:
+
+if using KD and ˆpT ∈ B then  
+
+> 8:
+
+Read trace-observed pixels; add λLKD . 
+
+> 9:
+
+end if  
+
+> 10:
+
+Update trainable parameters.  
+
+> 11:
+
+end for  
+
+> 12:
+
+Inference: In one pass, select a token and then a pixel. 
+
+## 4 Experiments 
+
+We compare PixelOne against existing GUI grounders and Qwen-based baselines [26, 27]. We then conduct controlled studies to evaluate search knowledge transfer and the click-aligned pixel objective. 7Table 1 Grounding accuracy and latency compared with external methods. Accuracy (%) is evaluated locally on each full benchmark. Mean accuracy and latency weight the four benchmarks equally. Bold and underlined values indicate the best and second-best results in each parameter group. P and D denote prefill and autoregressive decoding calls. Training data are reported in their original adaptation-stage units, and – indicates an unverified count.  
+
+> †
+
+marks the Pro configuration (Section S2.3). See Sections S4.3 and S4.4 for model and timing details.                                                                                                                                                          
+
+> Method Params Calls Training data ScreenSpot ScreenSpot V2 ScreenSpot Pro OSWorld-GAvg. s/target
+> 2B–4B models
+> GUI-Decisions-2B [31] 2B 1P7K ex. 76.97 79.17 13.98 28.24 49.59 0.083
+> GUI-AIMA-3B [46] 3B 1P509K samp. 88.68 91.67 53.89 66.08 75.08 2.121 Seg2Click-4B [32] 4B 1P1.26M rec. 91.59 93.32 50.22 55.69 72.70 0.287 GUI-Owl-1.5-4B [38] 4B 1P+D–90.72 93.16 66.10 66.86 79.21 1.004 GUI-Swift-4B [8] 4B 1P27.5K ex. 86.24 88.99 29.22 45.88 62.59 0.120 Qwen3.5-4B 4B 1P+Dnone 87.81 90.64 55.03 56.67 72.54 1.501
+> PixelOne 4B 1P200K tgt. 90.64 93.16 55.34 57.45 74.15 0.317
+> PixelOne-Pro †4B 1P500K tgt. 90.33 92.85 68.12 71.18 80.62 0.323
+> 7B–35B models; 35B-A3B has about 3B active parameters
+> V2P-7B [5] 7B 1P9.6M elem. 90.49 92.61 52.31 58.04 73.36 2.487 GUI-Owl-1.5-8B [38] 8B 1P+D–91.67 94.03 69.64 70.00 81.33 1.088 Seg2Click-9B [32] 9B 1P1.26M rec. 92.14 94.42 55.34 59.80 75.43 0.351 UI-Venus-2-9B [30] 9B 1P+D–93.32 96.23 72.04 78.24 84.96 0.582 GUI-Decisions-31B [31] 31B 1P21K ex. 86.64 88.68 12.02 33.92 55.31 0.138
+> Qwen3.6-35B-A3B 35B-A3B 1P+Dnone 91.51 93.71 59.96 76.47 80.41 2.316
+> PixelOne 35B-A3B 1P200K tgt. 91.04 93.32 63.50 68.82 79.17 0.417
+> PixelOne-Pro †35B-A3B 1P500K tgt. 91.67 94.50 72.04 76.86 83.77 0.431
+
+Evaluation. We report point-in-box accuracy on the full target sets of ScreenSpot [6], ScreenSpot V2 [35], and ScreenSpot Pro [18], as well as on the 510 targets with rectangular boxes in OSWorld-G [37]. We average accuracy and latency equally across the four benchmarks and compute speedups from the resulting mean latencies. All models in Table 1 are evaluated locally using their respective image-processing policies. Latency is measured from receiving a decoded screenshot to producing a click. Further evaluation details are provided in Section S4. 
+
+Training. The controlled studies use 21,557 training targets. At each model scale, PixelOne and PixelOne-Pro branch separately from the corresponding Top20+KD student and are further trained on 200K and 500K sampled targets, respectively. Further details on the data and training configurations are provided in Sections S1 and S2.3. 
+
+4.1 Main Grounding Results 
+
+Leading single-forward accuracy. Across the four benchmarks in Table 1, PixelOne-Pro reaches 83.77% mean accuracy at 35B-A3B and 80.62% at 4B. Pro-35B-A3B leads the single-forward grounders, outperform-ing the strongest external baseline, Seg2Click-9B, by 8.34 percentage points. 
+
+Faster and more accurate than GUI-Owl-1.5. Pro-4B outperforms GUI-Owl-1.5-4B [38] by 1.41 per-centage points with a 3.11 × speedup. Pro-35B-A3B similarly outperforms GUI-Owl-1.5-8B by 2.43 points with a 2.53 × speedup. 
+
+A lower-latency alternative to UI-Venus-2. Pro-35B-A3B achieves 26% lower mean latency than UI-Venus-2-9B [30], with 83.77% mean accuracy versus 84.96%. Both reach 72.04% on ScreenSpot Pro. Figure 1 summarizes these comparisons: the insets show the benchmark-level gains over GUI-Owl-1.5, and the main plot shows both PixelOne-Pro models on the accuracy–latency frontier. 
+
+Parameter-efficient grounding. With language LoRA and a frozen visual encoder, the 200K PixelOne models reach 74.15% mean accuracy at 4B and 79.17% at 35B-A3B. 
+
+Qualitative results. Figure 4 compares full-screenshot predictions from Pro-35B-A3B with teacher search trajectories. 8“open level Blueprint”                                   
+
+> T1 ✗T2 ✗T3 ✓PixelOne-Pro ✓
+> “Check the github copilot settings.”
+> T1 ✗T2 ✓T3 ✗PixelOne-Pro ✓
+> “view code structure in pycharm”
+> T1 ✗T2 ✗T3 ✗PixelOne-Pro ✓
+> “star tool”
+> T1 ✗T2 ✗T3 ✗PixelOne-Pro ✓
+> PixelOne-Pro Token map Pixel map T2 click T3 click T3 search windows Ground truth, ringed when small
+
+Figure 4 Direct pixel prediction alongside teacher search. PixelOne-Pro-35B-A3B locates the shown ScreenSpot Pro targets in a single forward pass. Across the full benchmark, it correctly localizes 230 targets missed by T3. Section S5.3 provides further analysis. 
+
+4.2 Inference Efficiency 
+
+Eliminating sequential decoding. PixelOne produces a click with one visual encoding and one language-model forward, avoiding sequential coordinate decoding. Although UI-Venus-2-9B and both GUI-Owl-1.5 models also encode the screenshot once, UI-Venus-2-9B averages 10.68 language-model calls per target and each GUI-Owl-1.5 model averages 34.72, including the initial forward. These timing results are summarized in Table S3. 
+
+Accuracy among direct readouts. Pro-4B improves mean accuracy over GUI-Swift-4B by 18.03 percent-age points, with a higher mean latency of 0.323 s per target compared with 0.120 s for GUI-Swift-4B. This accuracy–latency trade-off is reported in Table 1. 
+
+Lower tail latency. Tail latency favors PixelOne-Pro on ScreenSpot, ScreenSpot V2, and OSWorld-G, where each Pro model’s P95 latency is below the median latency of UI-Venus-2-9B. On ScreenSpot, for example, Pro-35B-A3B has a P95 latency of 0.450 s, compared with a median latency of 0.531 s for UI-Venus-2-9B. Full per-benchmark latency profiles are provided in Tables S2 and S3. 
+
+4.3 What Search Contributes 
+
+Table 2 Teacher initialization and spatial distillation. At each scale, students differ only in initialization and distillation. Results are from single training runs. Student SS V2 Pro OSW Avg. 4B Base init, GT 77.99 79.48 36.24 30.00 55.93 Teacher init, GT 84.91 87.89 43.77 39.02 63.90 
+
++ distillation 87.19 89.78 48.89 46.47 68.08 
+
+35B Base init, GT 89.78 91.98 53.19 53.92 72.22 Teacher init, GT 90.41 92.77 57.62 59.02 74.95 
+
++ distillation 91.12 93.08 58.57 60.39 75.79 
+
+The Top20 ablation in Table 2 examines the contributions of teacher initialization and spatial distillation. Together, they improve mean accuracy over the base-initialized reference by 12.2 percentage points at 4B and 3.6 points at 35B-A3B. All configurations use the training setup detailed in Section S2.3, with language LoRA [15] and a frozen visual encoder. 9Transferring parameters. With box supervision alone, teacher-initialized students outperform base-initialized students on every benchmark at both scales. Mean accuracy improves by 8.0 percentage points at 4B and 2.7 at 35B-A3B. 
+
+Adding spatial distillation. For teacher-initialized students, spatial KD improves mean accuracy by 4.2 points at 4B and 0.8 at 35B-A3B, with gains on all benchmarks at both scales.                                                   
+
+> Table 3 Distilling a distribution rather than a point. At each scale, students share the single-winner pixel loss and differ only in initialization and teacher supervision. †marks gains over teacher-point supervision ( p < 0.01 , paired sign test). Init Teacher signal SS V2 Pro OSW 4B base none 81.76 83.73 37.00 30.39 T3 none 85.69 88.52 42.76 37.65 T3 teacher point 84.67 87.03 42.06 37.25 T3 distribution 87.11 †89.62 †44.97 †40.20
+> 35B base none 88.84 90.72 50.16 49.02 T3 none 90.25 92.22 51.80 53.14 T3 teacher point 90.33 92.37 53.57 55.29 T3 distribution 90.41 92.85 56.29 †55.69
+
+Distribution versus point supervision. Using the single-winner pixel loss, we separately compare dis-tribution and teacher-point supervision with the same teacher initialization at each scale. As shown in Table 3, distribution supervision performs better on every benchmark at both scales, with significant gains on ScreenSpot Pro ( p < 0.01 , paired sign test). A single click specifies one location, whereas the distribution retains the teacher’s relative preferences across the searched regions. 
+
+4.4 Why the Pixel Objective Matters 
+
+We examine two design choices: aligning pixel scores with the final click and learning from multiple valid pixels.               
+
+> Table 4 Pixel loss with token selection fixed. The 35B-A3B students differ only in pixel loss. Section S6.3 details the setup. Pixel loss SS V2 Pro OSW Set likelihood 89.47 91.82 46.93 49.80 One winner (Equation (7)) 90.33 92.77 51.04 50.59
+
+Aligning scores with the winning click. With token selection fixed, the winner loss improves accuracy on all four benchmarks in Table 4, gaining 4.1 percentage points on ScreenSpot Pro. For selected tokens containing target pixels, mean in-box probability mass remains similar at 77.4% for set likelihood and 76.8% for winner loss. The objective thus converts similar in-box probability mass into more correct clicks through better pixel ranking.                                       
+
+> Table 5 How many valid pixels to supervise. Top20 ( ρ= 0 .2) achieves the highest mean accuracy among the three settings at both model scales.
+> ρSS V2 Pro OSW Avg. 4B one winner 87.11 89.62 44.97 40.20 65.47
+> 0.2 87.19 89.78 48.89 46.47 68.08
+> 1.0 87.19 89.78 47.56 41.76 66.57 35B one winner 90.41 92.85 56.29 55.69 73.81
+> 0.2 91.12 93.08 58.57 60.39 75.79
+> 1.0 90.02 92.69 58.57 59.02 75.07
+
+10 Learning from multiple valid pixels. Top20 achieves the highest four-benchmark mean at both scales in Table 5, improving over one-winner supervision by 2.6 percentage points at 4B and 2.0 at 35B-A3B. Under the same training setup, it supervises the highest-scoring 20% of target pixels within each token, rather than one or all target pixels. This supports learning from multiple high-scoring valid clicks, motivating the use of Top20 in PixelOne and PixelOne-Pro. 
+
+4.5 Region Selection and Pixel Precision 70 75 80          
+
+> Right token (%)
+> 89 90 91 92
+> Hit within right token (%)
+> 60% 65% 70%
+> 4B 35B
+> (a) Token and pixel
+> <1 1–4 4–16 ≥16
+> Target area (tokens)
+> 04812
+> Gain over Base GT (points)
+> +11.4 / +9.0
+> left 4B right 35B
+> (b) Gain by target size
+> Base GT T3 GT (init) T3 point PixelOne (KD)
+
+Figure 5 Search transfer improves grounding. (a) Target-token coverage and conditional pixel accuracy. (b) Gains over base initialization by target area. Results use single-winner students in Table 3. 
+
+We analyze the single-winner students in Table 3, pooling evaluation targets. Target-token cover-age measures how often the selected token con-tains a valid click, while conditional pixel accu-racy measures click accuracy within this subset. 
+
+Initialization strengthens region selection. 
+
+Teacher initialization improves target-token cov-erage at both scales in Figure 5a. The error break-down in Section S6.4 shows that most of the gain comes from fewer selections far from the target, indicating stronger global localization. 
+
+Spatial KD strengthens pixel precision. 
+
+Spatial KD improves conditional pixel accuracy at both scales while maintaining similar target-token coverage. On ScreenSpot Pro at 35B-A3B, within-token pixel errors fall from 251 to 185, while the number of targets with a correct token selection changes only from 1,070 to 1,075. The category results in Table S10 show gains for both text and icon targets. Distribution supervision also achieves the highest conditional pixel accuracy among these students and higher target-token coverage than point supervision. 
+
+Benefits on compact targets. 
+
+The gains extend to compact targets in Figure 5b. For boxes with areas equivalent to one to four visual tokens, teacher initialization and spatial KD together improve accuracy over base initialization by 11.4 percentage points at 4B and 9.0 at 35B-A3B. 
+
+## 5 Conclusion 
+
+PixelOne transfers a search teacher’s parameters and spatial distributions to a student that predicts clicks directly from the full screenshot in a single forward pass. Its shared decision head selects a visual token, while a lightweight pixel head trained with a click-aligned objective locates the click within that token. Experiments across four benchmarks validate the contributions of spatial distillation and click-aligned pixel learning. PixelOne-Pro-35B-A3B achieves 83.8% mean accuracy with a mean latency of 0.43 s per target, while both the 4B and 35B-A3B configurations lie on the accuracy–latency frontier of the evaluated systems. More broadly, PixelOne offers a design principle for efficient GUI grounding: move spatial exploration into training and align supervision with the executed click, enabling richer spatial learning without performing search at inference time. 
+
+## References 
+
+[1] Saaket Agashe, Jiuzhou Han, Shuyu Gan, Jiachen Yang, Ang Li, and Xin Eric Wang. Agent S: An Open Agentic Framework that Uses Computers Like a Human. In International Conference on Learning Representations (ICLR) , 2025. https://arxiv.org/abs/2410.08164 .[2] Pranjal Aggarwal, Lawrence Keunho Jang, Sean Welleck, Daniel Fried, Ruslan Salakhutdinov, and Jing Yu Koh. 
+
+11 cua-speedrun: Standardized benchmarking of the speed of computer-use agents, 2026. https://arxiv.org/abs/ 2609.40284 .[3] Ahmed Awadallah, Sahil Gupta, Yash Lara, Yadong Lu, Hussein Mozannar, Akshay Nambi, Zach Nussbaum, Yash Pandya, Aravind Rajeswaran, Corby Rosset, Alexey Taymanov, Luiz do Valle, Vibhav Vineet, Spencer Whitehead, and Andrew Zhao. Fara-1.5: Scalable learning environments for computer use agents, 2026. https: //arxiv.org/abs/2606.20785 .[4] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, Wenbin Ge, Zhifang Guo, Qidong Huang, Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhaohai Li, Mingsheng Li, Mei Li, Kaixin Li, Zicheng Lin, Junyang Lin, Xuejing Liu, Jiawei Liu, Chenglong Liu, Yang Liu, Dayiheng Liu, Shixuan Liu, Dunjie Lu, Ruilin Luo, Chenxu Lv, Rui Men, Lingchen Meng, Xuancheng Ren, Xingzhang Ren, Sibo Song, Yuchong Sun, Jun Tang, Jianhong Tu, Jianqiang Wan, Peng Wang, Pengfei Wang, Qiuyue Wang, Yuxuan Wang, Tianbao Xie, Yiheng Xu, Haiyang Xu, Jin Xu, Zhibo Yang, Mingkun Yang, Jianxin Yang, An Yang, Bowen Yu, Fei Zhang, Hang Zhang, Xi Zhang, Bo Zheng, Humen Zhong, Jingren Zhou, Fan Zhou, Jing Zhou, Yuanzhi Zhu, and Ke Zhu. Qwen3-vl technical report, 2025. https: //arxiv.org/abs/2511.21631 .[5] Jikai Chen, Long Chen, Dong Wang, Qinglin Su, Zhixuan Chu, Bingguang Hao, Leilei Gan, Chenyi Zhuang, and Jinjie Gu. V2p: Visual attention calibration for gui grounding via background suppression and center peaking, 2026. https://arxiv.org/abs/2601.06899 .[6] Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Li YanTao, Jianbing Zhang, and Zhiyong Wu. SeeClick: Harnessing GUI grounding for advanced visual GUI agents. In Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 9313–9332, Bangkok, Thailand, August 2024. Association for Computational Linguistics. https://aclanthology.org/2024.acl-long.505 .[7] Zehua Cheng, Wei Dai, and Jiahao Sun. this-that-model-1.0: A typed decision model that decides in 30 ms, for a millionth of a cent, 2026. https://arxiv.org/abs/2609.23886 .[8] dongjintao. GUI-Swift-4B: Single-pass GUI action prediction. Hugging Face model and inference release, 2026. https://huggingface.co/dongjintao/GUI-Swift-4B. [9] Feiyu Duan, Jiayu Lin, Jia Wang, Jun Xiang, Jialiang Wu, Xinnong Zhang, Hanqi Yan, Siyuan Wang, and Zhongyu Wei. General decision models: Benchmarking and insights beyond jev, 2026. https://arxiv.org/abs/ 2610.03935 .[10] Liyang Fan, Xinping Bi, Yitai Li, Shuaimin Li, Hui Li, and Min Yang. Rankground: Efficient high-resolution gui grounding via lightweight reranker-guided crop selection. In ACM MM 2026 , 2026. https://arxiv.org/abs/ 2609.18690 .[11] Aarash Feizi, Shravan Nayak, Xiangru Jian, Kevin Qinghong Lin, Kaixin Li, Rabiul Awal, Xing Han Lu, Johan S Obando Ceron, Juan A. Rodriguez, Nicolas Chapados, David Vazquez, Adriana Romero-Soriano, Reihaneh Rabbany, Perouz Taslakian, Christopher Pal, Spandana Gella, and Sai Rajeswar Mudumba. Grounding computer use agents on human demonstrations. In C. Vondrick, B. Hariharan, C. Raffel, L. Pinto, D. Yang, and A. Faust, editors, International Conference on Learning Representa-tions , volume 2026, pages 5181–5215, 2026. https://proceedings.iclr.cc/paper_files/paper/2026/file/ 0961fffb7adb81388b9b24ab6a3ff7ab-Paper-Conference.pdf .[12] Jonathan Geuter, Andrew Cheng, and David Alvarez-Melis. Releasing the inner jev: A simple recipe for open decision models, 2026. https://arxiv.org/abs/2610.17205 .[13] Hongliang He, Wenlin Yao, Kaixin Ma, Wenhao Yu, Yong Dai, Hongming Zhang, Zhenzhong Lan, and Dong Yu. WebVoyager: Building an end-to-end web agent with large multimodal models. In Lun-Wei Ku, Andre Mar-tins, and Vivek Srikumar, editors, Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers) , pages 6864–6890, Bangkok, Thailand, August 2024. Association for Com-putational Linguistics. doi: 10.18653/v1/2024.acl-long.371. https://aclanthology.org/2024.acl-long.371/ .[14] Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yuxiao Dong, Ming Ding, and Jie Tang. Cogagent: A visual language model for gui agents. In 2024 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 14281–14290, 2024. doi: 10.1109/ CVPR52733.2024.01354. 
+
+12 [15] Edward J Hu, yelong shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen. LoRA: Low-rank adaptation of large language models. In International Conference on Learning Repre-sentations , 2022. https://openreview.net/forum?id=nZeVKeeFYf9 .[16] Raghav Kapoor, Yash Parag Butala, Melisa Russak, Jing Yu Koh, Kiran Kamble, Waseem AlShikh, and Ruslan Salakhutdinov. Omniact: A dataset and benchmark for enabling multimodal generalist autonomous agents for desktop and web. In Aleš Leonardis, Elisa Ricci, Stefan Roth, Olga Russakovsky, Torsten Sattler, and Gül Varol, editors, Computer Vision – ECCV 2024 , pages 161–178, Cham, 2025. Springer Nature Switzerland. ISBN 978-3-031-73113-6. [17] Jincheng Li, Yutian Zhang, Jianyu Zhang, Xinshun Wang, and Mengyuan Liu. Affordjev: Affordance grounding by confirming candidate regions, 2026. https://arxiv.org/abs/2611.07896 .[18] Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. Screenspot-pro: Gui grounding for professional high-resolution computer use. In Proceedings of the 33rd ACM International Conference on Multimedia , MM ’25, page 8778–8786, New York, NY, USA, 2025. Association for Computing Machinery. ISBN 9798400720352. doi: 10.1145/3746027.3755688. https://doi.org/10.1145/ 3746027.3755688 .[19] Jiaping Lin, Fei Shen, Junzhe Li, Ping Nie, Fei Yu, Ming Li, and Haizhou Li. What happens before decoding? prefill determines gui grounding in vlms, 2026. https://arxiv.org/abs/2605.12549 .[20] Kevin Qinghong Lin, Linjie Li, Difei Gao, Zhengyuan Yang, Shiwei Wu, Zechen Bai, Stan Weixian Lei, Lijuan Wang, and Mike Zheng Shou. Showui: One vision-language-action model for gui visual agent. In 2025 IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , pages 19498–19508, 2025. doi: 10.1109/ CVPR52734.2025.01816. [21] Chen Liu, Ling Chen, Hanzhang Zhou, Liangyu Chen, Chenglin Cai, Xin Yu, Steven Hoi, and Yue Wang. One forward beats two: InnerZoom for accurate and efficient GUI grounding. In Hung-Yi Lee, Sunipa Dev, Junyi Jessy Li, and Desmond Elliott, editors, Proceedings of the 2026 Conference on Empirical Methods in Natural Language Processing , pages 19560–19581, Budapest, Hungary, October 2026. Association for Computational Linguistics. ISBN 979-8-89176-459-0. doi: 10.18653/2026.emnlp-main.843. https://aclanthology.org/2026.emnlp-main. 843/ .[22] Bowen Lv, Xiao Liu, Yanyu Ren, Hanyu Lai, Bohao Jing, Hanchen Zhang, Yanxiao Zhao, Shuntian Yao, Jie Tang, and Yuxiao Dong. Scalecua: Scaling computer use agents with verifiable task synthesis and efficient online rl, 2026. https://arxiv.org/abs/2607.11185 .[23] Luozheng Qin, Yuhan Zhu, Changhai Zhou, Qian Qiao, Jun Gao, Yuhua Zhou, Harry Zhang, Xiangyu Zeng, Yuxuan Liu, Kaijie Chen, et al. Mjev-spatial: System one spatial intelligence via native attention matching. 
+
+arXiv preprint arXiv:2610.22276 , 2026. [24] Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, Wanjun Zhong, Kuanye Li, Jiale Yang, Yu Miao, Woyu Lin, Longxiang Liu, Xu Jiang, Qianli Ma, Jingyu Li, Xiaojun Xiao, Kai Cai, Chuang Li, Yaowei Zheng, Chaolin Jin, Chen Li, Xiao Zhou, Minchao Wang, Haoli Chen, Zhaojian Li, Haihua Yang, Haifeng Liu, Feng Lin, Tao Peng, Xin Liu, and Guang Shi. Ui-tars: Pioneering automated gui interaction with native agents, 2025. https://arxiv.org/abs/2501.12326 .[25] Xinyu Qiu, Yunzhu Zhang, Heng Jia, Shuheng Shen, Changhua Meng, and Linchao Zhu. Vista: View-consistent self-verified training for gui grounding, 2026. https://arxiv.org/abs/2606.14579 .[26] Qwen Team. Qwen3.5: Towards native multimodal agents. https://qwen.ai/blog?id=qwen3.5 , February 2026. [27] Qwen Team. Qwen3.6-35B-A3B: Agentic coding power, now open to all. https://qwen.ai/blog?id=qwen3. 6-35b-a3b , April 2026. [28] Chris Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel Toyama, Robert Berry, Divya Tyamagundlu, Timothy Lillicrap, and Oriana Riva. AndroidWorld: A Dynamic Benchmarking Environment for Autonomous Agents. In International Conference on Learning Representations , 2025. https://proceedings.iclr.cc/paper_files/ paper/2025/hash/01a83bc2f2732a58e6aa731e659e7101-Abstract-Conference.html .[29] Stephane Ross, Geoffrey Gordon, and Drew Bagnell. A reduction of imitation learning and structured prediction to no-regret online learning. In Geoffrey Gordon, David Dunson, and Miroslav Dudík, editors, Proceedings of the Fourteenth International Conference on Artificial Intelligence and Statistics , volume 15 of Proceedings 
+
+13 of Machine Learning Research , pages 627–635, Fort Lauderdale, FL, USA, 11–13 Apr 2011. PMLR. https: //proceedings.mlr.press/v15/ross11a.html .[30] Venus Team, Zhuohan Cai, Haoxing Chen, Jiaxuan Chen, Weizhi Chen, Changlong Gao, Zhangxuan Gu, Yuan Guo, Yusong Hu, Jianrong Jiang, Jianguo Li, Runze Li, Jinzhen Lin, Zhenyu Ma, Changhua Meng, Han Peng, Xinyu Qiu, Shuheng Shen, Zhongyi Shui, Weiqiang Wang, Ming Wen, Zhuoer Xu, Hang Yan, Kaiwen Yang, Ruilin Yao, Nanjun Yu, Zhengwen Zeng, Lianrui Zhang, Yunzhu Zhang, Zhe Zhao, and Beitong Zhou. Ui-venus-2 technical report, 2026. https://arxiv.org/abs/2609.00028 .[31] Logesh Kumar Umapathi. Gui-decisions - stop decoding coordinates for 3x faster computer-use grounding. 
+
+hf.co/blog , Oct 2026. hf.co/blog/infinitylogesh/gui-decisions-stop-decoding-coordinates. [32] Jingchao Wang and Dingjiang Huang. Seg2click: Learning pixel-level action masks for gui visual grounding, 2026. 
+
+https://arxiv.org/abs/2610.16234 .[33] Lai Wei, Liangbo He, Jun Lan, Lingzhong Dong, Yutong Cai, Siyuan Li, Huijia Zhu, Weiqiang Wang, Linghe Kong, Yue Wang, Zhuosheng Zhang, and Weiran Huang. Zooming without zooming: Region-to-image distillation for fine-grained multimodal perception. In Tong Zhang, Miroslav Dudik, Martin Jaggi, Alekh Agarwal, Sharon Li, Dale Schuurmans, Jerry Zhu, Felix Berkenkamp, Hanze Dong, and Alberto Bietti, editors, Proceedings of the 43rd International Conference on Machine Learning , volume 306 of Proceedings of Machine Learning Research ,pages 133660–133688. PMLR, 06–11 Jul 2026. https://proceedings.mlr.press/v306/wei26j.html .[34] Qianhui Wu, Kanzhi Cheng, Rui Yang, Chaoyun Zhang, Jianwei Yang, Huiqiang Jiang, Jian Mu, Baolin Peng, Bo Qiao, Reuben Tan, Si Qin, Lars Liden, Qingwei Lin, Huan Zhang, Tong Zhang, Jianbing Zhang, Dongmei Zhang, and Jianfeng Gao. Gui-actor: Coordinate-free visual grounding for gui agents. In D. Bel-grave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz, M. Ghassemi, and N. Chen, editors, Advances in Neu-ral Information Processing Systems , volume 38, Main Conference, pages 15101–15128. Curran Associates, Inc., 2025. doi: 10.52202/085713-0508. https://proceedings.neurips.cc/paper_files/paper/2025/file/ 16130af940e9dabb43c726119bd3b42e-Paper-Conference.pdf .[35] Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, and Yu Qiao. Os-atlas: Foundation action model for generalist gui agents. In Y. Yue, A. Garg, N. Peng, F. Sha, and R. Yu, editors, International Conference on Learning Representa-tions , volume 2025, pages 5090–5108, 2025. https://proceedings.iclr.cc/paper_files/paper/2025/file/ 0faa4bc5f522076947a030273629d4fe-Paper-Conference.pdf .[36] Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhoujun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao Yu. OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer envi-ronments. In The Thirty-eight Conference on Neural Information Processing Systems Datasets and Benchmarks Track , 2024. https://openreview.net/forum?id=tN61DTr4Ed .[37] Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang, Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang, Yuhui Xu, Zekun Wang, Yiheng Xu, Junli Wang, Doyen Sahoo, Tao Yu, and Caim-ing Xiong. Scaling computer-use grounding via user interface decomposition and synthesis. In D. Belgrave, C. Zhang, H. Lin, R. Pascanu, P. Koniusz, M. Ghassemi, and N. Chen, editors, Ad-vances in Neural Information Processing Systems , volume 38, Main Conference. Curran Associates, Inc., 2025. doi: 10.52202/085713-0817. https://proceedings.neurips.cc/paper_files/paper/2025/file/ 22c868099177ee278eb7baccec649f35-Paper-Datasets_and_Benchmarks_Track.pdf .[38] Haiyang Xu, Xi Zhang, Haowei Liu, Junyang Wang, Zhaozai Zhu, Shengjie Zhou, Xuhao Hu, Feiyu Gao, Junjie Cao, Zihua Wang, Zhiyuan Chen, Jitong Liao, Qi Zheng, Jiahui Zeng, Ze Xu, Shuai Bai, Junyang Lin, Jingren Zhou, and Ming Yan. Mobile-agent-v3.5: Multi-platform fundamental gui agents, 2026. https://arxiv.org/ abs/2602.16855 .[39] Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tianbao Xie, Amrita Saha, Doyen Sahoo, Tao Yu, and Caiming Xiong. Aguvis: Unified pure vision agents for autonomous GUI interaction. In Aarti Singh, Maryam Fazel, Daniel Hsu, Simon Lacoste-Julien, Felix Berkenkamp, Tegan Maharaj, Kiri Wagstaff, and Jerry Zhu, editors, Proceedings of the 42nd International Conference on Machine Learning , volume 267 of Proceedings of Machine Learning Research , pages 69772–69805. PMLR, 13–19 Jul 2025. https://proceedings.mlr.press/v267/xu25ae.html .[40] Taofeng Xue, Chong Peng, Mianqiu Huang, Linsen Guo, Tiancheng Han, Haozhe Wang, Jianing Wang, Xiaocheng Zhang, Xin Yang, Dengchang Zhao, Jinrui Ding, Xiandi Ma, Yuchen Xie, Peng Pei, Xunliang Cai, and Xipeng 
+
+14 Qiu. Evocua: Evolving computer use agents via learning from scalable synthetic experience, 2026. https: //arxiv.org/abs/2601.15876 .[41] Guanxu Yu and Yuhang Yao. Visual jev: Accurate and efficient decisions from shared visual context, 2026. 
+
+https://arxiv.org/abs/2609.25845 .[42] Xinlei Yu, Gen Li, Ji Zhao, Zhangquan Chen, Congcong Wang, Shuai Dong, Zelin Peng, Yuqi Xu, Hongrui Wu, Kaiwen Tuo, Cheng Yang, Kaituo Feng, Yifan Wu, Jiayi Zhang, Dongming Wu, Wenqi Shao, Jiaqi Wang, and Xiangyu Yue. Cua-master: Scaling computer-use agents through open-world recursive improvements, 2026. 
+
+https://arxiv.org/abs/2611.03126 .[43] Mengqi Yuan, Zilong Zhou, Xinzhuang Xiong, Weiming Wu, Jiayang Sun, Jiamin Song, Kaiqian Cui, Bowen Wang, Haoyuan Wu, Yitong Li, Dunjie Lu, Haikong Lu, Qi Zhen, Xinyuan Wang, Jiaqi Deng, Yuhao Yang, Cheng Chen, Boyuan Zheng, Alex Su, Xiao Yu, Hao Zou, Saaket Agashe, Xing Han Lu, Manpreet Kaur, Zhengyang Qi, Vincent Sunn Chen, Frederic Sala, Dayiheng Liu, Junyang Lin, Zhou Yu, Yu Su, Siva Reddy, Xin Eric Wang, Peng Qi, Tianbao Xie, and Tao Yu. Osworld 2.0: Benchmarking computer use agents on long-horizon real-world tasks, 2026. https://arxiv.org/abs/2606.29537 .[44] Linghua Zhang. Jev-mobile: Jev as an executor for mobile gui agents, 2026. https://arxiv.org/abs/2609. 30186 .[45] Yunzhu Zhang, Zeyu Pan, Zhengwen Zeng, Shuheng Shen, Changhua Meng, and Linchao Zhu. Mvp: Multiple view prediction improves gui grounding. In IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR) , 2026. https://arxiv.org/abs/2512.08529 .[46] Shijie Zhou, Viet Dac Lai, Hao Tan, Jihyung Kil, Wanrong Zhu, Changyou Chen, and Ruiyi Zhang. Gui-aima: Aligning intrinsic multimodal attention with a context anchor for gui grounding. In Paolo Favaro, Zuzana Kukelova, Atsuto Maki, Anna Rohrbach, Konrad Schindler, and Federico Tombari, editors, Computer Vision – ECCV 2026 , pages 79–97, Cham, 2026. Springer Nature Switzerland. ISBN 978-3-032-37016-7. [47] Tong Zhu, Zhe Xu, Zefeng He, Yunkai Chai, Xuyang Hu, Dehong Zheng, Yun Luo, Yafu Li, Qi Zhang, and Yu Cheng. Intern-decision: Efficient multimodal decision making with autoregressive masked language modeling, 2026. https://arxiv.org/abs/2610.22131 .[48] Yuhan Zhu, Xiangyu Zeng, Qingyi Si, Chenxu Yang, Yifei Li, Luozheng Qin, Junhao Zhou, Dingyu Yao, Jun Zhang, Chuanyu Qin, Zhiqiu Zhang, Yuandong Yang, Yuqi Xu, Tianyu Zhang, Hongcheng Guo, Jiaqi Wang, Nan Duan, and Limin Wang. Videojev: System one model for video understanding and interaction, 2026. 
+
+https://arxiv.org/abs/2610.18615 .
+
+15 Supplementary Material 
+
+References without an S prefix refer to the main paper. Citation numbers follow the main paper’s bibliography. Sections S1 to S4 cover data, method details, mathematical analysis, and evaluation. Sections S5 to S8 report additional results, controlled studies, local generation, and qualitative visualizations. 
+
+## S1 Data Construction 
+
+S1.1 Training Sets and Source Mixtures 
+
+The controlled set contains 21,557 targets from 1,010 ShowUI screenshots [20] covering web and OmniACT desktop interfaces [16]. Hyperlinks are capped at 60%.                                
+
+> Table S1 Composition of the continuation datasets. Entries count grounding targets. Share gives each source’s percentage of the 500K set. Section S1 describes the controlled 21,557-target set. Source 200K 500K Share (%) GroundCUA 140,500 350,500 70.10 ShowUI-web 30,000 90,000 18.00 OS-Atlas Linux 12,000 22,000 4.40 OS-Atlas macOS 6,000 13,000 2.60 ShowUI-desktop 1,500 1,800 0.36 OS-Atlas RICO 8,000 19,000 3.80 OS-Atlas UIBert 2,000 3,700 0.74 Total 200,000 500,000 100.00
+
+Table S1 summarizes the 200K and 500K continuation mixtures [11, 35]. They contain 78,530 and 87,517 unique decoded-RGB screenshots, respectively, with one instruction retained per screenshot–box pair. 
+
+S1.2 Validation Split and Benchmark Screening 
+
+The 200K and 500K runs share 2,000 held-out targets from 1,808 screenshots, with each source image and its crops assigned to the same split. Screening against all four benchmarks found no exact decoded-RGB matches or near duplicates. The near-duplicate rule requires dHash distance ≤ 2, grayscale MAE ≤ 3, and log-aspect-ratio difference ≤ 0.02 . Both continuation sets use benchmark-filtered sources. The 500K expansion also excludes existing target IDs, duplicate screenshot–box pairs, and validation image groups. 
+
+## S2 Method Details and Key Settings 
+
+S2.1 Native Input and Pixel Readout 
+
+Input. We pad the screenshot on the right and bottom to multiples of stride s = 32 without resizing. Two identical frames yield one grid of N = ⌈W/s ⌉⌈ H/s ⌉ tokens for a W × H screenshot. The native score scale is fixed at α = 10 .
+
+Pixel head. The pixel head uses 128 channels, a 3 × 3 depthwise convolution, and a 128 → 128 → 1024 
+
+MLP with GELU. Given token-feature grid v and instruction query q, it computes 
+
+vj = Wv LN( hj ), (γ, β ) = Wf LN( q),
+
+˜v = v ⊙ (1 + tanh γ) + β, zj = MLP ˜vj + DWConv 3×3(˜ v)j
+
+. (S1) 16 The projections Wv and Wf are affine with implicit biases, and the visual states and query share the same LayerNorm parameters. At inference, the convolution processes the full grid, but the MLP processes only the selected token. The pixel head has 1,138,432 parameters at 4B and 940,800 at 35B-A3B. With zero-based indices and C = ⌈W/s ⌉, pixel k in token j has coordinate 
+
+pjk =  s(j mod C) + ( k mod s) + 12 , s ⌊j/C ⌋ + ⌊k/s ⌋ + 12
+
+. (S2) The loss and decoder use the same mask to exclude padding pixels. 
+
+Training readouts. For GT supervision, we read pixel logits for the union of the box-center token, up to four top-scoring tokens, and up to four top-scoring GT-valid tokens. The GT-valid subset of this union defines R in Equation (9). KD also reads teacher-observed tokens without changing R.
+
+S2.2 Training the Search Teacher 
+
+Search states. Each local state includes the full image and a crop with a 12% margin on each side. Each refinement round batches two local states. 
+
+Schedule. We train the teacher for 500 updates on box-derived states, then 500 on an approximately 1:1 mixture of box-derived and visited states. We collect visited states on 4,096 training targets after the first stage. The final teacher is frozen for student initialization and trace caching. 
+
+Labels. Row and column supervision uses the box center when it lies inside the crop. Visibility is positive when the crop contains the target box and negative when they do not overlap. We omit visibility loss for partial overlap. 
+
+S2.3 Student Initialization and Training 
+
+Initialization. Base-initialized controls use Qwen weights with the VideoJEV decision head and special-token embeddings. Teacher-initialized controls use T3 weights and a new pixel head. 
+
+Controlled training. We train rank-16 language LoRA and both heads for 1,500 updates with a frozen visual encoder and causal attention. Matched pairs share pixel-head initialization and data order. 
+
+Expanded configurations. At each scale, we train both variants independently from the same 21,557-target Top20+KD student, retaining its pixel head. For PixelOne , we train rank-16 language LoRA and both heads on 200K targets with a frozen visual encoder and causal attention. For PixelOne-Pro , we train all parameters, including the visual encoder, on 500K targets. Full-attention layers are bidirectional with padding-only masks. Linear attention is unchanged. Both variants use Top20 and observed-support pixel KD. 
+
+## S3 Proofs and Distillation Details 
+
+S3.1 Conditional Click Bound 
+
+Proposition S1 (Conditional click bound) . For a token j with Aj̸ = ∅ and finite logits, let ˆk =arg max k∈Vj zjk and k+ 
+
+> j
+
+= arg max k∈Aj zjk . Then 
+
+1[ˆk / ∈ Aj ] ≤
+
+ℓjk +
+
+> j
+
+log 2 ,
+
+where Vj is the decoder’s valid-pixel set and ℓ is defined in Equation (7) .
+
+17 Proof of Proposition S1. If ˆk ∈ Aj , the indicator is zero and the loss is nonnegative. Otherwise, zjˆk ≥ zjk +
+
+> j
+
+,including ties, so X 
+
+> v∈Vj\Aj
+
+ezjv −zjk + 
+
+> j
+
+≥ ezj ˆk −zjk + 
+
+> j
+
+≥ 1.
+
+Substituting this inequality into the winner loss gives 
+
+ℓjk +
+
+> j
+
+= log 
+
+1 + X 
+
+> v∈Vj\Aj
+
+ezjv −zjk +
+
+> j
+
+
+
+≥ log(1 + 1) = log 2 .
+
+This proves the bound. 
+
+S3.2 Set Mass and the Pixel Decision 
+
+Suppose K target pixels have logit zero and one non-target pixel has logit δ > 0. The non-target pixel wins, but the set loss is 
+
+Lset = log(1 + eδ /K ). (S3) Increasing K lowers this loss without correcting the click. In contrast, every target pixel has winner loss 
+
+ℓjk = log(1 + eδ ) > log 2 .Applying Proposition S1 to the selected token gives 
+
+1[ˆ p / ∈ B] ≤
+
+(1, j∗ /∈ JB ,ℓj∗k+ 
+
+> j∗
+
+/ log 2 , j∗ ∈ JB . (S4) Equation (6) defines the loss for token selection. The winner loss bounds pixel errors after a target-valid token is selected. 18 S3.3 Region-KD Normalization 
+
+Region KD compares teacher and student distributions over leaves within each crop. We normalize these distribu-tions separately for each crop, even when crops overlap. For crop r, let Rrℓ denote its leaves and srℓ their teacher log-scores. We discard leaves with no valid pixel centers and normalize the remaining scores as trℓ =softmax( sr·/T )ℓ, with T = 2 .For a valid pixel k ∈ Vj , the student’s unnormalized mass is 
+
+μjk = eaj /T ezjk /T 
+
+P 
+
+> v∈Vj
+
+ezjv /T . (S5) We assign pixels to leaves by their centers using half-open boundaries. We sum their masses within each leaf as 
+
+Mrℓ = P  
+
+> j,k :pjk ∈Rrℓ
+
+μjk and normalize within the crop to obtain πrℓ = Mrℓ / P 
+
+> ℓ′
+
+Mrℓ ′ . Adding the shared token-level term, including its T 2 factor, gives 
+
+Lreg KD = LKD ,coarse 
+
++ T 2 X
+
+> r
+
+ωr DKL (tr· ∥ πr·) . (S6) We set the weights ωr proportional to the original par-ent mass times the crop visibility probability and normal-ize them over nonempty crops. Region and pixel KD use the same teacher-correct gate. Table S9 reports their con-trolled comparison. (a) Partial teacher support            
+
+> Searched ROIs
+> leaf scores + bounds fixed cache
+> Observed support
+> teacher mass unknown, not negative
+> (b) Pixel KD and region KD
+> 10% 10% 10% 10% 25% 5% 5% 5% one leaf
+> 40%
+> Pixel KD
+> each pixel: 40% / 4
+> Region KD
+> only the sum: 40%
+> (c) Mass versus argmax
+> GT box
+> 20% 20% 20% 30% 10%
+> argmax ℓ
+
+Figure S1 Spatial supervision and the click objective. Schematic distributions show (a) ob-served teacher support, (b) region and pixel targets, and (c) a non-target pixel winning despite greater total mass on target pixels. 
+
+## S4 Evaluation and Timing Protocols 
+
+S4.1 Benchmarks and Coordinate Conventions 
+
+We evaluate on 1,272 ScreenSpot, 1,272 ScreenSpot V2, 1,581 ScreenSpot Pro, and 510 OSWorld-G rectan-gular targets. A click is correct if it lies inside the target box in original-image coordinates. Mean accuracy weights the four benchmarks equally, while Section S6.4 pools all 4,635 targets. Checkpoints are selected by update count. 
+
+S4.2 Base-Model Coordinate Generation 
+
+Qwen3.5-4B and Qwen3.6-35B-A3B use greedy decoding with thinking disabled and KV caching enabled. Screenshots are padded to multiples of 32 without resizing. Both models use the following prompt. 
+
+Instruction: [JSON-quoted instruction] Locate the UI element to click for this instruction in the image, and output its point coordinates in JSON format. 
+
+We map 0–1000 point_2d coordinates [4] from the padded canvas to original pixels. Malformed, ambiguous, out-of-range, and padding predictions count as misses. 
+
+S4.3 External Model Configurations 
+
+The six recent baselines use their released inference policies in Transformers, without action history. 
+
+GUI-Decisions-2B uses its released slot readout with an input cap of approximately 1 megapixel. 19 GUI-Decisions-31B uses the BF16 merged Gemma-4-31B E3 release with a budget of 280 visual tokens. 
+
+GUI-Swift-4B uses the Desktop131 adapter on GUI-Owl-1.5-4B with 131 slots in one causal forward and an adaptive image budget. Actions without coordinates count as misses. 
+
+GUI-Owl-1.5-4B/8B both use Instruct checkpoints, the official grounding prompt and parser, and a cap of 9,800 visual tokens. 
+
+UI-Venus-2-9B uses the official direct-coordinate prompt and parser with thinking disabled and a cap of 12,845,056 pixels. Linear attention uses native FLA and causal-convolution kernels. 
+
+Training counts. Counts in Table 1 cover reported adaptation stages, excluding earlier or inherited training. The 31B Decisions stage includes natural images. Full training totals for GUI-Owl and UI-Venus-2 remain unverified. 
+
+S4.4 Timing and Aggregation 
+
+Setup. We measure latency on an H200 at batch size 1. The same 128 targets per benchmark are timed three times after warmup, giving 384 measurements per benchmark. 
+
+Scope. Timing starts from a decoded RGB screenshot and includes preprocessing, visual encoding, inference, and click extraction. AR timing includes full response generation and parsing. Image-file reading, model loading, and warmup are excluded. 
+
+Aggregation. Mean, P50, and P95 are computed per benchmark. Overall latency is the mean of the four benchmark means. Speedups are ratios of these averages. For cascades, we sum stage times paired by target and repetition, excluding model loading and switching. 
+
+## S5 Additional Grounding Results 
+
+S5.1 Latency Across Benchmarks 
+
+Tables S2 and S3 report per-benchmark latency and language-model call counts under the protocol in Sec-tion S4.4. 
+
+S5.2 Search and Direct Prediction 
+
+Table S4 compares search teachers with the 200K and 500K students. Pro-35B-A3B improves on T3 across all four benchmarks, increasing mean accuracy by 3.72 percentage points with a 6.73 × speedup. 
+
+S5.3 Qualitative Examples 
+
+Figure S2 shows Pro-4B model comparisons, while Figure 4 pairs Pro-35B-A3B predictions with the teacher’s search trajectories. 
+
+S5.4 Published Reference Results 
+
+Table S5 lists published and locally evaluated results with their protocols. Table 1 compares accuracy and latency on the same hardware. 
+
+## S6 Controlled Design Studies 
+
+S6.1 Teacher Adaptation and Search Resolution 
+
+Tables S6 to S8 examine teacher adaptation, search depth, and cell-center resolution, respectively. 20 Table S2 Latency of direct prediction and co-ordinate generation. Mean, P50, and P95 are in sec-onds per target, and Calls is the average number of model calls. PixelOne and PixelOne-Pro use the 200K and 500K continuations, respectively. See Section S4.4 for measure-ment details. Model Set Mean P50 P95 Calls PixelOne-Pro 4B, 500K SS 0.248 0.257 0.343 1V2 0.249 0.258 0.349 1Pro 0.642 0.389 1.871 1OSW 0.153 0.170 0.191 1PixelOne 4B, 200K SS 0.245 0.254 0.338 1V2 0.244 0.254 0.339 1Pro 0.623 0.369 1.819 1OSW 0.158 0.172 0.188 1Qwen3.5-4B AR SS 1.502 1.282 3.188 46 V2 1.473 1.320 2.768 45 Pro 1.698 1.480 2.886 39 OSW 1.329 1.208 2.539 43 PixelOne-Pro 35B-A3B, 500K SS 0.328 0.337 0.450 1V2 0.332 0.342 0.457 1Pro 0.849 0.484 2.557 1OSW 0.213 0.220 0.264 1PixelOne 35B-A3B, 200K SS 0.321 0.330 0.434 1V2 0.320 0.329 0.433 1Pro 0.814 0.470 2.446 1OSW 0.212 0.230 0.244 1Qwen3.6-35B-A3B AR SS 2.138 2.132 2.472 36 V2 2.196 2.156 2.581 37 Pro 2.720 2.454 4.284 37 OSW 2.210 2.181 2.650 39 
+
+Table S3 Latency of recent external models. 
+
+Latency is in seconds per target, based on 384 measure-ments per benchmark following Section S4.4. Calls is the mean number of language-model calls, including the ini-tial forward and decoding steps. All models encode the screenshot once. Model Set Mean P50 P95 Calls GUI-Decisions 2B SS 0.079 0.084 0.092 1V2 0.079 0.082 0.093 1Pro 0.108 0.093 0.185 1OSW 0.067 0.074 0.077 1GUI-Decisions 31B SS 0.137 0.135 0.159 1V2 0.130 0.130 0.144 1Pro 0.160 0.140 0.265 1OSW 0.124 0.124 0.129 1GUI-Swift 4B SS 0.116 0.118 0.138 1V2 0.119 0.120 0.148 1Pro 0.145 0.129 0.253 1OSW 0.100 0.101 0.113 1GUI-Owl-1.5 4B SS 0.953 0.973 1.064 34.69 V2 0.954 0.968 1.061 34.77 Pro 1.263 1.078 1.865 34.60 OSW 0.846 0.855 0.902 34.83 GUI-Owl-1.5 8B SS 1.019 1.042 1.149 34.70 V2 1.020 1.033 1.150 34.79 Pro 1.429 1.180 2.245 34.60 OSW 0.885 0.905 0.933 34.80 UI-Venus-2 9B SS 0.508 0.531 0.615 10.62 V2 0.514 0.527 0.617 10.77 Pro 0.902 0.633 2.105 10.56 OSW 0.403 0.423 0.433 10.77 
+
+Table S4 Search and direct prediction at both scales. We report accuracy (%) on complete benchmarks and mean latency on an H200 with batch size 1. Students start from the 21,557-target controls and continue training on 200K or 500K targets. P denotes a prefill call. T3 uses five visual encodings, and each student uses one. Evaluation and timing follow Sections S4 and S4.4. Scale System Calls GUI data SS V2 Pro OSW Avg. s/target 4B Teacher T1 1P 21.6K tgt. 19.58 19.34 1.20 4.51 11.16 0.382 Teacher T3 3P 21.6K tgt. 87.26 90.57 55.22 57.65 72.67 2.448 PixelOne 1P 200K tgt. 90.64 93.16 55.34 57.45 74.15 0.317 
+
+PixelOne-Pro 1P 500K tgt. 90.33 92.85 68.12 71.18 80.62 0.323 35B-A3B Teacher T1 1P 21.6K tgt. 18.87 19.10 1.27 5.10 11.08 0.491 Teacher T3 3P 21.6K tgt. 90.80 93.79 67.36 68.24 80.05 2.899 PixelOne 1P 200K tgt. 91.04 93.32 63.50 68.82 79.17 0.417 
+
+PixelOne-Pro 1P 500K tgt. 91.67 94.50 72.04 76.86 83.77 0.431 
+
+21 Table S5 Published grounding results and local evaluations. Accuracy (%) is rounded to one decimal. Published scores retain their original protocols. GUI-Actor and our models are evaluated locally. GUI data uses the reported units, with screenshot counts in parentheses. P , D, and R denote prefill, autoregressive decoding, and reranking. 
+
+Method and backbone Calls GUI data SS V2 Pro OSW Protocol Source 
+
+Single-pass coordinate-free readout 
+
+GUI-Actor-3B (Qwen2.5-VL-3B) 1P 9.6M elem. (1M) 88.3 90.6 43.2 44.1 R510 Ours, official GUI-Actor-7B (Qwen2.5-VL-7B) 1P 9.6M elem. (1M) 89.9 92.1 46.4 46.1 R510 Ours, official GUI-AIMA-3B (Qwen2.5-VL-3B) 1P 509K samp. (101K) – 92.1 53.8 62.8 Ref/U [46], T1–3 V2P-3B (Qwen2.5-VL-3B) 1P 9.6M elem. (1M) – 91.4 48.5 48.8 U [5], T1 V2P-7B (Qwen2.5-VL-7B) 1P 9.6M elem. (1M) – 92.4 52.5 52.5 U [5], T1 Seg2Click-4B (Qwen3.5-4B) 1P 1.26M rec. ( ∼1M) 91.6 93.1 50.2 – – [32], T1–3 Seg2Click-9B (Qwen3.5-9B) 1P 1.26M rec. ( ∼1M) 92.1 94.1 55.2 – – [32], T1–3 
+
+PixelOne-4B (VideoJEV-4B) 1P 21.6K → 200K tgt. 90.6 93.2 55.3 57.5 R510 Ours, Table 1 
+
+PixelOne-35B-A3B 
+
+> (VideoJEV-35B-A3B)
+
+1P 21.6K → 200K tgt. 91.0 93.3 63.5 68.8 R510 Ours, Table 1 
+
+PixelOne-Pro-4B (VideoJEV-4B) 1P 21.6K → 500K tgt. 90.3 92.8 68.1 71.2 R510 Ours, Table 1 
+
+PixelOne-Pro-35B-A3B 
+
+> (VideoJEV-35B-A3B)
+
+1P 21.6K → 500K tgt. 91.7 94.5 72.0 76.9 R510 Ours, Table 1 
+
+Autoregressive coordinate generation 
+
+UI-TARS-7B (Qwen2-VL-7B) 1P + D 18.4M elem. ∗ 89.5 91.6 35.7 – – [24], T4–6 UI-TARS-72B (Qwen2-VL-72B) 1P + D 18.4M elem. ∗ 88.4 90.3 38.1 – – [24], T4–6 Jedi-3B (Qwen2.5-VL-3B) 1P + D 4M ex. – 88.6 36.1 50.9 F564 [37], T2, 3, 5 Jedi-7B (Qwen2.5-VL-7B) 1P + D 4M ex. – 91.7 39.5 54.1 F564 [37], T2, 3, 5 InnerZoom-4B (Qwen3-VL-4B) 1P + D 283K + 100K samp. § – 95.2 66.2 64.7 O/U [21], T1, 2 
+
+Qwen3.5-4B 1P + D none 87.8 90.6 55.0 56.7 R510 Ours, Table 1 
+
+Qwen3.6-35B-A3B 1P + D none 91.5 93.7 60.0 76.5 R510 Ours, Table 1 
+
+Localization followed by zoom or another refinement pass 
+
+GUI-AIMA-3B + zoom 
+
+> (Qwen2.5-VL-3B)
+
+2P 509K samp. (101K) – – 61.5 68.1 Ref/U [46], T1, 3 RankGround-8B (UI-Venus-1.5-8B) R + 1 P + D 6.8K inst. ‡ – 95.4 71.0 78.0 O/U [10], T2, 8 Re-Prefill-8B (GUI-Owl-1.5-8B) varies † none – 94.6 80.1 68.8 O/U [19], T1–3 
+
+PixelOne + AR-4B (1024) 2P + D 21.6K → 200K tgt. 88.8 91.0 65.5 67.3 R510 Ours, Table S12 
+
+PixelOne + AR-4B (1536) 2P + D 21.6K → 200K tgt. 88.9 91.5 64.5 67.6 R510 Ours, Table S12 
+
+PixelOne-Pro + AR-4B (1024) 2P + D 21.6K → 500K tgt. 87.5 90.0 67.0 68.0 R510 Ours, Table S11 
+
+PixelOne-Pro + AR-4B (1536) 2P + D 21.6K → 500K tgt. 87.7 90.4 64.8 67.8 R510 Ours, Table S11 
+
+PixelOne + AR-35B-A3B (1024) 2P + D 21.6K → 200K tgt. 91.8 93.6 73.2 78.6 R510 Ours, Table S12 
+
+PixelOne + AR-35B-A3B (1536) 2P + D 21.6K → 200K tgt. 92.8 94.9 74.3 79.8 R510 Ours, Table S12 
+
+PixelOne-Pro + AR-35B-A3B 
+
+> (1024)
+
+2P + D 21.6K → 500K tgt. 91.7 93.9 74.6 80.2 R510 Ours, Table S11 
+
+PixelOne-Pro + AR-35B-A3B 
+
+> (1536)
+
+2P + D 21.6K → 500K tgt. 92.3 95.0 75.0 81.2 R510 Ours, Table S11 
+
+Protocols. R510 contains 510 rectangular targets. F564 contains 564 items, including refusal cases. O/U uses the original annotations, with counts and refusal handling unspecified. Ref/U uses refined annotations with unspecified counts. U denotes an unspecified protocol. 
+
+Sources and units. T refers to a table in the cited paper, while – marks an unreported value. Unit abbreviations are elem. for elements, rec. for records, samp. for samples, ex. for examples, inst. for instances, and tgt. for targets. Table S1 lists our continuation mixtures. 
+
+Configurations. Each cascade uses its corresponding base AR model with 2× crop upscaling. Parentheses give window sizes in pixels. ∗UI-TARS also uses an undisclosed amount of in-house data. ‡RankGround reports the training count only for its 2B reranker, not its released 8B grounder. §The SFT and RL data may overlap. †Re-Prefill uses 2P + D on V2. Total calls with external zoom are not reported for Pro or OSWorld-G. 
+
+22 (a) Fire reaction (b) Downvote (c) Next instrument (d) Preset menu                
+
+> (e) Siri (f) Copy media link (g) Lasso selection (h) Duplicate slide
+> (i) Shuffle music (j) Four-star rating (k) Plot error bars (l) Extensions
+> (m) Stop debugger (n) Bedroom lamp (o) Draw a polygon (p) Select row 25 ScreenSpot ScreenSpot V2 ScreenSpot Pro OSWorld-G
+> PixelOne-Pro-4B T3-4B AR-4B Ground-truth box
+
+Figure S2 Single-forward grounding across four benchmarks. In all sixteen selected cases, four per benchmark, PixelOne-Pro-4B succeeds and same-scale T3 and AR fail. Columns show ScreenSpot, V2, Pro, and OSWorld-G. Crops are for display only. Boxes mark targets, and border arrows indicate predictions outside the crop. 
+
+Table S6 Adapting the 35B search teacher. We report accuracy (%) for a fixed three-round search with released weights, after 500 box-supervised updates, and after 1,000 total updates. Teacher ScreenSpot V2 Pro OSWorld-G Released weights 83.02 86.24 50.16 52.75 Supervised 500 90.57 93.95 65.97 69.02 
+
+Final 1,000 90.80 93.79 67.36 68.24 
+
+23 Table S7 Accuracy after successive search rounds. Tk stops after round k of the 4/8/8 search with two retained candidates. PixelOne uses the 200K continuation. Avg. weights the four benchmarks equally. Weights SS V2 Pro OSW Avg. 4B Released T1 16.43 16.19 0.70 3.33 9.16 T2 70.52 73.11 7.59 20.59 42.95 T3 74.21 77.36 26.82 32.75 52.78 Trained T1 19.58 19.34 1.20 4.51 11.16 T2 83.73 86.56 17.39 36.86 56.13 T3 87.26 90.57 55.22 57.65 72.67 PixelOne 90.64 93.16 55.34 57.45 74.15 
+
+35B Released T1 18.32 18.40 1.20 3.92 10.46 T2 80.66 83.10 13.98 30.78 52.13 T3 83.02 86.24 50.16 52.75 68.04 Trained T1 18.87 19.10 1.27 5.10 11.08 T2 86.87 89.62 19.17 41.96 59.40 T3 90.80 93.79 67.36 68.24 80.05 
+
+PixelOne 91.04 93.32 63.50 68.82 79.17 
+
+Table S8 Cell selection versus center-click accuracy on ScreenSpot Pro. 
+
+Right cell measures whether the selected cell of the 4 × 4 grid contains the target-box center. Cell-center click measures whether the selected cell’s center lies inside the box. Even the best choice among all sixteen centers can hit only 1.39% of targets. Weights Right cell Cell-center click 4B Released 34.28 0.70 Trained 67.99 1.20 
+
+35B Released 52.25 1.20 Trained 68.75 1.27 
+
+Table S9 Pixel versus region distillation. We report accuracy (%) for teacher-initialized students using the single-winner pixel loss. All settings use the same 21,557 targets and training budget. Scale Supervision SS V2 Pro OSW 4B GT 85.69 88.52 42.76 37.65 GT + region KD 86.95 89.54 44.97 39.80 GT + pixel KD 87.11 89.62 44.97 40.20 
+
+35B GT 90.25 92.22 51.80 53.14 GT + region KD 90.80 93.00 54.90 55.49 GT + pixel KD 90.41 92.85 56.29 55.69 
+
+24 S6.2 Pixel and Region Distribution Supervision 
+
+All students in Table S9 use teacher initialization, the single-winner loss, and 48,000 training exposures. Box supervision is identical, and the two KD variants share the teacher-correct gate. 
+
+S6.3 Pixel Objectives Under Matched Conditions 
+
+Both branches in Table 4 start from the same 1,400-update checkpoint. They train only the pixel head for 100 updates using the same 3,200 exposures and KD targets. Their token logits are bit-identical on all 4,635 evaluation targets. Mean in-box mass is computed over the same 1,038 target-valid selections on ScreenSpot Pro. 
+
+Supervising several valid pixels. The settings in Table 5 share 1,500 updates, teacher initialization, spatial KD, and data order. They differ only in supervising one winner, the top 20% of valid pixels, or all valid pixels. At 4B, Top20 improves accuracy over one-winner supervision on Pro and OSWorld-G. Paired sign tests give p < 10 −4 and p < 10 −3, respectively. 
+
+S6.4 Region Selection and Pixel Precision 
+
+A wrong token is adjacent if it lies within one grid step of a GT-valid token, and distant otherwise. Pixel errors occur when the selected token is GT-valid but the click misses. Unlike the pooled rates in Figure S3, conditional pixel accuracy in Figure 5 uses only GT-valid token selections. Table S10 reports 35B-A3B results on ScreenSpot Pro text and icon targets. 
+
+Table S10 Spatial KD on text and icon targets. Entries give correct clicks and accuracy on ScreenSpot Pro. The 35B students in Table 3 use teacher initialization and the single-winner loss. Student Text (977) Icon (604) GT-only 663 (67.86%) 156 (25.83%) GT + pixel KD 714 (73.08%) 176 (29.14%) Base GT T3 GT T3 point Pixel One Base GT T3 GT T3 point Pixel One        
+
+> 010 20 30 40
+> Targets missed (%)  38.6 33.5 34.4 31.7
+> 4B
+> 28.2 26.4 25.5 24.4
+> 35B
+> Right token, wrong pixel Adjacent token Distant token
+
+Figure S3 Error breakdown for the single-winner controls. Models are from Table 3. Rates use all 4,635 evaluation targets. Bar labels give total miss rates. 
+
+## S7 Local Generation from Pixel Predictions 
+
+S7.1 Crop Windows and Coordinate Mapping 
+
+For w ∈ { 1024 , 1536 }, we center a window on the PixelOne or PixelOne-Pro click and shift it to fit inside the screenshot. If an image dimension is smaller than w, the window spans that dimension. We upscale the crop 2× with LANCZOS and run the corresponding base AR model with the settings in Section S4.2. We map the decoded pixel coordinate back by halving it and adding the crop origin. 
+
+S7.2 Accuracy and Paired-Stage Latency 
+
+Tables S5 and S11 report accuracy and latency, while Table S12 adds 200K window diagnostics. Relative to direct prediction in Table 1, both windows improve mean accuracy for the 200K models and Pro-35B-A3B, but lower it for Pro-4B. All cascades increase latency. 25 Table S11 Accuracy and latency of local AR refinement. Avg. and Acc. are four-benchmark mean latency (s) and accuracy (%). Pro denotes ScreenSpot Pro. Data counts continuation targets, and Window is in original pixels. Timings follow Section S4.4. System Data Window Avg. (s) Pro (s) Pro P95 (s) Acc. 4B PixelOne 200K – 0.317 0.623 1.819 74.15 AR – – 1.501 1.698 2.886 72.54 T3 – – 2.448 2.961 4.873 72.67 PixelOne → AR 200K 1024 1.860 2.181 3.362 78.14 PixelOne → AR 200K 1536 2.386 3.029 4.129 78.15 
+
+PixelOne-Pro → AR 500K 1024 1.869 2.175 3.416 78.13 PixelOne-Pro → AR 500K 1536 2.293 2.764 4.084 77.69 35B-A3B PixelOne 200K – 0.417 0.814 2.446 79.17 AR – – 2.316 2.720 4.284 80.41 T3 – – 2.899 3.507 5.844 80.05 PixelOne → AR 200K 1024 2.795 3.251 4.790 84.32 PixelOne → AR 200K 1536 3.332 4.020 5.715 85.46 PixelOne-Pro → AR 500K 1024 2.814 3.285 4.899 85.13 PixelOne-Pro → AR 500K 1536 3.309 4.002 5.665 85.86 
+
+Table S12 Window diagnostics for the 200K PixelOne models. Accuracy and recall are percentages. Recall measures how often the target-box center lies inside the window, and AR |in gives accuracy on those targets. Parse counts malformed outputs, which are treated as misses. Visual token counts are given for the crop and full screenshot. Benchmark Window PixelOne Full AR Crop AR Recall AR | in Parse Vis. tokens 35B ScreenSpot 1024 91.04 91.51 91.82 96.38 94.54 10 3,840 / 2,734 ScreenSpot 1536 91.04 91.51 92.85 98.27 94.48 8 7,001 / 2,734 V2 1024 93.32 93.71 93.63 97.25 95.80 3 3,846 / 2,715 V2 1536 93.32 93.71 94.89 98.58 96.25 2 6,987 / 2,715 Pro 1024 63.50 59.96 73.18 88.87 82.35 11 4,096 / 5,741 Pro 1536 63.50 59.96 74.32 92.22 80.59 8 8,630 / 5,741 OSWorld-G 1024 68.82 76.47 78.63 95.69 81.97 0 3,753 / 1,722 OSWorld-G 1536 68.82 76.47 79.80 98.43 81.08 1 5,699 / 1,722 4B ScreenSpot 1024 90.64 87.81 88.84 96.46 91.28 7 3,840 / 2,734 ScreenSpot 1536 90.64 87.81 88.92 98.51 90.26 8 7,001 / 2,734 V2 1024 93.16 90.64 90.96 97.96 92.30 9 3,846 / 2,715 V2 1536 93.16 90.64 91.51 99.14 92.31 6 6,987 / 2,715 Pro 1024 55.34 55.03 65.53 86.53 75.66 5 4,096 / 5,741 Pro 1536 55.34 55.03 64.52 90.51 71.28 4 8,630 / 5,741 OSWorld-G 1024 57.45 56.67 67.25 95.10 70.52 1 3,753 / 1,722 OSWorld-G 1536 57.45 56.67 67.65 98.43 68.73 0 5,699 / 1,722 
+
+26 S8 Qualitative Comparisons and Spatial Readout 
+
+We show eight successful PixelOne-Pro-35B-A3B predictions and visualize the model’s token-to-pixel readout using saved outputs. 
+
+S8.1 Model-by-Model Comparisons 
+
+Figures S4 and S5 compare PixelOne-Pro with UI-Venus-2-9B, GUI-Owl-1.5-8B, and GUI-Swift-4B using the settings in Section S4.3. Each column uses the same screenshot, instruction, target, and display crop for all models. PixelOne-Pro hits every selected target, while at least two displayed baselines miss each one. L1 customize        
+
+> ScreenSpot | 960 x 540
+> UI-Venus-2-9B Miss
+> GUI-Owl-1.5-8B Miss
+> GUI-Swift-4B Miss
+> PixelOne-Pro-35B-A3B Hit
+> L2 use pencil tool
+> ScreenSpot V2 | 839 x 638 Hit Miss Miss
+> Hit
+> L3 The next day of selected date
+> OSWorld-G | 1280 x 720 Miss Hit Miss
+> Hit
+> L4 open the favourites
+> ScreenSpot V2 | 960 x 540 Hit Miss Miss
+> Hit
+
+Predicted click (PixelOne in blue) Ground-truth box 
+
+Figure S4 Successful grounding on lower-resolution screenshots. These four original screenshots have a long side of at most 1,600 pixels. The top row shows the full screenshot with the display crop outlined. Subsequent rows show saved predictions on the same crop at the same scale within each column. Pink boxes denote targets, and mouse-pointer tips denote predictions. PixelOne-Pro pointers are blue, and baseline pointers are gray. Hit and Miss indicate the original point-in-box outcomes. All displayed predictions lie within their crops. 
+
+27 Higher-resolution screenshots. Figure S5 shows screenshots with an original long side of at least 2,560 pixels, including wide multi-window interfaces. Targets include a small color swatch, a child-window control, and two editing tools. These are native benchmark images, not enlarged lower-resolution examples. H1 Fill red color        
+
+> ScreenSpot Pro | 2880 x 1800
+> UI-Venus-2-9B Miss
+> GUI-Owl-1.5-8B Miss
+> GUI-Swift-4B Miss
+> PixelOne-Pro-35B-A3B Hit
+> H2 minimize the child window
+> ScreenSpot Pro | 3840 x 1080 Miss Miss Miss
+> Hit
+> H3 select "clone stamp" tool
+> ScreenSpot Pro | 2560 x 1440 Miss Miss Miss
+> Hit
+> H4 select gradient tool
+> ScreenSpot Pro | 5120 x 1440 Miss Miss Miss
+> Hit
+
+Predicted click (PixelOne in blue) Ground-truth box 
+
+Figure S5 Successful grounding on higher-resolution screenshots. Comparisons follow the column layout and visual conventions of Figure S4. Original image sizes range from 2,560 × 1,440 to 5,120 × 1,440 . Each model receives the same original screenshot and instruction through its evaluated input pipeline. Crops are for display only. These selected examples illustrate differences in click placement. Aggregate accuracy is reported in the main results. 
+
+S8.2 From Token Scores to a Pixel Click 
+
+Figure S6 shows the saved scores for L2, H1, and H2. The decision head scores all visual tokens and selects the highest-scoring one. The pixel head scores valid pixels within that token, and its argmax gives the click. Teal and amber overlays show token and within-token pixel softmax distributions, respectively. Both stages come from one forward pass, not separate inference calls. 28 1. Token scores 2. Selected token 3. Pixel scores 4. Predicted click L2 use pencil tool    
+
+> 540 tokens; max p = 0.579 32 x 32 pixels 1,024 pixels; max p = 0.033 (159.5, 80.5)
+
+H1 Fill red color    
+
+> 5,130 tokens; max p = 0.752 32 x 32 pixels 1,024 pixels; max p = 0.015 (1963.5, 1295.5)
+
+H2 minimize the child window    
+
+> 4,080 tokens; max p = 0.752 32 x 32 pixels 1,024 pixels; max p = 0.022 (1872.5, 154.5) All scores come from one forward pass; enlarged views are for display only.
+
+Token probabilities Pixel probabilities Ground-truth box Figure S6 Token selection followed by within-token pixel selection. The first column overlays full-image token probabilities and circles the selected-token location for visibility. The second enlarges that token and its immediate neighbors. Gray grid lines mark token boundaries, and a dashed outline marks the selected token. The third shows saved pixel probabilities within that 32 × 32 token. The last column marks the final click with a blue mouse pointer. Pink boxes are ground truth, not model inputs. Probability maps are normalized independently for display with their maxima labeled. Click coordinates are in original-image pixels. 
+
+29
