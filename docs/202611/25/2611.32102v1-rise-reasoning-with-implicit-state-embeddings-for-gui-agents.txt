@@ -1,0 +1,417 @@
+Title: RISE: Reasoning with Implicit State Embeddings for GUI Agents
+
+URL Source: https://arxiv.org/pdf/2611.32102v1
+
+Published Time: Wed, 25 Nov 2026 02:24:12 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# RISE: Reasoning with Implicit State Embeddings for GUI Agents 
+
+## Enqi Liu 1,2, Zhi Gao 1,2*, Liu Liu 4, Lifeng Fan 2, Liyuan Pan 1,3*, 
+
+> 1
+
+## Beijing Institute of Technology, Beijing, China  
+
+> 2
+
+## Beijing Institute for General Artificial Intelligence, Beijing, China  
+
+> 3
+
+## Yangtze Delta Region Academy of Beijing Institute of Technology, Jiaxing, China  
+
+> 4
+
+## Huawei Technologies Ltd, Beijing, China 
+
+{enqi.liu, zhi.gao, liyuan.pan }@bit.edu, liuliu33@huawei.com, lifengfan@bigai.ai 
+
+## Abstract 
+
+Graphical user interface (GUI) agents translate user in-structions and screenshots into executable actions. To learn executable actions, existing approaches often rely on ex-plicit reasoning during training, which encourage over-reliance on specific reasoning patterns rather than gener-alizable action-relevant information. In this paper, we pro-pose an implicit framework, RISE, which integrates action-relevant reasoning into implicit state representations to guide GUI action prediction. To this end, action-relevant reasoning is captured through three complementary super-vision objectives: full-CoT state alignment preserves in-formation across the reasoning process, action-distribution alignment encodes action preferences, and reasoning-to-action boundary alignment captures the representation im-mediately before action generation. In this case, our RISE effectively learns informative implicit representations, thereby improving the accuracy of next-action token predic-tion. RISE achieves 70.6% accuracy on OSWorld-G, estab-lishing state-of-the-art performance among compared 8B models with a 4.3-point gain over its backbone. Results across two distinct backbones and six diverse benchmarks further demonstrate its effectiveness in GUI grounding and action prediction. Our code is available on our project page. 
+
+## 1. Introduction 
+
+With the growing adoption of graphical user interface (GUI) agents across web browsers [4, 38], desktop applica-tions [31, 35], and mobile devices [14, 25], developing ac-curate and efficient action prediction methods has attracted increasing attention. GUI agents translate screenshots and user instructions into executable actions, which require se-lecting operation types and predicting their associated ar-   
+
+> *Corresponding author. Instruction: Save the changes. Save Cancel
+
+(a) Diverse reasoning for the same action 
+
+> Screenshot + instruction
+> “Edits are complete; commit them.” “Prevent data loss; save the edits.”
+> Click(Save)
+> Different rationales, shared action information
+
+(b) Reasoning–action inconsistency  
+
+> Screenshot + instruction
+> “Save the updated settings.” Click(Cancel)
+> The predicted action contradicts the reasoning
+
+(c) RISE: action-relevant implicit states  
+
+> Screenshot + instruction 8 implicit states
+> Click(Save)
+> Action-only output
+
+Figure 1. Illustrative examples show two challenges: (a) different reasoning expressions can support the same action; (b) generated reasoning can suggest an action that contradicts the final predic-tion. (c) RISE learns action-relevant implicit states to guide GUI action prediction. 
+
+guments, such as target coordinates and text inputs. Ex-isting approaches commonly employ autoregressive vision-language models (VLMs) to generate actions as textual se-quences in a reasoning process [16, 24, 39]. These methods typically serialize thoughts, operation types, coordinate val-ues, and free-text inputs through a unified token-by-token generation process [3]. Despite these advances, such an explicit reasoning pro-cess does not necessarily ensure reliable alignment between reasoning and GUI action prediction. This limitation man-ifests in two aspects. (1) Reasoning diversity: Explicit reasoning can express the same intended action through different reasoning paths, introducing variability in textual reasoning even when the target action remains unchanged. Learning on explicit reasoning may encourage reliance on specific reasoning expressions rather than shared action-1arXiv:2611.32102v1 [cs.CV] 24 Nov 2026 relevant information. As illustrated in Fig. 1(a), the in-struction ‘Save the changes’ may lead to different reason-ing paths, such as ‘Edits are complete, commit them’ and ‘Prevent data loss, save the edits’, both resulting in the same action, Click(Save) . (2) Weak reasoning–action coupling: Although actions are generated following ex-plicit reasoning, conventional token-level supervision does not explicitly enforce semantic consistency between reason-ing and the predicted action. Consequently, as shown in Fig. 1(b), the generated reasoning ‘Save the updated set-tings’ suggests saving the changes, yet the model predicts 
+
+Click(Cancel) , contradicting its preceding reasoning. In this paper, we explore implicit reasoning for GUI ac-tion prediction. Compared with explicit reasoning genera-tion, implicit representations can capture action-relevant in-formation without relying on specific textual expressions. By learning from action prediction objectives, implicit states can encode reasoning information in a form directly useful for action prediction, without requiring intermediate reasoning text. This motivates us to leverage implicit states to guide GUI action prediction. This objective presents two key challenges. (1) Captur-ing shared reasoning information: Reasoning paths leading to the same action may differ substantially in length, word-ing, and intermediate steps, making it difficult to condense their shared action-relevant information into a fixed num-ber of implicit states. These states must also retain the vi-sual and instructional context needed for action prediction. (2) Ensuring effective reasoning–action coupling: Aligning implicit states with explicit reasoning representations alone does not guarantee that the action decoder will utilize the learned information. The implicit states must directly con-tribute to operation selection and visual target localization without losing the fine-grained visual information required for accurate grounding. In this paper, we propose RISE (Reasoning with Implicit State Embeddings), a framework that learns action-relevant reasoning through implicit states, as illustrated in Fig. 1(c). Specifically, RISE introduces learnable embeddings that are contextualized by the current screenshot and instruction to construct input-dependent implicit states. We first employ full-CoT state alignment to condense information across the reasoning process into a fixed number of implicit states, al-lowing the model to learn from reasoning without reproduc-ing specific textual expressions. We then introduce action-distribution supervision to capture action preferences, en-couraging the implicit states to retain information useful for distinguishing among possible actions rather than merely representing the reasoning process. We further perform reasoning-to-action boundary alignment to capture the rep-resentation immediately before action generation, providing complementary supervision on how reasoning information is organized for action prediction. Together, these strate-gies enable RISE to leverage implicit reasoning alongside the original visual and textual information for GUI action prediction without generating intermediate reasoning text. Our RISE achieves 70.6% accuracy on OSWorld-G, establishing state-of-the-art performance among the com-pared 8B models and outperforming its backbone baseline by 4.3 percentage points. Extensive experiments across six benchmarks further demonstrate the effectiveness of RISE in GUI grounding and action prediction. Our main contributions are as follows: • We propose RISE, an implicit reasoning framework that learns action-relevant information through contextualized implicit states to guide GUI action prediction without generating intermediate reasoning text. • We introduce three complementary supervision strate-gies that connect intermediate reasoning representations, action distributions, and reasoning-to-action boundary states to action prediction. • We demonstrate improvements in GUI grounding and offline action prediction across two backbones and six benchmarks, supported by matched comparisons, super-vision ablations, and inference-efficiency analyses. 
+
+## 2. Related Work 
+
+GUI Action Learning. Visual GUI agents learn to map screenshots and user instructions to executable actions, in-cluding operation selection and target localization. Early studies establish visual grounding capabilities through screenshot–language pretraining and cross-platform inter-action data [3, 6, 11, 34]. Recent approaches further in-corporate task interpretation and intermediate reasoning into action demonstrations to improve GUI action predic-tion [17, 24, 38, 39]. Feedback-based methods enhance action learning through preference optimization or reward-guided training [19, 21, 22, 24]. While these studies ad-vance GUI action learning through richer demonstrations and optimization strategies, RISE focuses on how action-relevant reasoning information is represented and utilized. Specifically, it learns implicit reasoning states that guide action prediction alongside the original screenshot and in-struction, without generating intermediate reasoning text. 
+
+Implicit Reasoning. Implicit reasoning models inter-mediate computation through continuous representations rather than explicit reasoning text. Prior studies explore learning implicit representations through hidden-state su-pervision and continuous CoT compression [5, 26, 27], as well as recurrent and parallel latent reasoning mecha-nisms [9, 32]. Learnable continuous embeddings and ad-ditional computation positions provide alternative ways to condition model predictions [7, 13, 15]. In GUI inter-action, MIRAGE combines latent reasoning with a gen-erative world-model objective that aligns reasoning rep-resentations with future screenshots [41]. Different from 2(a) Inputs (b) Implicit state construction (c) Action prediction  
+
+> Screenshot I
+
+Open the debug panel  
+
+> Instruction u
+
+Prefix P (u, I )
+
+Prefix P 8 learned embeddings Z
+
+· · · 1 2 3 4 5 6 7 8
+
+Shared causal VLM Fθ
+
+Frozen base | trainable adaptation 
+
+· · · 1 2 3 4 5 6 7 8
+
+Prefix context Implicit states R ∈ R8×D
+
+> Decode with both prefix and implicit-state context
+
+Autoregressive action decoding 
+
+Same VLM | context [P ; Z; s<j ]
+
+Action type Value Coordinates 
+
+> Serialized action tokens only
+
+Serialized action s: e.g., Click [x, y ]
+
+> No intermediate reasoning at inference Implicit states depend on the current input
+
+(d) Action-Relevant Reasoning Alignment Training only 
+
+Teacher input Teacher targets Alignment objectives Student     
+
+> [P;q;s∗
+> <j ]
+> Training context
+
+Frozen teacher                        
+
+> Pretrained VLM Fϕ
+> q: annotated CoT
+> s∗
+> <j : ground-truth prefix
+> Ordered CoT pooling Targets T∈R8×D
+> Full-CoT State Alignment
+> Lstate (R, T )Implicit states R
+> Softened action distributions
+> pT,j , temperature τ= 2
+> Action-Distribution Alignment
+> LKL (pT,j , p S,j )
+> Action distributions
+> pS,j
+> Pre-action hidden state
+> bT
+> Reasoning-to-Action Boundary Alignment
+> Lbd (bS, b T)
+> Boundary state
+> bS
+> Teacher targets are detached; the student receives [P;Z;s∗
+> <j ]without CoT. Direct action supervision: Cw
+
+Figure 2. Overview of RISE. (a) The screenshot and instruction form the multimodal prefix P . (b) The student contextualizes eight learned embeddings Z to obtain implicit states R. (c) Action tokens are generated using both the original prefix and implicit-state context. (d) Action-Relevant Reasoning Alignment uses a frozen copy of the pretrained VLM as the teacher. Its input contains P , annotated CoT q,and preceding ground-truth action tokens s∗ 
+
+> <j
+
+. Teacher targets are aligned with the student’s implicit states, action-token distributions, and pre-action boundary state through Lstate , LKL , and Lbd , respectively. 
+
+these approaches, RISE learns screenshot- and instruction-conditioned implicit states using complementary supervi-sion from the full reasoning process, action distributions, and reasoning-to-action boundary states, enabling reason-ing information to guide GUI action prediction without gen-erating intermediate reasoning text. 
+
+## 3. Method 
+
+An overview of RISE is presented in Fig. 2. We first formu-late GUI action prediction, then describe the construction of implicit states and three complementary supervision strate-gies, and finally present the training objective. 
+
+3.1. Formulation 
+
+Given a screenshot, a user instruction, and any available interaction history, the GUI agent constructs a multimodal prefix P ∈ Rn×D , where n is the input sequence length and 
+
+D is the hidden dimension. Let s = ( s1, . . . , s L) denote an executable action serialized in the backbone’s native output format, where sj is the token at position j and L is the se-quence length. RISE conditions action prediction on the multimodal prefix P and K learnable embeddings Z ∈ RK×D . The action-generation policy factorizes autoregressively as 
+
+πθ (s | P, Z ) = 
+
+> L
+
+Y
+
+> j=1
+
+πθ (sj | P, Z, s <j ), (1) where s<j contains the preceding action tokens. 
+
+3.2. Implicit State Construction 
+
+RISE appends the learnable embeddings Z to the multi-modal prefix P to construct contextualized implicit states: 
+
+R = Fθ ([ P ; Z]) n+1: n+K , (2) where Fθ denotes the VLM backbone, [P ; Z] denotes se-quence concatenation, and the subscript selects the K ap-pended hidden states. The resulting R ∈ RK×D contains the contextual implicit states. Through causal attention, each action token can attend to both the original multimodal prefix and the implicit states, allowing the model to leverage implicit reasoning alongside the original visual and textual information. By default, we use K = 8 implicit positions. 
+
+3.3. Action-Relevant Reasoning Alignment 
+
+We use a frozen copy of the pretrained VLM as the teacher to provide three complementary supervision targets for 3learning action-relevant implicit states. Let q denote the an-notated CoT associated with each training example and ϕ
+
+the teacher parameters. Given the multimodal prefix P , the teacher processes [P ; q], while the RISE student conditions on P and learnable embeddings Z without accessing ex-plicit CoT. RISE learns action-relevant implicit states from the teacher’s full CoT representations, action-token proba-bility distributions, and reasoning-to-action boundary state. 
+
+Full-CoT State Alignment. We align the student’s implicit states R with representations aggregated from the teacher’s hidden states across the full CoT. Specifically, we pool the teacher’s CoT hidden states into K ordered target represen-tations T ∈ RK×D , excluding reasoning delimiters and ac-tion tokens. Let M denote the number of teacher hidden states within the CoT body. When M ≥ K, we average the states within each of K contiguous segments. When 
+
+M < K , we sample K uniformly spaced positions and round them to token indices, reusing states as needed. This pooling preserves the order of the reasoning sequence. The state-alignment objective is defined as 
+
+Lstate = 1
+
+K
+
+> K
+
+X
+
+> i=1
+
+(1 − cos( Ri, T i)) + 0 .1H(R, T ), (3) where cos( ·, ·) denotes cosine similarity and H(·, ·) denotes the element-wise mean SmoothL1 loss with unit transition. This objective encourages the implicit states to retain infor-mation represented throughout the teacher’s reasoning with-out requiring the student to reproduce its wording. 
+
+Action-Distribution Alignment. Beyond aligning implicit states with reasoning representations, we further supervise the action predictions through their probability distribu-tions. Let ℓT,j and ℓS,j denote the teacher and student vocabulary logits at action-token position j. Both models use the same ground-truth action prefix s∗ 
+
+> <j
+
+during teacher-forced training. Their softened distributions are 
+
+pT,j = softmax( ℓT,j /τ ), p S,j = softmax( ℓS,j /τ ), (4) where τ = 2 is the temperature used to soften the action dis-tributions. We minimize the teacher-to-student divergence: 
+
+LKL = τ 2
+
+P 
+
+> j
+
+wj
+
+X
+
+> j
+
+wj KL( pT,j ∥pS,j ). (5) Here the sums cover supervised action-token positions in the training batch. The weight wj is 2 for tokens wholly within action-type values, 4 for tokens wholly within coor-dinate values, and 1 otherwise. The τ 2 factor compensates for the temperature-dependent scaling of the gradients [10]. This objective encourages the implicit states to support ac-curate action prediction beyond matching intermediate rea-soning representations. 
+
+Reasoning-to-Action Boundary Alignment. To capture the transition from reasoning to action generation, we align the teacher’s hidden state after processing the annotated CoT with the hidden state of RISE after processing the mul-timodal prefix and implicit states. Both states are taken immediately before the first action token is predicted. Let 
+
+bT ∈ RD and bS ∈ RD denote these teacher and student boundary states, respectively. The boundary-alignment ob-jective is 
+
+Lbd = 1 − cos( bS , b T ) + 0 .1H(bS , b T ). (6) This objective captures the transition from reasoning to ac-tion generation, encouraging the implicit states to encode reasoning information relevant to the final action prediction. 
+
+3.4. Training 
+
+We supervise action prediction using ground-truth actions, allowing the implicit states to learn action-relevant infor-mation through the action prediction objective. For a target action sequence s∗, the weighted action cross-entropy is 
+
+Cw = − 1
+
+P 
+
+> j
+
+wj
+
+X
+
+> j
+
+wj log πθ (s∗ 
+
+> j
+
+| P, Z, s ∗ 
+
+> <j
+
+), (7) where s∗ 
+
+> <j
+
+contains the preceding ground-truth action to-kens. The summation and weights follow the action-distribution objective described above. We jointly optimize action prediction and the three com-plementary reasoning supervision objectives: 
+
+L = Cw + λstate Lstate + λKL LKL + λbd Lbd , (8) where λstate = 0 .1, λKL = 0 .5, and λbd = 0 .25 are the corresponding loss weights. 
+
+## 4. Experiments 
+
+We evaluate RISE on two backbones for GUI grounding and offline action prediction, with matched SFT comparisons, supervision ablations, and inference-cost measurements. 
+
+4.1. Experimental Setup 
+
+Benchmarks. For GUI grounding, we use OSWorld-G [36] with original and refined instructions, ScreenSpot-v2 (SS-v2), UI-I2E-Bench [18], and MMBench-GUI L2 [30]. For offline action prediction, we use the GUI-Libra adap-tations [39] of AndroidControl [14] and Mind2Web [4], namely AndroidControl-v2 (AC-v2) and MM-Mind2Web-v2, evaluating action types, spatial arguments, and values. 
+
+Configurations. RISE uses eight implicit states on both backbones and preserves their native action formats and image budgets. Both Qwen and GUI-Owl are initially trained on the same 81,418 examples. GUI-Owl under-goes additional training on 167,684 records to further im-prove grounding performance. Training uses up to eight PPU-ZW810E accelerators (96 GiB each). Data splits, op-timization settings, and evaluation protocols are detailed in Supplementary Material. 4Table 1. OSWorld-G (Original) accuracy (%) by task category and overall. Task categories are not mutually exclusive; Overall is computed over all 564 examples. Published references retain their original protocols. Bold scores indicate the best results, while underlined scores indicate the second-best results in each column.                                                                                                                         
+
+> Method / configuration Task-category accuracy (%) ↑Overall ↑
+> Text matching Element recognition Layout understanding Fine-grained manipulation Refusal External baselines OS-Atlas-7B [34] 44.1 29.4 35.2 16.8 7.4 27.7 Qwen2.5-VL-7B [2] 45.6 32.7 41.9 18.1 0.0 31.4 UGround-V1-7B [6] 51.3 40.3 43.5 24.8 0.0 36.4 Aguvis-7B [38] 55.9 41.2 43.9 28.2 0.0 38.7 UI-TARS-7B [24] 60.2 51.8 54.9 35.6 0.0 47.5 GUI-Actor-7B [33] 60.2 54.2 58.1 30.9 0.0 49.5 Jedi-7B [36] 65.9 55.5 57.7 46.9 7.4 54.1 FocusUI-7B ( r= 100% ) [23] 63.6 61.2 63.6 34.9 0.0 54.4 UI-TARS-1.5-7B [24] 70.1 57.9 59.7 51.7 0.0 56.0 MAI-UI-8B [43] 72.0 63.3 66.0 51.0 –60.1 POINTS-GUI-G-8B [42] 73.9 73.6 70.8 55.7 –66.0 UI-Venus-1.5-8B [29] 79.7 76.1 72.3 60.4 22.2 69.7 Qwen3-VL-8B configurations Qwen3-VL-8B-Instruct [1] 73.2 57.0 59.3 51.7 53.7 57.6 GUI-Libra-8B ASFT, thinking [39] 67.4 48.8 53.8 42.3 0.0 49.3 GUI-Libra-8B ASFT, direct [39] 66.3 47.0 52.6 43.6 0.0 47.7 GUI-Libra-8B ASFT+RL, thinking [39] 72.8 57.6 59.7 49.0 0.0 56.6
+> RISE (Qwen3-VL-8B) 77.8 64.5 66.4 56.4 37.0 63.1 GUI-Owl-1.5-8B configurations GUI-Owl-1.5-8B [37] 75.1 70.9 71.9 54.4 44.4 66.3
+> RISE (GUI-Owl-8B) 81.2 73.6 74.3 63.1 44.4 70.6
+
+Table 2. Accuracy (%) on OSWorld-G-Refined. TM: text matching; ER: element recognition; LU: layout understanding; FM: fine-grained manipulation; Ref.: refusal.                                           
+
+> Method TM ER LU FM Ref. Overall UI-TARS-1.5-7B [24] 52.6 75.4 72.4 66.7 0.0 64.2 GTA1-7B (2507) [40] 63.2 82.1 74.2 70.5 0.0 67.7 MAI-UI-8B [43] 77.4 73.0 78.3 55.7 –68.6 GUI-Owl-1.5-8B-I [37] 73.1 69.4 71.0 74.8 42.5 69.3 UI-Venus-1.5-8B [29] 82.4 81.5 80.2 59.7 22.2 74.1 RISE (GUI-Owl-8B) 86.2 78.8 78.7 65.8 42.6 75.2
+
+4.2. Main Results 
+
+OSWorld-G. As shown in Table 1, RISE with GUI-Owl achieves the highest overall accuracy among the listed con-figurations at 70.6%, outperforming its backbone by 4.3 percentage points and the strongest published reference, UI-Venus-1.5-8B, by 0.9 points. RISE with Qwen achieves 63.1% accuracy, improving upon its pretrained backbone by 5.5 points, ASFT with explicit reasoning by 13.8 points, and its ASFT+RL counterpart by 6.5 points. Across task categories, RISE with GUI-Owl achieves the best results in text matching, layout understanding, and fine-grained manipulation, reaching 81.2%, 74.3%, and 63.1% accuracy, respectively. These results improve upon its back-bone by 6.1, 2.4, and 8.7 percentage points, while exceeding the next-best listed methods by 1.5, 2.0, and 2.7 points. For element recognition, RISE achieves 73.6% accuracy, im-proving upon its backbone by 2.7 points and tying POINTS-GUI-G for second place, behind UI-Venus-1.5 at 76.1%. Refusal accuracy remains at 44.4%, matching its backbone and ranking second jointly, below Qwen3-VL-Instruct at 53.7%. Overall, RISE improves multiple grounding capa-bilities, with the largest gain in fine-grained manipulation. Table 2 further presents results with refined instructions. RISE achieves 75.2% accuracy with 424 correct predic-tions out of 564 examples, compared with 70.6% and 398 correct predictions under the original instructions. This result exceeds the reported UI-Venus-1.5-8B performance by 1.1 percentage points without additional zooming or verification calls. RISE also achieves the highest text-matching (TM) and refusal (Ref.) accuracies of 86.2% and 42.6%, surpassing UI-Venus-1.5-8B by 3.8 and 20.4 per-centage points, respectively. Across both original and re-fined instructions, the strong text-matching results suggest that RISE’s action-relevant implicit states help capture tex-tual cues for identifying the corresponding GUI elements. RISE also remains competitive in other task categories. 
+
+ScreenSpot-v2. As shown in Table 3, RISE with Qwen 5Table 3. ScreenSpot-v2 accuracy (%) across platforms and element types. Results are grouped by mobile, desktop, and web interfaces, with text and icon targets reported separately. Overall accuracy is computed over all 1,272 examples. Published references retain their original protocols. Bold and underlined scores indicate the best and second-best results within each group, respectively.                                                                                                                                                                         
+
+> Method / Configuration Mobile Desktop Web Overall ↑
+> Text Icon Text Icon Text Icon
+> n= 290 n= 211 n= 194 n= 140 n= 234 n= 203
+> External baselines Aguvis-7B [38] 95.5 77.3 95.4 77.9 91.0 72.4 86.0 UGround-V1-7B [6] 95.0 83.3 95.0 77.8 92.1 77.2 87.6 UI-TARS-7B [24] 96.9 89.1 95.4 85.0 93.6 85.2 91.6 Jedi-7B [36] 96.9 87.2 95.9 87.9 94.4 84.2 91.7 GUI-Actor-7B [33] 97.6 88.2 96.9 85.7 93.2 86.7 92.1 OpenCUA-7B [31] 93.8 88.6 96.9 87.1 88.0 83.3 89.9 GTA1-7B [40] 99.0 88.6 94.9 89.3 92.3 86.7 92.4 FocusUI-7B ( r= 100% ) [23] 98.8 91.6 95.6 92.1 95.0 84.4 93.1 GUI-G 2-7B [28] 98.3 91.9 95.4 89.3 94.0 87.7 93.3 InfiGUI-G1-7B (Top-1) [20] 99.0 91.9 94.3 82.1 97.9 89.2 93.5 UI-Venus-Ground-7B [8] 99.0 90.0 97.0 90.7 96.2 88.7 94.1 MAI-UI-8B [43] 99.3 88.6 98.5 90.0 97.9 90.6 94.7 POINTS-GUI-G-8B [42] 99.0 90.5 99.5 92.9 94.9 92.6 95.2 UI-Venus-1.5-8B [29] 99.3 92.9 96.4 92.9 98.3 93.1 95.9
+> Qwen3-VL-8B configurations Qwen3-VL-Instruct [1] 94.1 89.6 98.5 90.0 94.9 88.2 92.8 GUI-Libra ASFT, thinking [39] 94.8 79.6 96.4 75.7 91.9 77.3 87.1 GUI-Libra ASFT, direct [39] 96.2 83.4 96.9 81.4 90.6 77.3 88.5 GUI-Libra ASFT+RL, thinking [39] 97.6 87.7 95.9 85.0 91.5 81.8 90.6
+> RISE (Qwen3-VL) 99.7 90.0 99.0 92.1 96.2 90.6 95.0
+> GUI-Owl-1.5-8B configurations GUI-Owl-1.5 [37] 98.6 90.5 97.9 87.1 95.7 87.7 93.6
+> RISE (GUI-Owl) 99.7 92.4 98.5 89.3 97.0 89.2 95.0
+
+achieves 95.0% accuracy, outperforming its backbone by 2.3 percentage points and GUI-Libra ASFT and ASFT+RL with explicit reasoning by 7.9 and 4.4 points, respectively. It ranks third among the listed configurations, surpassing MAI-UI-8B at 94.7%, while trailing POINTS-GUI-G-8B and UI-Venus-1.5-8B at 95.2% and 95.9%, respectively. RISE with Qwen achieves the highest accuracy on mobile text at 99.7%, ranks second on desktop text at 99.0%, and ties for second on desktop icons at 92.1%. It improves upon its backbone across all six platform groups, with the largest gain of 5.6 percentage points on mobile text. RISE with GUI-Owl achieves 95.0% accuracy, outper-forming its backbone by 1.4 percentage points. Improve-ments are observed across all six groups, with the largest gain on desktop icons, increasing from 87.1% to 89.3%. 
+
+Inference Efficiency. As shown in Table 4, RISE elimi-nates intermediate reasoning text while retaining compact action outputs. RISE with Qwen reduces output tokens by 82.1% compared with explicit-reasoning ASFT+RL and decreases inference time from 15.7 to 3.1 seconds per OSWorld-G example, comparable to the 3.2 seconds of di-rect Qwen. RISE with GUI-Owl averages 2.2 and 2.6 sec-onds per example on OSWorld-G and SS-v2, respectively, generating 30.2 and 30.7 output tokens. Compared with action-only SFT, RISE maintains comparable inference la-tency, with slightly longer outputs mainly due to finer-grained decimal coordinates (e.g., [500.2, 130.7] in-stead of [500, 130] ), rather than additional reasoning tokens. 
+
+Offline Action Prediction. AndroidControl-v2 (AC-v2) evaluates mobile action prediction under high-level goals and low-level step instructions, while MM-Mind2Web-v2 (MM-v2) evaluates web actions across task, website, and domain splits. As shown in Table 5, RISE with Qwen achieves 62.3%, 88.7%, and 47.1% accuracy on AC High, AC Low, and MM-v2, respectively. RISE with GUI-Owl achieves 64.8%, 86.2%, and 45.5%. Compared with action-only SFT, RISE with GUI-Owl improves these three metrics by 5.5, 2.8, and 0.9 percent-age points, with the largest gain on high-level goals. RISE with Qwen outperforms the explicit-CoT reference by 5.5, 18.6, and 3.5 points, respectively, showing the largest im-provement on low-level instructions. These results suggest that RISE can preserve action-relevant information across 6(a) Instruction: Add Decimal Place for the current cell GT bbox: [593.0, 118.8, 611.7, 156.4]    
+
+> Explicit CoT 227 tokens
+> The most direct way to access formatting options for the current cell is to right-click on it, which opens a context menu with formatting options such as "Format Cells."
+> miss Click (152, 410)
+> RISE
+> Action output
+> Click (608, 135)
+> hit 41 tokens
+
+(b) Instruction: Select the row 25 GT bbox: [35.9, 658.6, 57.2, 672.9]    
+
+> Explicit CoT 229 tokens
+> Therefore, the next logical action is to click on the row number "25" to select it.
+> miss Click (47, 645)
+> RISE
+> Action output
+> Click (47, 663)
+> hit 55 tokens
+
+(c) Instruction: I want to select a contiguous region on the basis of color GT bbox: [108.8, 117.9, 137.1, 150.9]    
+
+> Explicit CoT 266 tokens
+> Looking at the toolbar on the left, I see the Fuzzy Select Tool icon (a wand) near the top.
+> miss Click (95, 130)
+> RISE
+> Action output
+> Click (95, 69)
+> miss 53 tokens
+
+Figure 3. Explicit CoT versus RISE on OSWorld-G. Three cases compare GUI-Libra ASFT and RISE. Italic text quotes CoT excerpts; token counts include the complete generated output. Dashed boxes locate enlarged regions. GT boxes use [xmin , y min , x max , y max ] on the same 0–1000 scale as predicted clicks. Green boxes mark target regions; blue circles and orange crosses denote CoT and RISE predictions. Table 4. Mean output tokens and seconds per action on the com-plete OSWorld-G and SS-v2. 
+
+OS-G SS-v2 Configuration Tokens Sec. Tokens Sec. 
+
+Explicit-reasoning reference 
+
+GUI-Libra ASFT+RL [39] 259.7 15.7 202.6 12.3 
+
+Qwen3-VL action-output protocol 
+
+Qwen3-VL, direct [1] 47.0 3.2 45.5 3.1 
+
+RISE (Qwen) 46.6 3.1 45.3 3.1 
+
+GUI-Owl tool-call protocol 
+
+GUI-Owl, original [37] 34.0 2.4 34.7 2.8 Action-only SFT 26.0 2.0 26.7 2.4 
+
+RISE 30.2 2.2 30.7 2.6 
+
+different instruction granularities without generating inter-mediate reasoning text. 
+
+Transfer Across Benchmarks. Table 6 reports the per-formance of RISE with both backbones on UI-I2E-Bench and MMBench-GUI L2. RISE with Qwen improves over its backbone by 2.7 and 1.3 percentage points on the two benchmarks, respectively, while RISE with GUI-Owl achieves gains of 1.5 and 1.4 points. These consistent im-provements support the effectiveness of RISE across addi-tional GUI evaluation settings. Prompt selection and evalu-ation protocols are detailed in Supplementary Material. 
+
+4.3. Qualitative Analysis 
+
+Figure 3 compares explicit CoT and RISE with Qwen on the same screenshots and instructions. In Fig. 3(a), CoT se-lects a cell context menu, whereas RISE correctly identifies the decimal-place toolbar control. In Fig. 3(b), CoT identi-
+
+Table 5. Offline next-action accuracy (%) on AC-v2 at High and Low instruction levels and MM-Mind2Web-v2 (macro). Bold and underlined scores indicate the best and second-best results. 
+
+Configuration AC High AC Low MM macro GUI-R1-7B [22] 39.7 62.3 36.9 Aguvis-7B [38] 37.7 48.0 35.4 UI-TARS-1.5-7B [24] 45.2 48.5 34.7 GLM-4.1V-9B-Thinking [12] 37.2 67.1 26.2 Qwen2.5-VL-7B [2] 46.5 67.8 32.5 Qwen2.5-VL-32B [2] 49.0 78.4 44.9 Qwen3-VL-8B [1] 54.8 77.6 43.8 GUI-Libra ASFT, thinking (Qwen) [39] 56.8 70.1 43.6 
+
+RISE (Qwen) 62.3 88.7 47.1 
+
+GUI-Owl-1.5-8B, original [37] 15.8 53.3 14.9 Action-only SFT (GUI-Owl) 59.3 83.4 44.6 
+
+RISE (GUI-Owl) 64.8 86.2 45.5 
+
+fies row 25 in its reasoning but clicks row 24, while RISE correctly selects row 25. In Fig. 3(c), both methods fail to locate the Fuzzy Select Tool, despite CoT identifying it in its reasoning. Across these three examples, RISE generates 41, 55, and 53 output tokens, compared with 227, 229, and 266 for CoT, respectively. These examples illustrate more concise action generation and improved predictions in two cases, while also revealing a shared failure. 
+
+4.4. Ablation Studies 
+
+Contribution of Supervision Losses. Table 7 evaluates three complementary supervision objectives on SS-v2, with action cross-entropy retained in all configurations. Full RISE achieves 95.0% accuracy, outperforming action su-pervision alone by 1.4 percentage points. Removing any of 7Table 6. Grounding accuracy (%) on UI-I2E-Bench and MMBench-GUI L2. Bold scores indicate the best results, while underlined scores indicate the second-best results in each column.           
+
+> Configuration UI-I2E MMB-GUI L2 Qwen3-VL-Instruct [1] 78.5 82.9 RISE (Qwen3-VL) 81.2 84.2
+> GUI-Owl-1.5 [37] 74.4 81.9 RISE (GUI-Owl) 75.9 83.3
+
+Table 7. Supervision-loss ablation of RISE (Qwen) on SS-v2. CE denotes action cross-entropy, and KL denotes action-distribution supervision. Accuracy (%) is evaluated on all 1,272 examples.                               
+
+> Configuration CE State KL Boundary SS-v2 Action supervision only ✓–––93.6 w/o State alignment ✓–✓✓94.7 w/o Action distribution ✓✓–✓94.2 w/o Boundary alignment ✓✓✓–94.8 Full RISE ✓✓✓✓95.0
+
+the three objectives reduces performance, with the largest drop of 0.8 points observed when action-distribution super-vision is removed. State and boundary alignment further contribute improvements of 0.3 and 0.2 points, respectively. These results demonstrate the complementary benefits of integrating reasoning representations, action distributions, and boundary states for GUI action prediction. 
+
+Supervision Strategies. Table 8 compares supervision strategies on Qwen. All configurations use action super-vision. Action-only SFT directly predicts actions, while 
+
+Explicit semantics and action additionally supervises tex-tual operation and target descriptions. In contrast, Action-supervised implicit states introduces eight learnable implicit states without explicit semantic supervision. It achieves a mean accuracy of 78.4%, outperforming Action-only SFT 
+
+(75.3%) and Explicit semantics and action (76.1%). These results demonstrate the benefit of learning implicit states di-rectly from action supervision. 
+
+Operation–target alignment aligns implicit states with teacher representations of operation and target descrip-tions, whereas Full-CoT state alignment uses representa-tions from the complete reasoning trace. Building on full-CoT state alignment, RISE (full supervision) further incor-porates action-distribution and reasoning-to-action bound-ary alignment, achieving the highest mean accuracy of 79.1%, with 63.1% on OSWorld-G and 95.0% on SS-v2. This exceeds the 78.0% mean of Full-CoT state alignment .Although Operation–target alignment achieves the highest OSWorld-G accuracy of 63.5%, its overall mean accuracy is slightly lower at 78.8%. We further evaluate three alternative strategies: Progres-sive CoT supervision gradually removes CoT text during training; MIRAGE-style supervision refines implicit states 
+
+Table 8. Supervision strategies on Qwen3-VL-8B. Accuracy (%) is reported for each selected configuration. K denotes the num-ber of implicit states, and Avg. is the equally weighted mean of OSWorld-G (OS-G) and SS-v2. Bold and underlined scores indi-cate the best and second-best results, respectively.                                         
+
+> Supervision KOS-G SS-v2 Avg. Action-only SFT 058.9 91.7 75.3 Four-field latent supervision 861.3 90.5 75.9 Explicit semantics and action 059.2 93.0 76.1 MIRAGE-style supervision 860.8 92.8 76.8 Full-CoT state alignment 862.8 93.2 78.0 Action-supervised implicit states 863.3 93.6 78.4 Progressive CoT supervision 862.8 94.7 78.7 Operation–target alignment 863.5 94.1 78.8 RISE (full supervision) 863.1 95.0 79.1
+
+Table 9. Latent-state count ablation of RISE with Qwen3-VL-8B. Accuracy (%) is reported on OSWorld-G and SS-v2, with Avg. denoting their equally weighted mean. Bold and underlined scores indicate the best and second-best results, respectively.                 
+
+> Latent states KOS-G SS-v2 Avg. 162.2 94.6 78.4 462.9 95.0 79.0 863.1 95.0 79.1
+> 16 62.1 94.8 78.4
+
+using next-screenshot feature supervision; and Four-field latent supervision reconstructs operation descriptions, tar-get descriptions, action types and values, and coordinates. None surpasses RISE (full supervision) in mean accuracy. 
+
+Number of Latent States. Table 9 compares one, four, eight, and sixteen latent states under full-CoT joint super-vision. Four and eight states achieve mean accuracies of 79.0% and 79.1%, respectively, across the two benchmarks, while one and sixteen states both reach 78.4%. Therefore, we adopt K = 8 , which achieves the highest mean accuracy with a compact latent interface. 
+
+Matched Backbone Adaptation. We further evaluate RISE on GUI-Owl-1.5-8B against action-only SFT under identical training and evaluation conditions, without subse-quent continuation. RISE improves OSWorld-G accuracy from 65.2% to 67.7% and SS-v2 from 94.6% to 94.7%, demonstrating its effectiveness across different backbones. 
+
+## 5. Conclusion 
+
+In this paper, we propose RISE (Reasoning with Im-plicit State Embeddings), an implicit reasoning framework for GUI action prediction. RISE constructs contextual-ized implicit states from learnable embeddings to capture action-relevant reasoning information without generating intermediate reasoning text. We introduce three comple-mentary supervision strategies, including full-CoT state alignment, action-distribution alignment, and reasoning-to-8action boundary alignment, to guide implicit state learning for action prediction. RISE achieves 70.6% accuracy on OSWorld-G with GUI-Owl, outperforming its backbone by 4.3 percentage points, and 95.0% on ScreenSpot-v2 with Qwen. Experiments across two backbones and six bench-marks demonstrate improvements in GUI grounding and of-fline action prediction, while inference analyses show re-duced decoding overhead compared with explicit reasoning. 
+
+## References 
+
+[1] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, et al. Qwen3-VL technical report. arXiv preprint arXiv:2511.21631 , 2025. 5, 6, 7, 8 [2] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al. Qwen2.5-VL technical report. arXiv preprint arXiv:2502.13923 , 2025. 5, 7 [3] Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Yan-tao Li, Jianbing Zhang, and Zhiyong Wu. SeeClick: Har-nessing GUI grounding for advanced visual GUI agents. In 
+
+Proceedings of the 62nd Annual Meeting of the Associa-tion for Computational Linguistics (Volume 1: Long Papers) ,pages 9313–9332, 2024. 1, 2 [4] Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Samuel Stevens, Boshi Wang, Huan Sun, and Yu Su. Mind2Web: Towards a generalist agent for the web. In Advances in Neu-ral Information Processing Systems , 2023. 1, 4 [5] Yuntian Deng, Kiran Prasad, Roland Fernandez, Paul Smolensky, Vishrav Chaudhary, and Stuart Shieber. Implicit chain of thought reasoning via knowledge distillation. arXiv preprint arXiv:2311.01460 , 2023. 2 [6] Boyu Gou, Ruohan Wang, Boyuan Zheng, Yanan Xie, Cheng Chang, Yiheng Shu, Huan Sun, and Yu Su. Navigating the digital world as humans do: Universal visual grounding for GUI agents. In International Conference on Learning Rep-resentations , 2025. 2, 5, 6 [7] Sachin Goyal, Ziwei Ji, Ankit Singh Rawat, Aditya Krishna Menon, Sanjiv Kumar, and Vaishnavh Nagarajan. Think be-fore you speak: Training language models with pause to-kens. In International Conference on Learning Representa-tions , 2024. 2 [8] Zhangxuan Gu, Zhengwen Zeng, Zhenyu Xu, Xingran Zhou, Shuheng Shen, Yunfei Liu, Beitong Zhou, Changhua Meng, Tianyu Xia, Weizhi Chen, et al. UI-Venus technical re-port: Building high-performance UI agents with RFT. arXiv preprint arXiv:2508.10833 , 2025. 6 [9] Shibo Hao, Sainbayar Sukhbaatar, DiJia Su, Xian Li, Zhiting Hu, Jason E. Weston, and Yuandong Tian. Training large lan-guage models to reason in a continuous latent space. In Pro-ceedings of the Conference on Language Modeling , 2025. 2 [10] Geoffrey Hinton, Oriol Vinyals, and Jeff Dean. Distill-ing the knowledge in a neural network. arXiv preprint arXiv:1503.02531 , 2015. 4 [11] Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yux-iao Dong, Ming Ding, and Jie Tang. CogAgent: A vi-sual language model for GUI agents. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 14281–14290, 2024. 2 [12] Wenyi Hong, Wenmeng Yu, Xiaotao Gu, Guo Wang, Guob-ing Gan, Haomiao Tang, Jiale Cheng, Ji Qi, Junhui Ji, Li-hang Pan, et al. Glm-4.5v and glm-4.1v-thinking: Towards versatile multimodal reasoning with scalable reinforcement learning. arXiv preprint arXiv:2507.01006 , 2025. 7 [13] Brian Lester, Rami Al-Rfou, and Noah Constant. The power of scale for parameter-efficient prompt tuning. In Proceed-ings of the 2021 Conference on Empirical Methods in Natu-ral Language Processing , pages 3045–3059, 2021. 2 [14] Wei Li, William Bishop, Alice Li, Chris Rawles, Folawiyo Campbell-Ajala, Divya Tyamagundlu, and Oriana Riva. On the effects of data scale on UI control agents. In Advances in Neural Information Processing Systems , 2024. 1, 4 [15] Xiang Lisa Li and Percy Liang. Prefix-Tuning: Optimiz-ing continuous prompts for generation. In Proceedings of the 59th Annual Meeting of the Association for Computa-tional Linguistics and the 11th International Joint Confer-ence on Natural Language Processing (Volume 1: Long Pa-pers) , pages 4582–4597, 2021. 2 [16] Kevin Qinghong Lin, Linjie Li, Difei Gao, Zhengyuan Yang, Shiwei Wu, Zechen Bai, Stan Weixian Lei, Lijuan Wang, and Mike Zheng Shou. ShowUI: One vision-language-action model for GUI visual agent. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2025. 1 [17] Enqi Liu, Liyuan Pan, Zhi Gao, Yan Yang, Chenrui Shi, Yang Liu, Jingrong Wu, and Qing Li. Benchmarking and improv-ing gui agents in high-dynamic environments. arXiv preprint arXiv:2604.25380 , 2026. 2 [18] Xinyi Liu, Xiaoyi Zhang, Ziyun Zhang, and Yan Lu. UI-E2I-Synth: Advancing GUI grounding with large-scale instruc-tion synthesis. In Findings of the Association for Compu-tational Linguistics: ACL 2025 , pages 15668–15684, 2025. 4[19] Yuhang Liu, Pengxiang Li, Congkai Xie, Xavier Hu, Xi-aotian Han, Shengyu Zhang, Hongxia Yang, and Fei Wu. InfiGUI-R1: Advancing multimodal GUI agents from re-active actors to deliberative reasoners. arXiv preprint arXiv:2504.14239 , 2025. 2 [20] Yuhang Liu, Zeyu Liu, Shuanghe Zhu, Pengxiang Li, Con-gkai Xie, Jiasheng Wang, Xueyu Hu, Xiaotian Han, Jianbo Yuan, Xinyao Wang, et al. Infigui-g1: Advancing gui grounding with adaptive exploration policy optimization. In 
+
+Proceedings of the AAAI Conference on Artificial Intelli-gence , pages 32267–32275, 2026. 6 [21] Zhengxi Lu, Yuxiang Chai, Yaxuan Guo, Xi Yin, Liang Liu, Hao Wang, Han Xiao, Shuai Ren, Pengxiang Zhao, Guangyi Liu, Guanjing Xiong, and Hongsheng Li. UI-R1: Enhancing efficient action prediction of GUI agents by reinforcement learning. In Proceedings of the AAAI Conference on Artifi-cial Intelligence , pages 17608–17616, 2026. 2 [22] Run Luo, Lu Wang, Wanwei He, Longze Chen, Jiaming Li, and Xiaobo Xia. Gui-r1: A generalist r1-style vision-
+
+9language action model for gui agents. arXiv preprint arXiv:2504.10458 , 2025. 2, 7 [23] Mingyu Ouyang, Kevin Qinghong Lin, Mike Zheng Shou, and Hwee Tou Ng. FocusUI: Efficient UI grounding via position-preserving visual token selection. arXiv preprint arXiv:2601.03928 , 2026. 5, 6 [24] Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, et al. UI-TARS: Pioneering automated GUI interaction with native agents. 
+
+arXiv preprint arXiv:2501.12326 , 2025. 1, 2, 5, 6, 7 [25] Christopher Rawles, Sarah Clinckemaillie, Yifan Chang, Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li, William Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel Toyama, Robert Berry, Divya Tyamagundlu, Timothy Lilli-crap, and Oriana Riva. AndroidWorld: A dynamic bench-marking environment for autonomous agents. In Interna-tional Conference on Learning Representations , 2025. 1 [26] Xuan Shen, Yizhou Wang, Yufa Zhou, Xiangxi Shi, Pu Zhao, Yanzhi Wang, and Jiuxiang Gu. Efficient reasoning with hid-den thinking. In Proceedings of the 43rd International Con-ference on Machine Learning , pages 111225–111240, 2026. 2[27] Zhenyi Shen, Hanqi Yan, Linhai Zhang, Zhanghao Hu, Yali Du, and Yulan He. CODI: Compressing chain-of-thought into continuous space via self-distillation. In Proceedings of the 2025 Conference on Empirical Methods in Natural Lan-guage Processing , pages 677–693, 2025. 2 [28] Fei Tang, Zhangxuan Gu, Zhengxi Lu, Xuyang Liu, Shuheng Shen, Changhua Meng, Wen Wang, Wenqi Zhang, Yongliang Shen, Weiming Lu, et al. Gui-g 2: Gaussian re-ward modeling for gui grounding. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 33214– 33222, 2026. 6 [29] Venus Team, Changlong Gao, Zhangxuan Gu, Yulin Liu, Xinyu Qiu, Shuheng Shen, Yue Wen, Tianyu Xia, Zhenyu Xu, Zhengwen Zeng, et al. Ui-venus-1.5 technical report. 
+
+arXiv preprint arXiv:2602.09082 , 2026. 5, 6 [30] Xuehui Wang, Zhenyu Wu, JingJing Xie, Zichen Ding, Bowen Yang, Zehao Li, Zhaoyang Liu, Qingyun Li, Xuan Dong, Zhe Chen, et al. Mmbench-gui: Hierarchical multi-platform evaluation framework for gui agents. arXiv preprint arXiv:2507.19478 , 2025. 4 [31] Xinyuan Wang, Bowen Wang, Dunjie Lu, Junlin Yang, Tian-bao Xie, Junli Wang, Jiaqi Deng, Xiaole Guo, Yiheng Xu, Chen Wu, et al. Opencua: Open foundations for computer-use agents. Advances in Neural Information Processing Sys-tems , 38:139756–139806, 2026. 1, 6 [32] Haoyi Wu, Zhihao Teng, and Kewei Tu. Parallel continu-ous chain-of-thought with jacobi iteration. In Proceedings of the 2025 Conference on Empirical Methods in Natural Lan-guage Processing , pages 914–926, 2025. 2 [33] Qianhui Wu, Kanzhi Cheng, Rui Yang, Chaoyun Zhang, Jianwei Yang, Huiqiang Jiang, Jian Mu, Baolin Peng, et al. GUI-Actor: Coordinate-free visual grounding for GUI agents. In Advances in Neural Information Processing Sys-tems , 2025. 5, 6 [34] Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, and Yu Qiao. OS-ATLAS: Founda-tion action model for generalist GUI agents. In International Conference on Learning Representations , 2025. 2, 5 [35] Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhoujun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao Yu. OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer environments. In Ad-vances in Neural Information Processing Systems , 2024. 1 [36] Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang, Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang, Yuhui Xu, Zekun Wang, et al. Scaling computer-use ground-ing via user interface decomposition and synthesis. In Ad-vances in Neural Information Processing Systems , 2025. 4, 5, 6 [37] Haiyang Xu, Xi Zhang, Haowei Liu, Junyang Wang, Zhaozai Zhu, Shengjie Zhou, Xuhao Hu, Feiyu Gao, Junjie Cao, Zi-hua Wang, et al. Mobile-agent-v3.5: Multi-platform funda-mental gui agents. arXiv preprint arXiv:2602.16855 , 2026. 5, 6, 7, 8 [38] Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tian-bao Xie, Amrita Saha, Doyen Sahoo, Tao Yu, and Caim-ing Xiong. Aguvis: Unified pure vision agents for au-tonomous GUI interaction. In Proceedings of the 42nd In-ternational Conference on Machine Learning , pages 69772– 69805, 2025. 1, 2, 5, 6, 7 [39] Rui Yang, Qianhui Wu, Zhaoyang Wang, Hanyang Chen, Ke Yang, Hao Cheng, Huaxiu Yao, Baolin Peng, Huan Zhang, Jianfeng Gao, et al. Gui-libra: Training native gui agents to reason and act with action-aware supervision and partially verifiable rl. arXiv preprint arXiv:2602.22190 , 2026. 1, 2, 4, 5, 6, 7 [40] Yan Yang, Dongxu Li, Yutong Dai, Yuhao Yang, Ziyang Luo, Zirui Zhao, Zhiyuan Hu, Junzhe Huang, Amrita Saha, Zeyuan Chen, et al. Gta1: Gui test-time scaling agent. In In-ternational Conference on Learning Representations , pages 48295–48323, 2026. 5, 6 [41] Zhichao Yang, Yuanze Hu, Haojie Hao, Longkun Hao, Dongshuo Huang, Hongyu Lin, Gen Li, Lanqing Hong, Yi-hang Lou, and Yan Bai. MIRAGE: Mobile agents with im-plicit reasoning and generative world models. arXiv preprint arXiv:2606.04627 , 2026. 2 [42] Zhongyin Zhao, Yuan Liu, Yikun Liu, Haicheng Wang, Le Tian, Xiao Zhou, Yangxiu You, Zilin Yu, Yang Yu, and Jie Zhou. POINTS-GUI-G: GUI-grounding journey. arXiv preprint arXiv:2602.06391 , 2026. 5, 6 [43] Hanzhang Zhou, Xu Zhang, Panrong Tong, Jianan Zhang, Liangyu Chen, Quyu Kong, Chenglin Cai, Chen Liu, Yue Wang, Jingren Zhou, and Steven Hoi. MAI-UI technical report: Real-world centric foundation GUI agents. arXiv preprint arXiv:2512.22047 , 2025. 5, 6 
+
+10

@@ -1,0 +1,439 @@
+Title: GUI-PRISM: Efficient Action Decoding for GUI Agents
+
+URL Source: https://arxiv.org/pdf/2611.32097v1
+
+Published Time: Wed, 25 Nov 2026 02:23:47 GMT
+
+Number of Pages: 10
+
+Markdown Content:
+# GUI-PRISM: Efficient Action Decoding for GUI Agents 
+
+## Enqi Liu 1,2, Zhi Gao 1,2*, Liu Liu 4, Lifeng Fan 2, Liyuan Pan 1,3*, 
+
+> 1
+
+## Beijing Institute of Technology, Beijing, China  
+
+> 2
+
+## Beijing Institute for General Artificial Intelligence, Beijing, China  
+
+> 3
+
+## Yangtze Delta Region Academy of Beijing Institute of Technology, Jiaxing, China  
+
+> 4
+
+## Huawei Technologies Ltd, Beijing, China 
+
+{enqi.liu, zhi.gao, liyuan.pan }@bit.edu, liuliu33@huawei.com, lifengfan@bigai.ai 
+
+## Abstract 
+
+Graphical user interface (GUI) agents translate screen-shots and user instructions into executable actions. Most existing approaches rely on vision-language models to gen-erate actions as text, often leading to substantial infer-ence latency due to autoregressive decoding. To address this inefficiency, we propose GUI-PRISM, a hybrid action decoder that directly predicts action types and structured arguments while retaining language generation for open-ended text. Unlike existing spatial decoding methods that primarily focus on target localization, GUI-PRISM extends direct prediction to action types and their associated argu-ments, enabling complete GUI action prediction. Specif-ically, GUI-PRISM employs field-specific queries to ex-tract action-relevant semantic and spatial information from a shared multimodal feature bank. It further models de-pendencies among action components through conditional queries. Gated residual cross-attention refines these pre-dictions using fine-grained multimodal information. GUI-PRISM achieves 95.1% accuracy on ScreenSpot-v2, outper-forming the strongest head-based spatial decoding method by 2.0 percentage points while delivering a 3.8 × inference speedup over the baseline. On AndroidControl-v2 and MM-Mind2Web-v2, it improves complete-action accuracy by 4.8 and 0.7 percentage points while achieving 2.7 × and 3.9 ×
+
+inference speedups over the baseline, respectively. Our code is available on our project page. 
+
+## 1. Introduction 
+
+Graphical user interface (GUI) agents enable automated interaction with software applications by translating vi-sual observations and user instructions into executable ac-tions [29, 32]. Accurate and efficient GUI interaction re-quires selecting appropriate action types and predicting   
+
+> *Corresponding author. (a) Autoregressive Action Generation (token-by-token)
+> VLM
+> {"action_type":"Write", "value":"hello", "x":320, "y":180}
+> Complete Action
+> (c, v, p)
+> Field Names / Delimiters Action Type / Values / Coordinates
+
+(b) GUI-PRISM: Hybrid Action Decoding        
+
+> Shared Feature Bank
+> PRISM
+> Field-Specific Queries
+> Action Type c
+> Point: x→y
+> Discrete Value v
+> Complete Action
+> (c, v, p)
+> LM Generation: Open-Ended Text v
+> if needed
+
+Figure 1. Comparison of GUI action decoding approaches. 
+
+(a) Autoregressive action generation sequentially decodes both schema formatting tokens (e.g., ‘ action type ’ and ‘ :’) and action content (e.g., ‘ Write ’, ‘ hello ’, and ‘ 320, 180 ’). (b) GUI-PRISM directly predicts action types and structured argu-ments while retaining language generation for open-ended text. 
+
+their associated arguments, such as target coordinates and text inputs. Recent advances in vision-language models (VLMs) have substantially improved GUI action prediction, enabling agents to interpret diverse instructions, identify in-teraction targets, and generate complete actions across dif-ferent interfaces [20, 26, 36]. Despite these advances, generating GUI actions as text introduces substantial autoregressive decoding overhead, as illustrated in Fig. 1(a). Models must sequentially gener-ate both schema formatting tokens, such as field names ‘action type, value, x, y ’ and delimiters such as ‘", :, {, }’, and action content, including action type ‘Write ’, the text value ‘ hello ’, and coordinate values ‘320, 180 ’. These additional decoding steps increase in-ference latency before actions can be executed. To reduce this decoding overhead, we explore using a 1arXiv:2611.32097v1 [cs.CV] 24 Nov 2026 unified action head to directly predict action types and struc-tured arguments, avoiding their token-by-token generation. Recent spatial decoding methods primarily focus on im-proving target localization through specialized visual rep-resentations and spatial decoding mechanisms [4, 15, 30]. However, complete GUI action prediction requires handling a broader range of outputs, including action types, target coordinates, discrete arguments, and open-ended text. This motivates a hybrid decoding approach that combines direct prediction of structured action components with language generation for open-ended text. Realizing this approach presents two key challenges. (1) Extracting field-specific multimodal information: Differ-ent prediction heads require distinct information from the same screenshot and instruction. For example, clicking the ‘ Save ’ button requires determining the intended ac-tion and precisely locating its target. These differing in-formation requirements make it difficult for each prediction head to selectively extract the action-relevant semantic or spatial information it needs from shared multimodal rep-resentations. (2) Preserving dependencies in direct action decoding: Unlike autoregressive generation, which natu-rally conditions subsequent tokens on preceding outputs, direct prediction does not inherently capture dependencies among action components. The predicted action type deter-mines the required arguments, while coordinate prediction involves dependencies between the horizontal and vertical axes. The challenge is to preserve these relationships with-out reverting to token-by-token generation. In this paper, we propose GUI-PRISM, a hybrid action decoder that directly predicts action types and structured arguments while retaining language generation for open-ended text values when required, as illustrated in Fig. 1(b). Specifically, GUI-PRISM introduces field-specific queries to extract action-relevant semantic and spatial information from a shared PRISM feature bank integrating visual, con-textual, and action-relevant features. We explicitly model dependencies among action components: the predicted ac-tion type determines the applicable arguments and their cor-responding predictors, while coordinate queries incorporate the selected action type and the initial horizontal-coordinate estimate. We further employ gated residual cross-attention to refine these predictions using fine-grained action-relevant and visual information from the shared PRISM feature bank. Together, these designs enable GUI-PRISM to pre-dict complete GUI actions while preserving dependencies among structured action components. GUI-PRISM achieves 95.1% accuracy on ScreenSpot-v2, outperforming the strongest head-based spatial de-coding method by 2.0 percentage points while deliver-ing a 3.8 × inference speedup over the baseline. On AndroidControl-v2 and MM-Mind2Web-v2, it improves complete-action accuracy by 4.8 and 0.7 percentage points                                                
+
+> Table 1. GUI-PRISM action types, required parameters, and illus-trative examples. Open-ended text values use the LM; finite values use classifiers. None denotes the native empty-value label.
+> Operation cCoordinate pValue vExample Click Required Finite label Click Submit LongPress Required None Hold an icon Write Optional Text Enter “hello” Select Required Text Select “English” Scroll Optional Direction Scroll down Swipe –Direction Swipe left KeyboardPress Optional Key Press Enter OpenApp –Text Open Settings NavigateBack –None Go back NavigateHome –None Go home Wait –Duration Wait 2 seconds Terminate –Status Mark completion Answer –Text Reply “Done”
+
+over the baseline while achieving 2.7 × and 3.9 × inference speedups, respectively. Our main contributions are as follows: • We propose GUI-PRISM, a hybrid action decoder that ex-tends direct prediction beyond spatial grounding to com-plete GUI actions, supporting operation types and hetero-geneous arguments through structured prediction and se-lective language generation. • We introduce field-specific queries that extract relevant multimodal information while incorporating preceding predictions to preserve dependencies among action fields. • We demonstrate gains in GUI grounding and complete-action prediction with lower latency, supported by abla-tions on field dependencies and prediction refinement. 
+
+## 2. Related Work 
+
+GUI agents. GUI agents translate visual observations and user instructions into executable actions. Early ap-proaches develop screenshot understanding and visual grounding through multimodal pretraining and large-scale GUI data [6, 9, 12, 31]. Subsequent methods learn action prediction from interaction demonstrations, incorporating task context and intermediate reasoning to support opera-tion selection and target localization [22, 26, 29, 35]. Rein-forcement learning further improves agent behavior through feedback on action correctness and task outcomes [10, 36, 37]. These advances primarily improve the capabilities and training of GUI policies, while many approaches still express actions as autoregressively generated text. GUI-PRISM focuses on the action decoder, directly predict-ing structured fields and retaining language generation for open-ended text values. 
+
+GUI grounding. Recent methods introduce special-ized mechanisms to improve target localization beyond coordinate-string generation. Attention-based approaches 2(a) Hybrid Action Decoding   
+
+> Screenshot I
+> Instruction u
+> Select row 25
+
+Shared VLM          
+
+> P
+> P: input prefix
+> PRISM feature bank Action prediction head Field Decoding
+> Type c
+> Coordinates p
+> Finite value v
+> LM free-text generation Open-ended text value v
+> Mqc
+> qx
+> qy
+> +
+
+LLM 
+
+Lhead 
+
++ Ljoint 
+
+> Joint loss
+
+(b) PRISM Feature Bank (c) Gated Residual Cross-Attention    
+
+> Input [P;EA]
+
+Visual states HV
+
+States HC , H A
+
+> ϕr
+
+Feature bank M
+
+> MV
+> MC
+> MA
+
+Dependent Field Queries      
+
+> Input [P;Qk]
+
+∑ 
+
+> Last 8 layers H(k)
+> ℓ, −1
+> Layer mix
+
+qc qx qy   
+
+> Type cInitial b0
+> x
+
+qk    
+
+> k∈ { c, x, y }
+> WQLN( qk)
+
++ 
+
+> Feature bank M
+
+˜qk
+
+˜qk  
+
+> Feature bank M
+> sk
+> Base logits ℓ0
+> k
+
+qc  
+
+> Action-related
+> MA
+> Type residual dc
+> Coordinate bias b
+
+qx
+
+qy  
+
+> Action-related
+> MA
+> Visual
+> MV
+> X residual dx
+> Y residual dy
+
+× g0
+
+× g1
+
+× g2
+
+× g3
+
+> Learned gates
+
++        
+
+> Field-wise addition
+> Type scores ℓcX scores ℓxY scores ℓy
+> Visual features Context features Action-related features Expanded views
+
+Figure 2. GUI-PRISM architecture. (a) Given a screenshot I and instruction u, the shared VLM processes the input prefix P . The action head predicts the action type c, target coordinate p, and finite-valued arguments, while the LM generates open-ended text values when required. These outputs form the complete action a = ( c, v, p). (b) The PRISM feature bank projects visual, contextual, and action-relevant states into shared memory M . Field-specific suffixes Qk produce queries that incorporate preceding predictions and memory summaries, yielding memory-conditioned queries eqk . (c) Each query reads M to produce base logits. Gated residuals derived from action-relevant features MA and visual features MV refine them into final type and coordinate logits ℓc, ℓ x, ℓ y for field decoding. 
+
+associate action representations with visual patches and re-fine spatial attention through background suppression and center-focused supervision [4, 30]. Other methods improve efficiency through position-preserving visual token selec-tion or predict locations through continuous coordinate de-coding [15, 25]. These approaches primarily address the spatial component of GUI interaction. Complete action pre-diction additionally requires selecting operation types and producing their associated arguments, including discrete values and free text. GUI-PRISM extends direct prediction to these heterogeneous fields and explicitly uses preceding predictions to guide subsequent ones. 
+
+Structured prediction. Query-based decoders provide a general mechanism for extracting output-specific informa-tion from shared features. DETR uses object queries for detection, while Perceiver IO uses output queries to support structured outputs [3, 14]. For spatial prediction, Token-Pose represents keypoints with learned tokens, and SimCC formulates localization as horizontal and vertical coordi-nate classification [18, 19]. In contrast, Pix2Seq repre-sents object categories and coordinates as autoregressive to-ken sequences [5]. GUI-PRISM combines direct field pre-diction with explicit conditioning between fields: the pre-dicted operation guides coordinate queries, and the initial horizontal-coordinate estimate informs vertical-coordinate prediction. Field-specific queries retrieve relevant evi-dence from shared multimodal memory, while gated resid-ual branches refine the resulting predictions. 
+
+## 3. Method 
+
+3.1. Problem Formulation 
+
+Given a screenshot I and task context u, including the user instruction and available interaction history, our goal is to predict the next executable GUI action a = ( c, v, p). Here 
+
+c ∈ C denotes one of 13 supported operation types, v is the operation-specific value, and p is an optional target coor-dinate. For actions with a target coordinate, p = ( x, y )
+
+contains coordinates normalized to [0 , 1000] ; otherwise, 
+
+p = ∅. For example, selecting an option can be represented as a = ( Select , English , (420 , 360)) , while navigating back is represented as a = ( NavigateBack , None , ∅).Each operation specifies its valid arguments and target-coordinate requirements, forming the structured action space A. Table 1 summarizes the supported operations and their required fields. Formally, GUI-PRISM predicts the ac-tion as 
+
+a = fθ (I, u ) ∈ A , (1) 3where θ denotes the model parameters. As illustrated in Fig. 2, GUI-PRISM combines direct prediction of struc-tured fields with language generation for open-ended text values, while modeling dependencies among action fields. 
+
+3.2. Hybrid Action Decoding 
+
+GUI-PRISM constructs a shared feature bank and employs dependent field queries to predict complete GUI actions, al-lowing preceding predictions to guide subsequent fields. 
+
+PRISM Feature Bank. Accurate GUI action prediction requires complementary visual, contextual, and action-relevant information. To make these information sources available for different action fields, we construct a shared PRISM feature bank that integrates their representations. Let P denote the input prefix containing the observable multimodal input and inherited learned context positions. We introduce six learnable embeddings EA to capture com-plementary action-relevant information for prediction. Pro-cessing [P ; EA] through the VLM backbone yields contex-tual states HC from the inherited context positions, action-relevant states HA from the additional embeddings, and vi-sual states HV from image-token positions. Each feature group is mapped to Mr = ϕr (Hr ) for 
+
+r ∈ { C, A, V }, where ϕr incorporates layer normalization (LN), feature projection, and feature-type embeddings. The resulting feature bank is 
+
+M = [ MC ; MA; MV ] ∈ RN ×d, d = 1024 , (2) where N denotes the total number of feature positions. The feature bank is computed once per input and shared across field predictions, with padding masked. 
+
+Dependent Field Queries. While the shared PRISM fea-ture bank provides multimodal information, different action fields require distinct information and exhibit dependencies during prediction. To address these requirements, we con-struct three dependent field prompts Qc, Qx, and Qy for op-eration and coordinate prediction. The coordinate prompts incorporate the selected operation, while Qy additionally includes the initial X estimate. Each prompt is processed together with P , and its hidden states are aggregated through layer mixing: 
+
+qk =
+
+> 8
+
+X
+
+> ℓ=1
+
+softmax( α)ℓH(k) 
+
+> ℓ, −1
+
+∈ R4096 , k ∈ { c, x, y },
+
+(3) where H(k) 
+
+> ℓ, −1
+
+denotes the final-token hidden state of the cor-responding field branch at layer ℓ, and α ∈ R8 contains shared learnable mixing logits. To incorporate information from different feature groups, we compute a padding-masked mean feature μρ ∈
+
+Rd for each available group ρ ∈ R , where R ⊆ { C, A, V }.Each query combines its projected representation with a learned weighted sum of these features: 
+
+eqk = WQ LN( qk) + X
+
+> ρ∈R
+
+softmax ρ(γk,ρ )μρ, (4) where WQ ∈ Rd×4096 projects the query and γk,ρ controls the contribution of each feature group, with the softmax nor-malized over available groups. Each query eqk attends to the PRISM feature bank M
+
+through shared cross-attention, followed by a shared FFN to produce sk ∈ Rd. Linear classifiers yield initial operation logits ℓ0 
+
+> c
+
+∈ R13 and coordinate-bin logits ℓ0
+
+> x
+
+, ℓ 0 
+
+> y
+
+∈ R512 ,which are subsequently refined by gated residual branches. 
+
+Gated Residual Cross-Attention. While field-specific queries capture relevant multimodal information for initial predictions, fine-grained action-relevant and visual infor-mation is essential for accurate operation selection and co-ordinate localization. To further incorporate such informa-tion, we introduce gated residual cross-attention to refine the initial predictions. Specifically, the operation branch at-tends to action-relevant features MA, while the coordinate branches attend to both MA and visual features MV , pro-ducing corrections dc ∈ R13 and dx, d y ∈ R512 .We additionally predict coordinate-permission logits r ∈
+
+R2. Let G(c) ∈ { 0, 1} indicate whether operation c permits coordinates. Let π = log softmax( r). The operation bias is 
+
+bc = πG(c) − 1
+
+|C| 
+
+X
+
+> j∈C
+
+πG(j), (5) where b ∈ R13 collects the operation biases. Four learn-able gates gi = σ(ηi), i ∈ { 0, 1, 2, 3}, control the residual contributions: 
+
+ℓc = ℓ0 
+
+> c
+
++ g0dc + g1b, ℓx = ℓ0 
+
+> x
+
++ g2dx, ℓy = ℓ0 
+
+> y
+
++ g3dy . (6) Here, the refined logits ℓc, ℓx, and ℓy are used for operation and coordinate prediction. 
+
+Field Decoding. We predict structured action fields in de-pendency order without token-by-token generation. The predicted operation c = arg max j∈C (ℓc)j determines the applicable arguments and guides coordinate predic-tion. The Y query uses the initial X estimate b0 
+
+> x
+
+=arg max b ℓ0
+
+> x,b
+
+, mapped to [0 , 1000] . For each axis z ∈{x, y }, we select bz = arg max b ℓz,b and obtain pz =round(1000 bz /511 , 3) .Finite-valued arguments are predicted by operation-specific classifiers applied to sc, while open-ended text val-ues are generated by the language model. Actions requiring coordinates always include them, whereas actions with op-tional coordinates use a separate coordinate-presence pre-4Table 2. Grounding accuracy (%) and inference cost on ScreenSpot-v2 under native protocols. GUI-Actor, V2P, InfiGUI-G1, and UI-Venus-Ground use published accuracy and separately measured local latency and token counts. Bold and underlined scores indicate the best and second-best results within each group. Method / configuration Mobile Desktop Web Overall ↑ Tokens ↓ Time (s) ↓
+
+Text Icon Text Icon Text Icon Autoregressive coordinate generation OpenCUA-7B [29] 93.8 88.6 96.9 87.1 88.0 83.3 89.9 23.3 1.7 GTA1-7B [37] 99.0 88.6 94.9 89.3 92.3 86.7 92.4 12.4 1.2 
+
+GUI-G 2-7B [27] 98.3 91.9 95.4 89.3 94.0 87.7 93.3 18.8 1.5 InfiGUI-G1-7B (Top-1) [23] 99.0 91.9 94.3 82.1 97.9 89.2 93.5 93.8 4.3 UI-Venus-Ground-7B [10] 99.0 90.0 97.0 90.7 96.2 88.7 94.1 19.0 1.5 POINTS-GUI-G-8B [38] 99.0 90.5 99.5 92.9 94.9 92.6 95.2 14.7 2.0 UI-Venus-1.5-8B [28] 99.3 92.9 96.4 92.9 98.3 93.1 95.9 10.7 1.4 Qwen3-VL-8B-Instruct [1] 94.1 89.6 98.5 90.0 94.9 88.2 92.8 45.5 3.1 GUI-Libra-8B (ASFT+RL, thinking) [36] 97.6 87.7 95.9 85.0 91.5 81.8 90.6 202.6 12.3 GUI-Owl-1.5-8B [34] 98.6 90.5 97.9 87.1 95.7 87.7 93.6 34.7 2.8 Qwen3-VL-8B [1] (action-only SFT) 92.8 87.7 95.9 90.0 93.6 89.2 91.7 45.4 –MAI-UI-8B (local) [39] 99.3 88.6 98.5 90.0 97.9 90.6 94.7 80.4 5.3 Head-based spatial decoding GGA-8B (published) [15] 98.5 90.6 96.1 85.5 94.8 86.6 92.0 – –GUI-Actor-7B [30] 97.6 88.2 96.9 85.7 93.2 86.7 92.1 1.0 0.8 
+
+FocusUI-7B ( r = 100% ) [25] 98.8 91.6 95.6 92.1 95.0 84.4 93.1 – –V2P-7B [4] 98.1 88.0 96.1 89.7 95.4 84.4 92.4 1.0 0.8 GUI-PRISM (Ours) 99.0 89.6 98.5 92.9 97.9 90.1 95.1 0.0 0.8 
+
+diction. The action value is 
+
+v =
+
+
+
+hv (sc, c ), c ∈ C finite ,
+
+LM value (P, c ), c ∈ C text ,
+
+None , otherwise ,
+
+(7) where Cfinite and Ctext denote operations requiring finite-valued and open-ended text arguments. Finally, the pre-dicted fields are assembled into an executable action a =Serialize( c, v, p) according to Table 1. 
+
+3.3. Training 
+
+To jointly optimize structured action prediction and open-ended text generation, we train GUI-PRISM with comple-mentary supervision objectives. 
+
+Action prediction supervision. We use cross-entropy losses Ltype , Lx, and Ly to supervise operation types and coordinate bins. Additional cross-entropy losses super-vise coordinate presence ( Lpres ), finite-valued arguments (Lfinite ), and coordinate permission ( Lpointer ). The auxil-iary loss is 
+
+Laux = λpLpres + Lfinite + Lpointer , (8) where λp = 0 .25 . The action-head objective is 
+
+Lhead = Ltype + m(Lx + Ly ) + Laux , (9) where m ∈ { 0, 1} indicates whether the ground-truth action contains a target coordinate. 
+
+Joint optimization. The main training objective com-bines action prediction and language generation: 
+
+Ljoint = λhLhead + λLLLM , (10) where λh = λL = 1 are the loss weights, and LLM super-vises native action serialization. 
+
+## 4. Experiments 
+
+We evaluate GUI-PRISM on GUI grounding and offline next-action prediction benchmarks, examining both predic-tion accuracy and inference efficiency. We further analyze its decoder design through action-head comparisons, field-level evaluations, and component ablations. 
+
+4.1. Experimental Setup 
+
+Benchmarks and Metrics. We evaluate GUI grounding on OSWorld-G [33], ScreenSpot-v2 (SS-v2), and the En-glish subset of ScreenSpot-Pro (SS-Pro) [16], containing 564, 1,272, and 1,581 examples, respectively. Grounding accuracy is measured against the original target geometry, with parsing failures counted as errors. For offline next-action prediction, we use the GUI-Libra adaptations [36] of AndroidControl [17] and 5Table 3. Complete-action accuracy (%) on AndroidControl-v2 and MM-Mind2Web-v2. AC Overall and MM Overall denote the equally weighted means across two instruction levels and three evaluation splits, respectively. Bold and underlined scores indicate the best and second-best results, respectively. Model / configuration AndroidControl-v2 MM-Mind2Web-v2 High Low Overall ↑ Cross-task Cross-website Cross-domain Overall ↑                                                                                                  
+
+> Native-model references GUI-R1-3B [24] 40.0 55.8 47.9 24.0 22.3 24.6 23.6 GUI-R1-7B [24] 39.7 62.3 51.0 37.0 34.1 39.6 36.9 Aguvis-7B [35] 37.7 48.0 42.9 37.7 31.7 36.9 35.4 UI-TARS-1.5-7B [26] 45.2 48.5 46.9 37.2 31.3 35.6 34.7 GLM-4.1V-9B-Thinking [13] 37.2 67.1 52.2 26.9 23.0 28.7 26.2 Qwen2.5-VL-3B [2] 36.4 71.1 53.8 24.4 18.6 27.1 23.4 Qwen2.5-VL-7B [2] 46.5 67.8 57.2 31.6 30.4 35.6 32.5 Qwen3-VL-4B [1] 49.3 78.9 64.1 42.9 38.8 42.0 41.2 Qwen3-VL-8B [1] 54.8 77.6 66.2 44.7 41.0 45.6 43.8 GUI-Libra-8B [36] 56.8 70.1 63.4 45.0 41.5 44.2 43.6 Multi-module frameworks GPT-4o + UGround-v1-7B [36] 57.0 78.4 67.7 35.7 33.9 39.1 36.2 GPT-4.1 + UGround-v1-7B [36] 57.5 78.4 68.0 41.1 36.2 43.0 40.1 GPT-5-mini + UGround-v1-7B [36] 52.8 77.1 65.0 44.2 40.4 45.8 43.5 Local hybrid action decoding
+> GUI-PRISM (Ours) 58.3 83.7 71.0 45.7 41.6 46.1 44.5
+
+Mind2Web [7]. AndroidControl-v2 (AC-v2) contains 398 examples at each instruction level, while MM-Mind2Web-v2 contains 1,328, 1,019, and 1,002 examples across its Cross-Task, Cross-Website, and Cross-Domain splits. Overall accuracy equally averages the corresponding levels or splits. Field-level evaluation uses all SS-v2 examples; for AC-v2, coordinate and joint accuracies are evaluated on the 223 examples with target coordinates, while action-type accuracy uses all examples at each level. 
+
+Training Configuration. GUI-PRISM is initialized from Qwen3-VL-8B and trained through staged adaptation. We first train the action decoder on 81,418 GUI-Libra-derived examples [36], followed by joint adaptation of the decoder and backbone. Additional grounding supervision is incor-porated from GroundCUA, Aguvis, and OS-Atlas [8, 31, 35]. Training uses eight PPU-ZW810E accelerators with 96 GiB of memory each, a global batch size of 32, and a maximum image budget of 2,109,744 pixels. More training details are provided in Supplementary Material. 
+
+Evaluation Protocol. Local inference uses batch size 1 and image budgets ranging from 4,096 to 16,777,216 pixels unless otherwise specified. GUI-PRISM directly predicts operation types and their associated structured arguments without forced action, coordinate repair, or test-time search. 
+
+4.2. GUI Grounding 
+
+Accuracy. As shown in Table 2, GUI-PRISM achieves 95.1% accuracy on SS-v2, outperforming all compared head-based grounding methods. Specifically, it exceeds Fo-cusUI, V2P, GUI-Actor, and GGA by 2.0, 2.7, 3.0, and 3.1 percentage points, respectively. These results highlight the effectiveness of GUI-PRISM in spatial grounding while supporting complete action prediction. Across platform and element categories, GUI-PRISM achieves 99.0% accuracy on mobile text, 98.5% on desk-top text, and 97.9% on web text. It also reaches 92.9% on desktop icons, matching the highest score among the listed methods. Compared with FocusUI, the strongest head-based baseline in overall accuracy, GUI-PRISM improves desktop and web text localization by 2.9 points each, and web icon localization by 5.7 points, although FocusUI per-forms better on mobile icons. These results indicate that GUI-PRISM improves grounding across different interface settings rather than relying on a single category. Compared with autoregressive approaches, GUI-PRISM improves upon Qwen3-VL-8B-Instruct by 2.3 percentage points and exceeds the locally evaluated MAI-UI-8B by 0.4 points. Its overall accuracy remains competitive with POINTS-GUI-G-8B and UI-Venus-1.5-8B. 
+
+Inference Efficiency. GUI-PRISM requires zero autore-gressively generated output tokens for grounding, as oper-6a Instruction: Go to the search tab GT point: (344.4, 947.1)                 
+
+> Zoom GUI-Libra generated text
+> The "Search" icon is the second from the left and is currently not highlighted, indicating that I am not on the search tab. To fulfill the instruction, I need to navigate to the search tab.
+> Model Result Type Point Value Tokens
+> GUI-Libra correct Click [343,945] None 246
+> GUI-PRISM correct Click [342.466,941.292] None 0
+
+b Instruction: Scroll down GT action: Scroll down (no bbox)                 
+
+> Zoom
+> Page direction GUI-Libra generated text
+> To follow the instruction and reveal any additional content or options, the logical next step is to scroll down the page.
+> Model Result Type Point Value Tokens
+> GUI-Libra correct Scroll None down 177
+> GUI-PRISM correct Scroll None down 0
+
+c Instruction: Check travel requirements for trips between Tokyo and Guangzhou. GT bbox: [300.8, 801.5, 484.4, 854.0]                 
+
+> Zoom GUI-Libra generated text
+> To proceed, I need to specify Guangzhou as the destination. The next logical step is to click on the "Destination" input field so I can enter "Guangzhou" as the destination city.
+> Model Result Type Point Value Tokens
+> GUI-Libra incorrect Click [390,827] None 227
+> GUI-PRISM correct Write [397.26,827.789] Guangzhou 4
+
+Figure 3. Complete action predictions. GUI-PRISM and GUI-Libra (ASFT + RL) on AC-v2 Low (a,b) and MM-v2 Cross-Task (c). Italics quote GUI-Libra; token counts include reasoning and delimiters. Rows show action type, coordinate, and value. Blue crosses: GUI-PRISM; Purple circles: GUI-Libra; Green: targets; Orange: generated text. Dashed boxes mark zoom regions; (b): arrow shows page direction. GT labels retain the original coordinate (a), action (b), or bbox (c). Coordinates use [0 , 1000] ; bbox entries are [xmin , y min , x max , y max ].Table 4. Grounding accuracy (%) of different action heads on OSWorld-G and SS-v2. Avg. denotes the equally weighted mean. Action head OS-G SS-v2 Avg. Diffusion [11] 1.6 11.4 6.5 Flow Matching [21] 6.6 32.5 19.5 MLP 9.4 43.6 26.5 GUI-PRISM head 33.5 85.2 59.4 
+
+ation types and coordinates are predicted directly. In con-trast, autoregressive methods generate 10.7 to 202.6 tokens, from UI-Venus-1.5-8B to GUI-Libra, as reported in Table 2. GUI-PRISM achieves 95.1% accuracy on SS-v2 with an average inference time of 0.8 seconds per example, com-pared with 3.1 seconds for Qwen3-VL-8B-Instruct, 5.3 sec-onds for MAI-UI-8B, and 2.0 seconds for POINTS-GUI-G-8B. It also matches the inference latency of GUI-Actor and V2P while achieving higher grounding accuracy. 
+
+4.3. Offline Action Prediction 
+
+Accuracy. As shown in Table 3, we evaluate complete GUI actions on AC-v2 and MM-v2 under GUI-Libra proto-cols [36]. Unlike spatial grounding, these benchmarks eval-uate both operation types and their arguments. GUI-PRISM achieves 71.0% accuracy on AC-v2 and 44.5% on MM-v2, exceeding the reported Qwen3-VL-8B baseline by 4.8 and 0.7 percentage points, respectively. It also outperforms the other methods listed in the table on both overall metrics. On AC-v2, GUI-PRISM achieves 58.3% and 83.7% ac-curacy under High and Low instruction levels, improving upon Qwen3-VL-8B by 3.5 and 6.1 percentage points, re-spectively. On MM-v2, it achieves 45.7%, 41.6%, and 46.1% accuracy across the Cross-Task, Cross-Website, and Cross-Domain splits, yielding consistent improvements of 1.0, 0.6, and 0.5 percentage points. 
+
+Inference Efficiency. We further evaluate complete-action inference efficiency using Qwen3-VL-8B with direct autoregressive action generation as the baseline. Under the evaluated deployment configurations, GUI-PRISM reduces average latency from 2.55 to 0.93 seconds on AC-v2 and 7Table 5. Field-level accuracy (%) on SS-v2 and AC-v2. X and Y measure horizontal and vertical localization accuracy, respec-tively; XY requires a coordinate inside the target box. T measures action-type accuracy, while J requires both T and XY to be correct.                                                
+
+> SS-v2 Model XYXY Qwen3-VL [1] 93.9 95.4 92.8 GUI-Owl [34] 95.7 96.1 93.6
+> GUI-PRISM 96.8 97.4 95.1
+> AndroidControl-v2 Model TXYXY J
+> High-level Instructions
+> Qwen3-VL [1] 56.3 64.1 61.0 57.0 55.6 GUI-Owl [34] 21.4 51.6 52.0 44.4 16.6
+> GUI-PRISM 70.4 77.1 78.9 72.6 72.6
+> Low-level Instructions
+> Qwen3-VL [1] 90.5 74.9 73.1 71.3 71.3 GUI-Owl [34] 59.8 87.9 83.0 79.8 63.2
+> GUI-PRISM 88.9 91.5 91.0 89.2 89.2
+
+from 2.30 to 0.60 seconds on MM-v2, achieving speedups of 2.7 × and 3.9 ×, respectively. Timing includes visual en-coding, action prediction, and any required text generation. Action types, coordinates, and scroll directions are pre-dicted directly, while the language model generates open-ended text values. GUI-PRISM generates an average of 0.42 and 0.70 tokens per action on AC-v2 and MM-v2, re-spectively, compared with 31.06 and 33.04 for Qwen3-VL-8B. These averages count language-model-generated tokens across all examples, including zero-token predictions. 
+
+4.4. Qualitative Analysis 
+
+Fig. 3 compares GUI-Libra (ASFT + RL) and the GUI-PRISM model. Both select the search tab in Fig. 3(a) and predict Scroll with value down and no coordinate in Fig. 3(b). GUI-PRISM uses zero autoregressive output to-kens, versus 246 and 177 for GUI-Libra, demonstrating uni-fied decoding of spatial and direction-valued actions. In Fig. 3(c), GUI-Libra states “ specify Guangzhou as the destination ” but outputs Click with no text value. Both coordinates fall within the GT box, so the decisive difference is the operation and value, not lo-calization. GUI-PRISM returns Write with Guangzhou ,matching the annotated next action with four generated to-kens versus 227. These native-configuration examples il-lustrate complete-action correctness; token counts alone do not measure end-to-end speedup. 
+
+4.5. Ablation and Analysis 
+
+Choice of Action Head. Table 4 compares different ac-tion heads under matched training settings, using 81,418                                 
+
+> Table 6. Component ablations on AC-v2. FQ: field queries; FD: field dependencies; GR: gated residual module. Avg. equally weights High and Low accuracy (%). Bold and underlined scores indicate the best and second-best results, respectively.
+> Configuration FQ FD GR High Low Avg. MLP –––11.6 26.6 19.1 Independent queries ✓––24.4 41.7 33.0 Dependent queries ✓✓–49.0 71.6 60.3 GUI-PRISM ✓✓✓48.2 72.9 60.6
+
+examples with the backbone frozen. GUI-PRISM achieves the highest mean accuracy of 59.4%, substantially outper-forming MLP at 26.5%, Flow Matching at 19.5%, and Dif-fusion at 6.5%. Unlike trajectory-based action generation, this evaluation focuses on single-step GUI grounding. GUI-PRISM directly predicts coordinate bins while leveraging field-specific multimodal information and coordinate de-pendencies. These results demonstrate the effectiveness of its structured decoding design, although differences in train-ing objectives and model architectures prevent attributing the gains to any single component. 
+
+Field-level Prediction. Table 5 evaluates operation selec-tion and coordinate localization at the field level. On SS-v2, GUI-PRISM achieves 96.8% and 97.4% accuracy on the X and Y axes, respectively, reaching 95.1% joint localization accuracy, 1.5 percentage points above GUI-Owl. On AC-v2 High, GUI-PRISM improves operation-type accuracy from 56.3% to 70.4% and joint action accuracy from 55.6% to 72.6% over Qwen3-VL. On AC-v2 Low, despite a 1.6-point decrease in operation-type accuracy, both joint localization and joint action accuracy improve by 17.9 points, reaching 89.2%. These results highlight consistent gains in spatial grounding, while improvements in operation selection vary across instruction levels. 
+
+Component Ablations. Table 6 compares separately trained configurations on AC-v2 at High and Low instruc-tion levels. All configurations use the same 81,418 training examples and matched head-only training settings. The MLP baseline achieves 11.6% and 26.6% accu-racy under High and Low instructions, respectively. Intro-ducing independent field queries improves these scores to 24.4% and 41.7%, increasing mean accuracy from 19.1% to 33.0%. Adding operation-to-coordinate and X-to-Y depen-dencies further raises accuracy to 49.0% and 71.6%, yield-ing a mean of 60.3%. Both instruction levels benefit from field queries and dependency modeling. These gains sup-port field-specific feature extraction and explicitly passing preceding decisions to subsequent predictions. Adding the gated residual module further improves Low accuracy to 72.9%, while High accuracy changes to 48.2%. The com-plete GUI-PRISM head achieves the highest mean accuracy of 60.6%. Together, these incremental comparisons support 8the effectiveness of field queries, field dependencies, and the gated residual module. 
+
+## 5. Conclusion 
+
+In this paper, we propose GUI-PRISM, a hybrid action de-coder for efficient and accurate GUI action prediction. GUI-PRISM directly predicts action types and structured argu-ments while retaining language generation for open-ended text. It constructs a shared PRISM feature bank from vi-sual, contextual, and action-relevant features. Field-specific queries extract action-relevant semantic and spatial infor-mation from this bank, while conditional queries model de-pendencies among action components by using preceding predictions to guide subsequent ones. Gated residual cross-attention further refines these predictions using fine-grained multimodal information. Experiments on GUI grounding and offline action prediction benchmarks demonstrate that GUI-PRISM improves prediction accuracy while reducing inference latency, supporting efficient decoding of complete GUI actions across diverse tasks and interface settings. 
+
+## References 
+
+[1] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, et al. Qwen3-VL technical report. arXiv preprint arXiv:2511.21631 , 2025. 5, 6, 8 [2] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, et al. Qwen2.5-VL technical report. arXiv preprint arXiv:2502.13923 , 2025. 6 [3] Nicolas Carion, Francisco Massa, Gabriel Synnaeve, Nicolas Usunier, Alexander Kirillov, and Sergey Zagoruyko. End-to-end object detection with transformers. In European Confer-ence on Computer Vision , 2020. 3 [4] Jikai Chen, Long Chen, Dong Wang, Qinglin Su, Zhixuan Chu, Bingguang Hao, Leilei Gan, Chenyi Zhuang, and Jinjie Gu. V2P: Visual attention calibration for GUI grounding via background suppression and center peaking. arXiv preprint arXiv:2508.13634 , 2026. 2, 3, 5 [5] Ting Chen, Saurabh Saxena, Lala Li, David J. Fleet, and Ge-offrey Hinton. Pix2Seq: A language modeling framework for object detection. In International Conference on Learn-ing Representations , 2022. 3 [6] Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Yan-tao Li, Jianbing Zhang, and Zhiyong Wu. SeeClick: Har-nessing GUI grounding for advanced visual GUI agents. In 
+
+Proceedings of the 62nd Annual Meeting of the Associa-tion for Computational Linguistics (Volume 1: Long Papers) ,pages 9313–9332, 2024. 2 [7] Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Samuel Stevens, Boshi Wang, Huan Sun, and Yu Su. Mind2Web: Towards a generalist agent for the web. In Advances in Neu-ral Information Processing Systems , 2023. 6 [8] Aarash Feizi, Shravan Nayak, Xiangru Jian, Kevin Qinghong Lin, Kaixin Li, Rabiul Awal, Xing Han L` u, Johan S Obando Ceron, Juan A Rodriguez, Nicolas Chapados, et al. Grounding computer use agents on human demonstrations. In International Conference on Learning Representations ,pages 5181–5215, 2026. 6 [9] Boyu Gou, Ruohan Wang, Boyuan Zheng, Yanan Xie, Cheng Chang, Yiheng Shu, Huan Sun, and Yu Su. Navigating the digital world as humans do: Universal visual grounding for GUI agents. In International Conference on Learning Rep-resentations , 2025. 2 [10] Zhangxuan Gu, Zhengwen Zeng, Zhenyu Xu, Xingran Zhou, Shuheng Shen, Yunfei Liu, Beitong Zhou, Changhua Meng, Tianyu Xia, Weizhi Chen, et al. UI-Venus technical re-port: Building high-performance UI agents with RFT. arXiv preprint arXiv:2508.10833 , 2025. 2, 5 [11] Jonathan Ho, Ajay N. Jain, and Pieter Abbeel. Denoising diffusion probabilistic models. In Advances in Neural Infor-mation Processing Systems , 2020. 7 [12] Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yux-iao Dong, Ming Ding, and Jie Tang. CogAgent: A vi-sual language model for GUI agents. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 14281–14290, 2024. 2 [13] Wenyi Hong, Wenmeng Yu, Xiaotao Gu, Guo Wang, Guob-ing Gan, Haomiao Tang, Jiale Cheng, Ji Qi, Junhui Ji, Li-hang Pan, et al. Glm-4.5v and glm-4.1v-thinking: Towards versatile multimodal reasoning with scalable reinforcement learning. arXiv preprint arXiv:2507.01006 , 2025. 6 [14] Andrew Jaegle, Sebastian Borgeaud, Jean-Baptiste Alayrac, Carl Doersch, Catalin Ionescu, David Ding, Skanda Kop-pula, Daniel Zoran, Andrew Brock, Evan Shelhamer, Olivier H´ enaff, Matthew M. Botvinick, Andrew Zisserman, Oriol Vinyals, and Jo˜ ao Carreira. Perceiver IO: A general architec-ture for structured inputs & outputs. In International Confer-ence on Learning Representations , 2022. 3 [15] Hongyi Jing, Jiafu Chen, Rui Lv, Ziqiang Dang, Jiajie Teng, Shuo Fang, Huaizhong Lin, Weiwei Feng, Chenguang Ma, and Lei Zhao. Grounding gui anything: Efficient and semantically-aware parsing via continuous coordinate de-coding. 2, 3, 5 [16] Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. ScreenSpot-Pro: GUI grounding for professional high-resolution computer use. In Proceedings of the 33rd ACM International Conference on Multimedia , pages 8778– 8786, 2025. 5 [17] Wei Li, William Bishop, Alice Li, Chris Rawles, Folawiyo Campbell-Ajala, Divya Tyamagundlu, and Oriana Riva. On the effects of data scale on UI control agents. In Advances in Neural Information Processing Systems , 2024. 5 [18] Yanjie Li, Shoukui Zhang, Zhicheng Wang, Sen Yang, Wankou Yang, Shu-Tao Xia, and Erjin Zhou. TokenPose: Learning keypoint tokens for human pose estimation. In 
+
+Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 11313–11322, 2021. 3 [19] Yanjie Li, Sen Yang, Peidong Liu, Shoukui Zhang, Yunx-iao Wang, Zhicheng Wang, Wankou Yang, and Shu-Tao Xia. 
+
+9SimCC: A simple coordinate classification perspective for human pose estimation. In European Conference on Com-puter Vision , 2022. 3 [20] Kevin Qinghong Lin, Linjie Li, Difei Gao, Zhengyuan Yang, Shiwei Wu, Zechen Bai, Stan Weixian Lei, Lijuan Wang, and Mike Zheng Shou. ShowUI: One vision-language-action model for GUI visual agent. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition ,2025. 1 [21] Yaron Lipman, Ricky T. Q. Chen, Heli Ben-Hamu, Maxim-ilian Nickel, and Matthew Le. Flow matching for generative modeling. In International Conference on Learning Repre-sentations , 2023. 7 [22] Enqi Liu, Liyuan Pan, Zhi Gao, Yan Yang, Chenrui Shi, Yang Liu, Jingrong Wu, and Qing Li. Benchmarking and improv-ing gui agents in high-dynamic environments. arXiv preprint arXiv:2604.25380 , 2026. 2 [23] Yuhang Liu, Zeyu Liu, Shuanghe Zhu, Pengxiang Li, Con-gkai Xie, Jiasheng Wang, Xueyu Hu, Xiaotian Han, Jianbo Yuan, Xinyao Wang, et al. Infigui-g1: Advancing gui grounding with adaptive exploration policy optimization. In 
+
+Proceedings of the AAAI Conference on Artificial Intelli-gence , pages 32267–32275, 2026. 5 [24] Run Luo, Lu Wang, Wanwei He, Longze Chen, Jiaming Li, and Xiaobo Xia. Gui-r1: A generalist r1-style vision-language action model for gui agents. arXiv preprint arXiv:2504.10458 , 2025. 6 [25] Mingyu Ouyang, Kevin Qinghong Lin, Mike Zheng Shou, and Hwee Tou Ng. FocusUI: Efficient UI grounding via position-preserving visual token selection. arXiv preprint arXiv:2601.03928 , 2026. 3, 5 [26] Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, et al. UI-TARS: Pioneering automated GUI interaction with native agents. 
+
+arXiv preprint arXiv:2501.12326 , 2025. 1, 2, 6 [27] Fei Tang, Zhangxuan Gu, Zhengxi Lu, Xuyang Liu, Shuheng Shen, Changhua Meng, Wen Wang, Wenqi Zhang, Yongliang Shen, Weiming Lu, et al. Gui-g 2: Gaussian re-ward modeling for gui grounding. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 33214– 33222, 2026. 5 [28] Venus Team, Changlong Gao, Zhangxuan Gu, Yulin Liu, Xinyu Qiu, Shuheng Shen, Yue Wen, Tianyu Xia, Zhenyu Xu, Zhengwen Zeng, et al. Ui-venus-1.5 technical report. 
+
+arXiv preprint arXiv:2602.09082 , 2026. 5 [29] Xinyuan Wang, Bowen Wang, Dunjie Lu, Junlin Yang, Tian-bao Xie, Junli Wang, Jiaqi Deng, Xiaole Guo, Yiheng Xu, Chen Wu, et al. Opencua: Open foundations for computer-use agents. Advances in Neural Information Processing Sys-tems , 38:139756–139806, 2026. 1, 2, 5 [30] Qianhui Wu, Kanzhi Cheng, Rui Yang, Chaoyun Zhang, Jianwei Yang, Huiqiang Jiang, Jian Mu, Baolin Peng, et al. GUI-Actor: Coordinate-free visual grounding for GUI agents. In Advances in Neural Information Processing Sys-tems , 2025. 2, 3, 5 [31] Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, and Yu Qiao. OS-ATLAS: Founda-tion action model for generalist GUI agents. In International Conference on Learning Representations , 2025. 2, 6 [32] Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhoujun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao Yu. OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer environments. In Ad-vances in Neural Information Processing Systems , 2024. 1 [33] Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang, Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang, Yuhui Xu, Zekun Wang, et al. Scaling computer-use ground-ing via user interface decomposition and synthesis. In Ad-vances in Neural Information Processing Systems , 2025. 5 [34] Haiyang Xu, Xi Zhang, Haowei Liu, Junyang Wang, Zhaozai Zhu, Shengjie Zhou, Xuhao Hu, Feiyu Gao, Junjie Cao, Zi-hua Wang, et al. Mobile-agent-v3.5: Multi-platform funda-mental gui agents. arXiv preprint arXiv:2602.16855 , 2026. 5, 8 [35] Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tian-bao Xie, Amrita Saha, Doyen Sahoo, Tao Yu, and Caim-ing Xiong. Aguvis: Unified pure vision agents for au-tonomous GUI interaction. In Proceedings of the 42nd In-ternational Conference on Machine Learning , pages 69772– 69805, 2025. 2, 6 [36] Rui Yang, Qianhui Wu, Zhaoyang Wang, Hanyang Chen, Ke Yang, Hao Cheng, Huaxiu Yao, Baolin Peng, Huan Zhang, Jianfeng Gao, et al. Gui-libra: Training native gui agents to reason and act with action-aware supervision and partially verifiable rl. arXiv preprint arXiv:2602.22190 , 2026. 1, 2, 5, 6, 7 [37] Yan Yang, Dongxu Li, Yutong Dai, Yuhao Yang, Ziyang Luo, Zirui Zhao, Zhiyuan Hu, Junzhe Huang, Amrita Saha, Zeyuan Chen, et al. Gta1: Gui test-time scaling agent. In In-ternational Conference on Learning Representations , pages 48295–48323, 2026. 2, 5 [38] Zhongyin Zhao, Yuan Liu, Yikun Liu, Haicheng Wang, Le Tian, Xiao Zhou, Yangxiu You, Zilin Yu, Yang Yu, and Jie Zhou. POINTS-GUI-G: GUI-grounding journey. arXiv preprint arXiv:2602.06391 , 2026. 5 [39] Hanzhang Zhou, Xu Zhang, Panrong Tong, Jianan Zhang, Liangyu Chen, Quyu Kong, Chenglin Cai, Chen Liu, Yue Wang, Jingren Zhou, and Steven Hoi. MAI-UI technical report: Real-world centric foundation GUI agents. arXiv preprint arXiv:2512.22047 , 2025. 5 
+
+10

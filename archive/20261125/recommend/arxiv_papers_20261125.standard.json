@@ -1,0 +1,358 @@
+{
+  "mode": "standard",
+  "generated_at": "2026-11-25T04:54:20.979275+00:00",
+  "stats": {
+    "mode": "standard",
+    "tag_count": 1,
+    "deep_divecandidates": 5,
+    "deep_cap": 6,
+    "deep_selected": 5,
+    "quick_candidates": 3,
+    "quick_skim_target": 11,
+    "quick_selected": 3
+  },
+  "deep_dive": [
+    {
+      "id": "2611.31909v1",
+      "source": "arxiv",
+      "title": "Your VLM Knows What to Inspect: Semantic Probe-Guided Adaptive Focusing for GUI Grounding",
+      "abstract": "GUI grounding requires resolving fine visual details within the context that gives them meaning. Additional views can improve localization, but their value depends on what evidence they expose and how much context they preserve. We explore a capability of vision-language models (VLMs): even when their coordinate predictions are incorrect, they can describe visual evidence worth inspecting. We introduce \\textbf{SPARK}, \\textit{\\textbf{S}emantic \\textbf{P}robe-guided \\textbf{A}daptive \\textbf{R}egion see\\textbf{K}ing}, a training-free framework that turns this semantic guidance into targeted visual observations. Exploration probes describe relevant context and distinguishing target details, while verification probes identify evidence needed to assess emerging hypotheses. Their spatial attention guides view placement, contextual responses determine crop extent, and observation history encourages complementary inspection. The resulting predictions are combined through uncertainty-weighted voting. On ScreenSpot-Pro, SPARK improves grounding accuracy over single-view inference by 13.9, 25.2, and 16.1 percentage points with Qwen3-VL, Qwen2.5-VL, and UI-TARS, outperforming all compared test-time methods for each backbone. Consistent gains across four additional benchmarks demonstrate its effectiveness across diverse interfaces and grounding tasks. These results establish semantic probing as an effective mechanism for turning a frozen VLM's understanding of what to inspect into more accurate GUI grounding.",
+      "authors": [
+        "Ruixiao Shi",
+        "Fu Feng",
+        "Yucheng Xie",
+        "Jing Wang",
+        "Xin Geng"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV",
+        "cs.AI"
+      ],
+      "published": "2026-11-24 04:12:15+00:00",
+      "link": "https://arxiv.org/pdf/2611.31909v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "training-free VLM semantic probe framework for GUI element grounding",
+      "llm_evidence_cn": "免训练的视觉语言模型语义探针 GUI 元素定位框架",
+      "llm_evidence": "免训练的视觉语言模型语义探针 GUI 元素定位框架",
+      "canonical_evidence": "免训练的视觉语言模型语义探针 GUI 元素定位框架",
+      "llm_tldr_en": "SPARK is a training-free framework that turns VLM-generated semantic probes into targeted region inspection, improving GUI grounding of natural language targets without additional training.",
+      "llm_tldr_cn": "GUI 定位需要在语义语境中分辨细微视觉细节，而视觉语言模型即便坐标预测出错也常能描述值得检查的证据。本文提出免训练的 SPARK 框架，用探索探针描述相关上下文与目标细节，用验证探针筛选判别性证据，从而引导自适应区域观察。实验表明该语义引导能有效提升 GUI 元素定位精度。这为无需额外训练即可增强视觉语言模型的界面理解与指令落地能力提供了新途径。",
+      "llm_tldr": "GUI 定位需要在语义语境中分辨细微视觉细节，而视觉语言模型即便坐标预测出错也常能描述值得检查的证据。本文提出免训练的 SPARK 框架，用探索探针描述相关上下文与目标细节，用验证探针筛选判别性证据，从而引导自适应区域观察。实验表明该语义引导能有效提升 GUI 元素定位精度。这为无需额外训练即可增强视觉语言模型的界面理解与指令落地能力提供了新途径。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "How can vision language models ground natural language instructions to GUI elements and plan reliable actions?",
+      "matched_requirement_id": "req-7",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.32097v1",
+      "source": "arxiv",
+      "title": "GUI-PRISM: Efficient Action Decoding for GUI Agents",
+      "abstract": "Graphical user interface (GUI) agents translate screenshots and user instructions into executable actions. Most existing approaches rely on vision-language models to generate actions as text, often leading to substantial inference latency due to autoregressive decoding. To address this inefficiency, we propose GUI-PRISM, a hybrid action decoder that directly predicts action types and structured arguments while retaining language generation for open-ended text. Unlike existing spatial decoding methods that primarily focus on target localization, GUI-PRISM extends direct prediction to action types and their associated arguments, enabling complete GUI action prediction. Specifically, GUI-PRISM employs field-specific queries to extract action-relevant semantic and spatial information from a shared multimodal feature bank. It further models dependencies among action components through conditional queries. Gated residual cross-attention refines these predictions using fine-grained multimodal information. GUI-PRISM achieves 95.1\\% accuracy on ScreenSpot-v2, outperforming the strongest head-based spatial decoding method by 2.0 percentage points while delivering a 3.8$\\times$ inference speedup over the baseline. On AndroidControl-v2 and MM-Mind2Web-v2, it improves complete-action accuracy by 4.8 and 0.7 percentage points while achieving 2.7$\\times$ and 3.9$\\times$ inference speedups over the baseline, respectively. Our code is available on our project page.",
+      "authors": [
+        "Enqi Liu",
+        "Zhi Gao",
+        "Liu Liu",
+        "Lifeng Fan",
+        "Liyuan Pan"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV"
+      ],
+      "published": "2026-11-24 07:16:44+00:00",
+      "link": "https://arxiv.org/pdf/2611.32097v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Hybrid action decoder predicting GUI action types and structured arguments for grounding instructions",
+      "llm_evidence_cn": "混合动作解码器直接预测GUI动作类型与结构化参数，实现指令到界面元素的定位",
+      "llm_evidence": "混合动作解码器直接预测GUI动作类型与结构化参数，实现指令到界面元素的定位",
+      "canonical_evidence": "混合动作解码器直接预测GUI动作类型与结构化参数，实现指令到界面元素的定位",
+      "llm_tldr_en": "GUI agents that decode actions as text suffer high inference latency. GUI-PRISM uses field-specific queries to directly predict action types and structured arguments alongside language generation, enabling complete and faster GUI action prediction.",
+      "llm_tldr_cn": "现有GUI智能体多依赖视觉语言模型以文本自回归方式生成动作，推理延迟高。本文提出GUI-PRISM混合动作解码器，通过字段专用查询提取动作相关的语义与空间信息，直接预测动作类型及其结构化参数，同时保留开放式文本的语言生成能力。相比仅关注目标定位的空间解码方法，该方案实现了完整的GUI动作预测。这一设计在保持定位能力的同时显著降低了推理开销，为高效GUI智能体提供了新的解码范式。",
+      "llm_tldr": "现有GUI智能体多依赖视觉语言模型以文本自回归方式生成动作，推理延迟高。本文提出GUI-PRISM混合动作解码器，通过字段专用查询提取动作相关的语义与空间信息，直接预测动作类型及其结构化参数，同时保留开放式文本的语言生成能力。相比仅关注目标定位的空间解码方法，该方案实现了完整的GUI动作预测。这一设计在保持定位能力的同时显著降低了推理开销，为高效GUI智能体提供了新的解码范式。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "How can vision language models ground natural language instructions to GUI elements and plan reliable actions?",
+      "matched_requirement_id": "req-7",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.32102v1",
+      "source": "arxiv",
+      "title": "RISE: Reasoning with Implicit State Embeddings for GUI Agents",
+      "abstract": "Graphical user interface (GUI) agents translate user instructions and screenshots into executable actions. To learn executable actions, existing approaches often rely on explicit reasoning during training, which encourage over-reliance on specific reasoning patterns rather than generalizable action-relevant information. In this paper, we propose an implicit framework, RISE, which integrates action-relevant reasoning into implicit state representations to guide GUI action prediction. To this end, action-relevant reasoning is captured through three complementary supervision objectives: full-CoT state alignment preserves information across the reasoning process, action-distribution alignment encodes action preferences, and reasoning-to-action boundary alignment captures the representation immediately before action generation. In this case, our RISE effectively learns informative implicit representations, thereby improving the accuracy of next-action token prediction. RISE achieves 70.6\\% accuracy on OSWorld-G, establishing state-of-the-art performance among compared 8B models with a 4.3-point gain over its backbone. Results across two distinct backbones and six diverse benchmarks further demonstrate its effectiveness in GUI grounding and action prediction. Our code is available on our project page.",
+      "authors": [
+        "Enqi Liu",
+        "Zhi Gao",
+        "Liu Liu",
+        "Lifeng Fan",
+        "Liyuan Pan"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV"
+      ],
+      "published": "2026-11-24 07:21:47+00:00",
+      "link": "https://arxiv.org/pdf/2611.32102v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "GUI agents translating instructions and screenshots into executable actions",
+      "llm_evidence_cn": "GUI智能体将指令与截图转化为可执行动作",
+      "llm_evidence": "GUI智能体将指令与截图转化为可执行动作",
+      "canonical_evidence": "GUI智能体将指令与截图转化为可执行动作",
+      "llm_tldr_en": "RISE argues explicit reasoning supervision makes GUI agents overfit reasoning patterns, and instead embeds action-relevant reasoning into implicit state representations via three alignment objectives to guide GUI action prediction.",
+      "llm_tldr_cn": "现有GUI智能体在训练中依赖显式推理，容易过拟合特定推理模式而难以获得可泛化的动作相关信息。作者提出RISE隐式框架，通过全思维链状态对齐、动作分布对齐和推理到动作边界对齐三项互补监督，将动作相关推理编码进隐状态表示以指导GUI动作预测。实验表明该隐式状态表示能更稳定地支撑动作预测，减少对显式推理模板的依赖，为视觉语言模型驱动的界面操作提供了更具泛化性的学习范式。",
+      "llm_tldr": "现有GUI智能体在训练中依赖显式推理，容易过拟合特定推理模式而难以获得可泛化的动作相关信息。作者提出RISE隐式框架，通过全思维链状态对齐、动作分布对齐和推理到动作边界对齐三项互补监督，将动作相关推理编码进隐状态表示以指导GUI动作预测。实验表明该隐式状态表示能更稳定地支撑动作预测，减少对显式推理模板的依赖，为视觉语言模型驱动的界面操作提供了更具泛化性的学习范式。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "large language model and vision-language agents that interact with graphical user interfaces",
+      "matched_requirement_id": "req-1",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.32332v1",
+      "source": "arxiv",
+      "title": "GUI-WEdit and GUI-SkillEvo: Gradient-Free Adaptation of Small GUI Agents",
+      "abstract": "Small graphical user interface (GUI) agents can execute desktop workflows, but repeated local errors and fragile procedural decisions limit their reliability. We present GUI-WEdit-4B and GUI-SkillEvo-2B, two gradient-free adaptations of GUI-Owl-1.5 backbones. For the 4B model, we use trajectory feedback to construct guarded, closed-form updates to a late multilayer perceptron (MLP), retaining successful states as protection constraints. The final checkpoint changes 23,739,095 parameter values, or 0.535\\% of the 4,437,815,808-parameter backbone, within one weight tensor. For the 2B model, an assistant iteratively proposes and refines procedural skills while the model weights remain fixed. On the 361-task OSWorld subset excluding Google Drive tasks, the frozen systems obtain final aggregate scores of 48.02\\% and 45.47\\%, respectively.",
+      "authors": [
+        "Haixia Bi",
+        "Yingtian Chen",
+        "Sihan Yang",
+        "Zuzheng Kuang",
+        "Yuzhen Tong",
+        "Kai Fu",
+        "Zhengyong Wan"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV"
+      ],
+      "published": "2026-11-24 10:18:59+00:00",
+      "link": "https://arxiv.org/pdf/2611.32332v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 9.0,
+      "llm_evidence_en": "Gradient-free adaptation of small GUI agents for desktop workflows, evaluated on OSWorld",
+      "llm_evidence_cn": "面向桌面工作流的小型GUI智能体无梯度适配，并在OSWorld上评测",
+      "llm_evidence": "面向桌面工作流的小型GUI智能体无梯度适配，并在OSWorld上评测",
+      "canonical_evidence": "面向桌面工作流的小型GUI智能体无梯度适配，并在OSWorld上评测",
+      "llm_tldr_en": "Small GUI agents fail on repeated local errors and fragile procedures. The authors adapt GUI-Owl backbones without gradients via guarded closed-form MLP edits and self-evolving procedural skills, improving reliability on an OSWorld subset.",
+      "llm_tldr_cn": "小型GUI智能体虽能执行桌面工作流，但重复性局部错误和脆弱的流程决策限制了可靠性。本文提出GUI-WEdit-4B与GUI-SkillEvo-2B两种无梯度适配方法：前者利用轨迹反馈对后段MLP做带保护的闭式更新，仅改动约0.5%参数；后者由辅助模块迭代提出并精炼流程技能而权重保持冻结。在去除Google Drive任务的361项OSWorld子集上验证了改进效果。该工作表明无需大规模梯度训练即可提升小型GUI智能体的稳定性，为低成本部署提供了可行路径。",
+      "llm_tldr": "小型GUI智能体虽能执行桌面工作流，但重复性局部错误和脆弱的流程决策限制了可靠性。本文提出GUI-WEdit-4B与GUI-SkillEvo-2B两种无梯度适配方法：前者利用轨迹反馈对后段MLP做带保护的闭式更新，仅改动约0.5%参数；后者由辅助模块迭代提出并精炼流程技能而权重保持冻结。在去除Google Drive任务的361项OSWorld子集上验证了改进效果。该工作表明无需大规模梯度训练即可提升小型GUI智能体的稳定性，为低成本部署提供了可行路径。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "Methods for general purpose GUI agents that autonomously complete desktop, web, and mobile tasks.",
+      "matched_requirement_id": "req-8",
+      "selection_source": "fresh_fetch"
+    },
+    {
+      "id": "2611.32649v1",
+      "source": "arxiv",
+      "title": "ICLWorld: Benchmarking In-Context Learning of Agents from Digital to Physical Worlds",
+      "abstract": "In-context learning (ICL) lets agents acquire new rules from context and adapt to user-specific requirements at inference time. The same frontier agents now operate both computers and robots, yet their ICL remains insufficiently assessed: existing benchmarks are largely offline, rely on text or static images, and risk training-data contamination, while robot evaluations are limited to method-level ablations. We present ICLWorld, an online benchmark that evaluates the ICL of agents from digital to physical worlds, covering computer use and robot use, together with UIverse, a unified harness that turns every environment into a user interface. We build 30 environments, record 630 demonstration videos (10+ hours), and design 160 tasks with customized, often counter-intuitive rules that cannot be satisfied without learning from the context. Each task comes with three rule versions, given as text or video, and we test generalization at three levels, from replaying the demonstration to new instances and unseen environments. Across six frontier models, the strongest agents, Claude Opus 5.5 and GPT-6 Astra, succeed on 82% and 76% of computer-use runs but only 27% and 26% of robot-use runs, and a no-rule control reduces success to at most 8%. GPT-6 Astra succeeds under all three rule versions on only 38% of computer-use tasks, half its rate under a single rule, and answers 98% of robot rule questions correctly yet completes only 20% of these tasks. Frontier agents learn rules comparably well from video and from text and transfer them across environments, whereas weaker agents rely on text and lose most of their video-based success once the demonstrated situation is resampled. These findings reveal substantial gaps between the digital and the physical world and between identifying a rule and acting on it.",
+      "authors": [
+        "Qingle Liu",
+        "Jieming Li",
+        "Pei-lin Li",
+        "Shenghan Zheng",
+        "Ruize Yang",
+        "Sunqi Fan",
+        "Deyao Hong",
+        "Huan-ang Gao",
+        "Meng-Hao Guo",
+        "Shuojin Yang"
+      ],
+      "primary_category": "cs.CV",
+      "categories": [
+        "cs.CV",
+        "cs.AI",
+        "cs.RO"
+      ],
+      "published": "2026-11-24 14:07:17+00:00",
+      "link": "https://arxiv.org/pdf/2611.32649v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 8.0,
+      "llm_evidence_en": "online benchmark for computer-use agents with a unified UI harness across digital and physical worlds",
+      "llm_evidence_cn": "面向计算机使用智能体的在线基准，统一数字与物理世界的UI测试环境",
+      "llm_evidence": "面向计算机使用智能体的在线基准，统一数字与物理世界的UI测试环境",
+      "canonical_evidence": "面向计算机使用智能体的在线基准，统一数字与物理世界的UI测试环境",
+      "llm_tldr_en": "ICLWorld is an online benchmark evaluating in-context learning of agents that operate computers and robots, using UIverse to turn every environment into a user interface, with 30 environments, 630 videos, and 160 tasks.",
+      "llm_tldr_cn": "现有智能体上下文学习评测多为离线、依赖文本或静态图像，且难以覆盖真实计算机使用场景。ICLWorld提出一个在线基准，通过UIverse将数字与物理环境统一为用户界面，评估智能体在计算机使用和机器人操作中的上下文学习能力。该基准包含30个环境、630段演示视频和160个任务，为从数字世界到物理世界的智能体泛化与交互能力提供了系统评测协议。",
+      "llm_tldr": "现有智能体上下文学习评测多为离线、依赖文本或静态图像，且难以覆盖真实计算机使用场景。ICLWorld提出一个在线基准，通过UIverse将数字与物理环境统一为用户界面，评估智能体在计算机使用和机器人操作中的上下文学习能力。该基准包含30个环境、630段演示视频和160个任务，为从数字世界到物理世界的智能体泛化与交互能力提供了系统评测协议。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "benchmarks and evaluation protocols for GUI agents on realistic computer tasks",
+      "matched_requirement_id": "req-6",
+      "selection_source": "fresh_fetch"
+    }
+  ],
+  "quick_skim": [
+    {
+      "id": "2611.32321v1",
+      "source": "arxiv",
+      "title": "FigmaEval: A Benchmark for Evaluating AI Agents in Professional UI Design",
+      "abstract": "Recent advances in AI agents have enabled autonomous UI design using professional tools such as Figma, yet evaluating their design capabilities remains challenging due to the open-ended nature of design tasks and the absence of unique ground truths. We introduce FigmaEval, a benchmark for evaluating AI agents on professional UI design tasks, comprising 84 tasks and 783 screens derived from real-world Figma design files. FigmaEval adopts a constrained-specification, open-solution paradigm, standardizing task requirements and design resources while allowing agents to independently determine layouts, visual hierarchies, component composition, and visual presentation. To assess design quality beyond reference similarity, we develop 22 expert-grounded evaluation rubrics across six dimensions and introduce a human evaluation arena where professional designers compare agent-generated designs through blinded pairwise judgments. Evaluating eleven models under a unified Figma agent setup, we find substantial agreement between rubric-based assessments and human preferences, alongside distinct differences in design practices and quality--efficiency trade-offs. FigmaEval provides a framework for systematically assessing professional UI design capabilities and understanding the strengths and limitations of current AI agents.",
+      "authors": [
+        "Xinyue Huang",
+        "Yongyong Gao",
+        "Zhengyuan Pan",
+        "Zheng Wei",
+        "Xinya Liu",
+        "Duanyi Yan",
+        "Zhiyu Hang",
+        "Zheng Ma",
+        "Lewei Lu"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI"
+      ],
+      "published": "2026-11-24 10:14:21+00:00",
+      "link": "https://arxiv.org/pdf/2611.32321v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 7.0,
+      "llm_evidence_en": "benchmark for AI agents on professional UI design with real Figma files",
+      "llm_evidence_cn": "基于真实Figma文件的专业UI设计AI智能体基准",
+      "llm_evidence": "基于真实Figma文件的专业UI设计AI智能体基准",
+      "canonical_evidence": "基于真实Figma文件的专业UI设计AI智能体基准",
+      "llm_tldr_en": "FigmaEval benchmarks AI agents on professional UI design using 84 tasks and 783 screens from real Figma files, adopting constrained specifications and expert-grounded metrics to evaluate layout, hierarchy, and visual composition beyond reference similarity.",
+      "llm_tldr_cn": "专业UI设计任务开放性强且缺少唯一答案，现有评估难以衡量AI智能体的设计能力。FigmaEval构建了包含84个任务和783个屏幕的真实Figma设计基准，采用约束规格与开放方案范式，让智能体自主决定布局、视觉层级和组件组合。该基准还设计了22项专家依据的评估指标，超越简单参考相似度，为专业UI设计智能体提供可复现的评测协议。",
+      "llm_tldr": "专业UI设计任务开放性强且缺少唯一答案，现有评估难以衡量AI智能体的设计能力。FigmaEval构建了包含84个任务和783个屏幕的真实Figma设计基准，采用约束规格与开放方案范式，让智能体自主决定布局、视觉层级和组件组合。该基准还设计了22项专家依据的评估指标，超越简单参考相似度，为专业UI设计智能体提供可复现的评测协议。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "benchmarks and evaluation protocols for GUI agents on realistic computer tasks",
+      "matched_requirement_id": "req-6",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "7"
+    },
+    {
+      "id": "2611.32811v1",
+      "source": "arxiv",
+      "title": "Interactive Neural Computers",
+      "abstract": "Computers and their interfaces are usually treated as fixed, so a person, or increasingly an AI agent, must adapt to whatever the operating system presents. This is limiting when someone needs a different workflow, or an interface suited to hands-free use or a disability. We explore an overlooked alternative. Rather than training an agent to operate an existing computer, we train a generative model to be the computer, predicting each next screen from past screens and the user's mouse and keyboard actions. Treating a desktop as an interactive world model raises problems that natural-video world models largely avoid. Without a camera pose to index memory, the model must remember content that has left the screen without any geometric cues. Arithmetic in a terminal has to be exactly right, not merely plausible. Small interface text must also stay legible at interactive frame rates. Our Interactive Neural Computer is structured like a Neural Turing Machine and starts to address these problems with three modules trained end to end from pixels and actions. A surprise-gated slot memory, supervised by latent next-frame prediction (MEMORY-JEPA), stores what is off screen. An exploratory query bridge brings in the reasoning of a pretrained VLM, and a residual renderer predicts only the latent changes between frames. In long closed-loop rollouts, our model recalls occluded files in 64.2% of trials (chance is 33.3%), compared with at most 56.0% for recurrent and sliding-window baselines. It also raises terminal-text OCR accuracy from 1.3% to 50.1%. Finally, because the memory is explicit, it can be transplanted at test time to causally change what the model renders.",
+      "authors": [
+        "Ross Murphy",
+        "Marcel Hedman",
+        "Gabriel Brostow"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.NE",
+        "cs.SC"
+      ],
+      "published": "2026-11-24 15:30:05+00:00",
+      "link": "https://arxiv.org/pdf/2611.32811v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "models desktop screens driven by mouse and keyboard actions",
+      "llm_evidence_cn": "以鼠标键盘动作驱动桌面屏幕的生成建模",
+      "llm_evidence": "以鼠标键盘动作驱动桌面屏幕的生成建模",
+      "canonical_evidence": "以鼠标键盘动作驱动桌面屏幕的生成建模",
+      "llm_tldr_en": "Instead of training an agent to operate a computer, this work trains a generative model to act as the computer, predicting each next screen from past screens and the user's mouse and keyboard actions. It frames the desktop as an interactive world model and addresses memory, exactness and interface-state challenges.",
+      "llm_tldr_cn": "现有研究通常把计算机界面视为固定环境，让智能体去适应操作系统呈现的界面。本文另辟蹊径，训练一个生成式模型直接充当计算机，根据历史屏幕画面与用户的鼠标键盘动作预测下一帧屏幕，把桌面建模为可交互的世界模型。该设定带来了无相机位姿索引记忆、终端算术需完全正确、界面状态需精确保持等新难题，作者据此展开分析与建模。这项工作为理解屏幕观测与低层鼠标键盘交互提供了新的建模范式，与计算机使用智能体的交互建模高度相关。",
+      "llm_tldr": "现有研究通常把计算机界面视为固定环境，让智能体去适应操作系统呈现的界面。本文另辟蹊径，训练一个生成式模型直接充当计算机，根据历史屏幕画面与用户的鼠标键盘动作预测下一帧屏幕，把桌面建模为可交互的世界模型。该设定带来了无相机位姿索引记忆、终端算术需完全正确、界面状态需精确保持等新难题，作者据此展开分析与建模。这项工作为理解屏幕观测与低层鼠标键盘交互提供了新的建模范式，与计算机使用智能体的交互建模高度相关。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "agents that control computers through screen observations and low-level mouse and keyboard actions",
+      "matched_requirement_id": "req-2",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    },
+    {
+      "id": "2611.32946v1",
+      "source": "arxiv",
+      "title": "ShellBench: What Matters More for AI Agents, Models, or Harness for Everyday Tasks",
+      "abstract": "The use of AI agents among the general public has been increasing exponentially throughout 2026, though it is often hard for users to determine which configuration is most effective for their personal use. To help provide clarity here we introduce ShellBench, 100 day-to-day tasks based on more than 10 million user requests, each set in a realistic workspace with messy files and competing data sources, and graded for both correctness and safety. We evaluate 12 models across 5 agent harnesses at 3 reasoning levels for a total of 53,100 rollouts, 20% of which are on tasks designated for public release. We find that model choice impacts performance more than harness choice, but the three leading models differ by only 1.1 percentage points. GPT-6.1 Sol passed 61.4% of attempts at about one-sixth of GPT-6 Astra's estimated token cost per attempt, while GPT-6 Astra led at 62.5%. We also found that harness choice had little effect on either performance or safety with all harnesses scoring between 42.9 (Claude Code) and 45.2 (OpenClaw) for pass@1.",
+      "authors": [
+        "Vincent Koc",
+        "Aditya Washikar",
+        "Rishab Naveen Venkataraman",
+        "Onur Solmaz",
+        "Zhentong Fan",
+        "Xinyang Han",
+        "Toby Vincent John",
+        "Hao Li",
+        "Achyut Mukund",
+        "Biresh Chandra Biswas",
+        "Eshan Shukla",
+        "Louis Pan",
+        "Ivan Kudryavtsev",
+        "Patthigulla Sai Surendra",
+        "Krish Oberoi",
+        "Ayaan Zaidi",
+        "Hema Veeradhi",
+        "Taylor Agarwal",
+        "Erik Erlandson",
+        "Agustin Rivera",
+        "Jacob Tomlinson",
+        "Louka Ewington-Pitsos"
+      ],
+      "primary_category": "cs.AI",
+      "categories": [
+        "cs.AI",
+        "cs.CL",
+        "cs.SE"
+      ],
+      "published": "2026-11-24 16:48:06+00:00",
+      "link": "https://arxiv.org/pdf/2611.32946v1",
+      "tags": [
+        "keyword:gui-agents",
+        "query:gui-agents"
+      ],
+      "llm_score": 6.0,
+      "llm_evidence_en": "benchmark of 100 realistic everyday computer tasks graded for correctness and safety",
+      "llm_evidence_cn": "面向真实日常计算机任务的智能体基准与评测协议",
+      "llm_evidence": "面向真实日常计算机任务的智能体基准与评测协议",
+      "canonical_evidence": "面向真实日常计算机任务的智能体基准与评测协议",
+      "llm_tldr_en": "ShellBench benchmarks AI agents on 100 realistic everyday workspace tasks graded for correctness and safety, evaluating 12 models across 5 harnesses and finding model choice matters more than harness.",
+      "llm_tldr_cn": "针对普通用户难以判断哪种智能体配置最适合日常使用的问题，论文构建了ShellBench基准，包含100个源于千万级真实用户请求的日常任务，置于含杂乱文件与竞争数据源的逼真工作区，并从正确性与安全性两方面评分。作者在5种智能体框架、3档推理水平下评测12个模型，共53100次运行，发现模型选择对性能影响大于框架选择，但前三名模型仅相差1.1个百分点。该基准为日常计算机使用智能体的配置选型与安全评估提供了可复现的公开评测依据。",
+      "llm_tldr": "针对普通用户难以判断哪种智能体配置最适合日常使用的问题，论文构建了ShellBench基准，包含100个源于千万级真实用户请求的日常任务，置于含杂乱文件与竞争数据源的逼真工作区，并从正确性与安全性两方面评分。作者在5种智能体框架、3档推理水平下评测12个模型，共53100次运行，发现模型选择对性能影响大于框架选择，但前三名模型仅相差1.1个百分点。该基准为日常计算机使用智能体的配置选型与安全评估提供了可复现的公开评测依据。",
+      "llm_tags": [
+        "query:gui-agents"
+      ],
+      "matched_query_tag": "query:gui-agents",
+      "matched_query_text": "benchmarks and evaluation protocols for GUI agents on realistic computer tasks",
+      "matched_requirement_id": "req-6",
+      "selection_source": "fresh_fetch",
+      "quick_tier": "6"
+    }
+  ]
+}

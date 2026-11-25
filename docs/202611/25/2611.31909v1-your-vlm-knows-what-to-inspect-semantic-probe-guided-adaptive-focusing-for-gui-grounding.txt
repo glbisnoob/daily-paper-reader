@@ -1,0 +1,744 @@
+Title: Your VLM Knows What to Inspect: Semantic Probe-Guided Adaptive Focusing for GUI Grounding
+
+URL Source: https://arxiv.org/pdf/2611.31909v1
+
+Published Time: Wed, 25 Nov 2026 02:04:44 GMT
+
+Number of Pages: 15
+
+Markdown Content:
+# Your VLM Knows What to Inspect: Semantic Probe-Guided Adaptive Focusing for GUI Grounding 
+
+## Ruixiao Shi 1,2 Fu Feng 1,2 Yucheng Xie 1,2 Jing Wang 1,2* Xin Geng 1,2* 1School of Computer Science and Engineering, Southeast University, Nanjing, China 
+
+2Key Laboratory of New Generation Artificial Intelligence Technology and Its Interdisciplinary Applications (Southeast University), Ministry of Education, China 
+
+{eric xiao, fufeng, xieyc, wangjing91, xgeng }@seu.edu.cn Zooming (e.g., RegionFocus, DRS-GUI) Multi-view (e.g., MVP)   
+
+> Change file encoding.
+> Semantic Probe
+> Encoding indicator showing “UTF-8”…
+> Incorrect click × Probe-Guided Focusing New View Correct click ✓
+> I Know
+> What to Inspect!
+> (a) View-Based Methods (b) Probe-Guided Adaptive Focusing for GUI Grounding (c) Example from ScreenSpot-Pro
+
+Figure 1. Your VLM knows what to inspect. (a) Existing view-based methods use zooming or multiple views to improve GUI grounding. (b) An incorrect coordinate prediction can coexist with useful semantic guidance: the VLM clicks the neighboring “LF” control, yet identifies “UTF-8” as the evidence to inspect. SPARK connects semantic probes with spatial attention to guide adaptive focusing, enabling a subsequent view to localize the target. (c) SPARK improves grounding accuracy across three backbones on ScreenSpot series benchmarks. 
+
+## Abstract 
+
+GUI grounding requires resolving fine visual details within the context that gives them meaning. Additional views can improve localization, but their value depends on what ev-idence they expose and how much context they preserve. We explore a capability of vision-language models (VLMs): even when their coordinate predictions are incorrect, they can describe visual evidence worth inspecting. We in-troduce SPARK , Semantic Probe-guided Adaptive Region see King, a training-free framework that turns this seman-tic guidance into targeted visual observations. Explo-ration probes describe relevant context and distinguishing target details, while verification probes identify evidence needed to assess emerging hypotheses. Their spatial at-tention guides view placement, contextual responses deter-
+
+> *
+
+Corresponding authors. 
+
+mine crop extent, and observation history encourages com-plementary inspection. The resulting predictions are com-bined through uncertainty-weighted voting. On ScreenSpot-Pro, SPARK improves grounding accuracy over single-view inference by 13.9, 25.2, and 16.1 percentage points with Qwen3-VL, Qwen2.5-VL, and UI-TARS, outperforming all compared test-time methods for each backbone. Consis-tent gains across four additional benchmarks demonstrate its effectiveness across diverse interfaces and grounding tasks. These results establish semantic probing as an effec-tive mechanism for turning a frozen VLM’s understanding of what to inspect into more accurate GUI grounding. 
+
+## 1. Introduction 
+
+Interacting with graphical user interfaces (GUIs) requires agents to ground natural-language instructions in precise 1arXiv:2611.31909v1 [cs.CV] 24 Nov 2026 screen locations [17, 22, 30, 38]. Despite advances in vision-language models (VLMs), this task remains chal-lenging in complex interfaces, where identifying a target re-quires resolving fine-grained visual distinctions within the appropriate functional context [6, 8, 33]. These require-ments place competing demands on visual observation: a broad view preserves contextual relationships but can ob-scure small details, while a closer view reveals local appear-ance but may exclude the panel or landmark needed to inter-pret it [28, 39]. Effective GUI grounding therefore requires deciding not only where to act, but also where to look, at what scale, and which visual evidence to inspect. To address these challenges, prior work has explored view-based methods (Fig. 1(a)), including zooming [13, 14, 37] and multi-view inference [40] to expose visual details that are difficult to resolve from the full screenshot. These approaches highlight the value of additional observations, whose effectiveness depends on both the regions selected and the context retained. A central challenge is therefore to determine what evidence each new view should reveal: re-visiting similar regions may add little information, while an overly tight crop may remove the context needed to distin-guish plausible targets. Choosing an informative view thus requires understanding what remains to be resolved about the target. This raises a natural question: 
+
+Can a VLM itself identify what to inspect next to improve GUI grounding? 
+
+The example in Fig. 1(b) suggests that useful inspec-tion guidance can emerge even before accurate localization. Although the VLM initially predicts an incorrect location, it can still describe relevant context and distinguishing de-tails that guide further inspection. We elicit this capability through semantic probes : short, task-conditioned descrip-tions of visual evidence to seek for localization. Crucially, these probes provide both a semantic account of what to inspect and an attention-based spatial response indicating where that evidence may lie. By extracting visual attention associated with the probe’s descriptive tokens, we translate its language guidance into spatial evidence maps. These maps guide observation placement and the extent of sur-rounding context, connecting what to inspect with where and at what scale to look .Building on this idea, we propose SPARK , Semantic 
+
+Probe-guided Adaptive Region see King , a training-free framework that uses a frozen VLM’s semantic guidance to construct a limited set of local observations. SPARK rep-resents inspection guidance through hierarchical semantic probes : Context identifies relevant regions and landmarks, while Detail specifies the visual evidence needed to iden-tify or verify the requested control. This shared structure supports two complementary forms of inspection. An Ex-ploration Probe , conditioned on the instruction, describes evidence to seek; a Verification Probe , additionally condi-tioned on emerging localization hypotheses, describes ev-idence to inspect when assessing those hypotheses. The spatial attention associated with these descriptions jointly guides view placement, while the Context response deter-mines how much surrounding evidence to retain. A shared adaptive focusing mechanism translates this guidance into crop locations and scales, using observation history to en-courage spatial diversity. Finally, uncertainty-weighted vot-ing integrates the resulting coordinate predictions into the final grounding decision. We evaluate SPARK on five GUI grounding benchmarks using general-purpose and GUI-specialized VLMs. On ScreenSpot-Pro, SPARK improves accuracy over single-view inference by an average of 18.4 percentage points (pp) across the three backbones, with gains of up to 25.2 pp. It also delivers consistent improvements across the remaining four benchmarks. Our contributions are as follows: (1) We introduce se-mantic probes to elicit a frozen VLM’s latent inspection ca-pability, connecting descriptions of task-relevant evidence with their spatial attention to guide where and at what scale to observe. (2) We propose SPARK , a training-free frame-work that unifies exploration and verification through hier-archical semantic probes, adaptively guiding where to in-spect and how much context to retain within a limited local-view budget. (3) We demonstrate consistent improvements of SPARK across five GUI grounding benchmarks and four VLM backbones. 
+
+## 2. Related Work 
+
+GUI Grounding. GUI grounding maps natural-language instructions to actionable screen locations [6, 12, 18]. SeeClick [6], OS-Atlas [29], and UGround-V1 [7] de-velop this capability through GUI-specific supervision. UI-TARS [19] integrates perception, action modeling, and rea-soning, while UI-TARS-1.5 [3] and GTA1 [34] further im-prove GUI capabilities through reinforcement learning. Building on these grounding capabilities, test-time meth-ods improve localization by exploiting pretrained mod-els without additional task-specific training. TAG [32] and Trifuse [15] exploit pretrained attention and com-plementary spatial cues. RegionFocus [14] and DiMo-GUI [26] use zooming, MVP [40] aggregates attention-guided views, DRS-GUI [13] schedules perceptual actions, and BAMI [37] combines coarse-to-fine focusing with can-didate selection. SPARK instead uses semantic inspection guidance to organize adaptive observations for exploration and verification. 
+
+Active Visual Perception and Reasoning. Active visual perception uses task understanding to guide the acquisition of relevant visual evidence. V* [27] and ZoomEye [21] en-able visual search, Visual CoT [20] supports region local-2ization, VisRL [5] learns to focus, and ViCrop [39] uses internal model signals for training-free cropping. SPARK elicits hierarchical descriptions from a frozen VLM and translates their spatial attention into task- and hypothesis-conditioned observations for GUI grounding. 
+
+## 3. Method 
+
+3.1. Preliminaries 
+
+View-based GUI grounding. Given a screenshot I and a natural-language instruction d, GUI grounding predicts a target coordinate in the original image space. View-based methods gather additional visual evidence by constructing views at different locations and scales. For a view region 
+
+Rt, we write 
+
+It = T (I[Rt]) , yt = fθ (It, d ), pt = ϕRt (yt),
+
+(1) where fθ is a frozen VLM, T preprocesses the cropped im-age, and ϕRt parses the generated coordinate and maps it to the original screenshot. The initial region R0 covers the full image. A local-view budget B limits the number of additional views, each subject to a visual token budget N .View construction determines which visual evidence the model receives. SPARK guides this process through seman-tic probes , using the model’s descriptions and their spatial attention to determine the location and extent of subsequent views. 
+
+3.2. Probe-Guided Adaptive Focusing 
+
+SPARK organizes view construction around a hierarchical representation of inspection requirements. Different condi-tioning signals determine the purpose of inspection, while a shared attention-based mechanism translates these require-ments into adaptive local views. 
+
+Hierarchical semantic probes. A semantic probe is a short, task-conditioned description of visual evidence to in-spect for localization. We organize this description at two complementary levels: Context identifies a relevant region and its landmarks, while Detail specifies the local evidence needed to recognize or assess the requested control. This hierarchy connects the surrounding context that gives an el-ement meaning with the visual features that distinguish it. We instantiate this representation through two forms of conditioning. The Exploration Probe uses the screenshot and instruction to describe the target’s context and distin-guishing details: 
+
+(zEC , z ED ) = fθ (I, d ; πE ), (2) where πE is the exploration prompt. The Context descrip-tion zEC identifies the likely containing panel or screen re-gion and relevant landmarks. The Detail description zED
+
+identifies the requested control and features that distinguish it from nearby elements. Together, they express where to seek the target and what evidence to look for. The Verification Probe additionally conditions inspec-tion on localization hypotheses formed from previous views. Let Phyp  
+
+> t
+
+contain the medoids of the two highest-scoring prediction clusters under Sec. 3.3, or the single medoid when only one cluster is available. We mark these locations on the screenshot to obtain IPhyp  
+
+> t
+
+and generate 
+
+(zV
+
+> ctrl
+
+, z VC , z VI ) = fθ
+
+ IPhyp  
+
+> t
+
+, d ; πV
+
+, (3) where πV asks for evidence needed to assess the candidate locations. The Control field zV 
+
+> ctrl
+
+specifies the requested tar-get. The Context field zVC describes its relevant surround-ings, while the Inspect field zVI provides detail-level guid-ance by identifying a concrete feature or landmark needed to check its identity or function. Context and Inspect pro-vide the spatial guidance used for verification. Candidate labels follow spatial order. Exploration seeks evidence relevant to the task, whereas verification seeks evidence that can support or revise the current hypotheses. Both express inspection requirements through the context-to-detail hierarchy , allowing semantic guidance to evolve with the model’s observations. 
+
+From semantic probes to spatial guidance. The atten-tion associated with probe content tokens connects semantic inspection requirements to image regions. For a description 
+
+z, let Q(z) denote its content-query positions. For visual token i, we compute 
+
+Az (i) = 1
+
+|Q (z)|
+
+X
+
+> q∈Q (z)
+
+max  
+
+> h
+
+a(ℓ,h ) 
+
+> q,i
+
+, ¯Az (i) = Az (i)
+
+P 
+
+> j
+
+Az (j) .
+
+(4) where a(ℓ,h ) 
+
+> q,i
+
+is the softmax attention weight at layer ℓ and head h. The softmax includes all visible keys before we extract the visual entries. Taking the per-patch maximum across heads retains spatial responses expressed by differ-ent heads; averaging across content queries combines the evidence associated with the description. Visual token cen-ters xi are mapped to original-image coordinates using the actual preprocessing grid. Each probe yields a pair of normalized spatial maps: 
+
+(CE , D E ) = ( ¯AzEC , ¯AzED ), (CV , I V ) = ( ¯AzVC , ¯AzVI ).
+
+(5) The two maps represent complementary aspects of the same inspection requirement: contextual support and local visual evidence. We construct candidate windows from the top-K loca-tions in CE , DE , and the initial global localization attention 
+
+AG. Each location anchors a standard window adjusted to the image boundaries, and identical rectangles are removed. 3Add Distribute Points on Faces node.                 
+
+> Context C̃(R)
+> 3D viewport and node editor
+> Detail D̃(R)
+> Add menu: “Distribute Points on Faces” Global View ✗New View ✓
+> Local Grounding
+> Attention-based
+> Joint Location Adaptive Scope 0.7× Adaptive (1.06×) 1.4× Initial Views & Candidates
+> Get help for inserting charts in PowerPoint.
+> Exploration Probe
+> Context C̃(R)
+> Detail D̃(R)
+> Verification Probe
+> Context C̃(R)
+> Inspect Ĩ(R)
+> Views E Views V Current Hypotheses Probe-Guided Adaptive Focusing
+> Hypothesis-conditioned Other views
+
+A BCDA B CCluster Scores Final Answer ✓
+
+> Cluster 2 C+D 1.96 Cluster 1 A+B 1.14
+
+Cluster 2 Hierarchical Probe (b) Pipeline of SPARK (c) Uncertainty-Weighted Voting (a) Probe-Guided Adaptive Focusing Figure 2. Overview of SPARK. (a) Probe-guided adaptive focusing translates contextual and local-detail attention into view placement and context-dependent crop extent. (b) SPARK uses the focusing mechanism in (a) to construct local views guided by exploration and hypothesis-conditioned verification probes. The resulting localization predictions are passed to the aggregation module. (c) Uncertainty-weighted voting accumulates entropy-based prediction weights within spatial clusters and returns the medoid of the highest-scoring cluster as the final location. 
+
+Exploration and verification prioritize this shared candidate pool P through their respective map pairs. The probe’s se-mantic purpose therefore determines which available region is most relevant to inspect. 
+
+Adaptive view construction. SPARK jointly uses con-textual and local evidence to select a view and adapts its ex-tent to the spatial distribution of contextual support. View history further promotes spatial diversity. Let Ht contain the previously executed local regions. We discount evi-dence already covered by these views: 
+
+ωt(i) = 1 − ρ 1
+
+"
+
+xi ∈ [
+
+> R∈H t
+
+R
+
+#
+
+, (6) where ρ controls the strength of the coverage discount. For each candidate window R, we aggregate the history-discounted attention within the region. For exploration, the Context and Detail responses are 
+
+eCEt (R) = X
+
+> i:xi∈R
+
+ωt(i)CE (i),
+
+eDEt (R) = X
+
+> i:xi∈R
+
+ωt(i)DE (i).
+
+(7) The verification responses eCVt (R) and eIVt (R) are computed analogously from CV and IV .Both probe types score candidate windows through joint contextual and local evidence: 
+
+St(R) = 
+
+qeCEt (R) eDEt (R), for exploration ,
+
+qeCVt (R) eIVt (R), for verification .
+
+(8) We select the standard candidate window 
+
+R∗ 
+
+> t
+
+= arg max  
+
+> R∈P
+
+St(R). (9) The geometric mean favors windows supported by both contextual and local evidence. History discounting encour-ages complementary views while allowing a relevant region to be revisited. After selecting R∗ 
+
+> t
+
+, we retain its associated anchor c and adapt the crop size to the spatial extent of contextual evi-dence. The exploration Context map CE serves as a per-sistent reference for scale selection in both exploration and verification. For standard window dimensions w0 and h0,we define the locally weighted response 
+
+Cloc  
+
+> c
+
+(i) = CE (i) exp 
+
+
+
+− 12
+
+ (xi,x − cx)2
+
+(w0/2) 2 + (xi,y − cy )2
+
+(h0/2) 2
+
+ 
+
+.
+
+(10) 
+
+Let Rs = R(c, s ) denote the boundary-adjusted window at scale s, and let Rmax = R(c, s max ) denote the maximum reference window. For the selected anchor, the retained con-4textual mass is 
+
+MC (Rs) = X
+
+> i:xi∈Rs
+
+Cloc  
+
+> c
+
+(i). (11) We choose the smallest scale that retains a fraction τ of the contextual mass within Rmax :
+
+s∗ = min 
+
+
+
+s ∈ [smin , s max ] : MC (Rs)
+
+MC (Rmax ) ≥ τ
+
+
+
+. (12) We use [smin , s max ] = [0 .7, 1.4] and τ = 0 .9. Concentrated evidence produces a tighter view, while distributed contex-tual support expands the observation scope. This scale deci-sion uses the original Context response without history dis-counting, preserving the evidence needed to interpret each view. The final observation region is Rt = R(c, s ∗). Its crop is processed within the visual token budget N , and Rt is added to the view history: 
+
+Ht+1 = Ht ∪ { Rt}. (13) Following prior work [40], we initialize local inspection from the global localization attention, with this initial local view counted toward the view budget. Subsequent views are constructed through hierarchical semantic probes: af-ter each exploration step, competing localization hypothe-ses trigger hypothesis-conditioned verification. The result-ing predictions are integrated by the following voting rule. 
+
+3.3. Uncertainty-Weighted Voting 
+
+Complementary observations can produce competing local-ization hypotheses. SPARK combines their spatial agree-ment with predictive uncertainty, allowing confident evi-dence to receive greater influence in the final decision. For localization output yt, let Kt contain its generated to-ken positions, excluding special and purely whitespace to-kens. We measure uncertainty using the mean predictive entropy: 
+
+¯Ht = − 1
+
+|K t|
+
+X
+
+> k∈K t
+
+X
+
+> v∈V
+
+Pt,k (v) log Pt,k (v), (14) where V is the vocabulary and Pt,k is the next-token distri-bution conditioned on the view, instruction, and preceding output. We group valid original-image predictions using complete-link clustering with threshold ϵ. Predictions are processed in observation order, and a point joins a cluster when its ℓ∞ distance to every member is at most ϵ. Each prediction receives an uncertainty-dependent weight: 
+
+wt = exp 
+
+
+
+− ¯Ht − ¯Hmin 
+
+T
+
+
+
+, ¯Hmin = min 
+
+> j
+
+¯Hj . (15) The winning cluster is 
+
+C∗ = arg max 
+
+> C
+
+X
+
+> t∈C
+
+wt. (16) This rule combines support across observations while al-lowing a confident prediction to outweigh several uncertain alternatives. Global and local predictions participate in the same aggregation. Within the winning cluster, the final coordinate is its spa-tial medoid: 
+
+t∗ = arg min 
+
+> t∈C ∗
+
+X
+
+> j∈C ∗
+
+∥pt − pj ∥2, p∗ = pt∗ . (17) The medoid preserves an observed prediction and repre-sents the spatial consensus of the selected hypothesis. We use ϵ = 14 pixels and T = 0 .3 by default. 
+
+## 4. Experimental Setup 
+
+Benchmarks, backbones and compared methods. We evaluate SPARK on five GUI grounding benchmarks: ScreenSpot-{Pro, v2, v1 } [6, 11, 29], UI-Vision [16], and OSWorld-G [31]. Our primary backbones are two general-purpose VLMs, Qwen3-VL-8B [1] and Qwen2.5-VL-7B [2], and a GUI-specialized model, UI-TARS-1.5-7B [3]. We additionally evaluate Qwen3-VL-32B [1] to examine scalability to a larger backbone. Our comparisons cover general-purpose VLMs, GUI-specialized models, and test-time grounding methods. The first two categories estab-lish single-view baselines, while the third includes Region-Focus [14], MVP [40], DRS-GUI [13], and BAMI [37]. 
+
+Implementation details. All localization calls use greedy decoding and fixed backbone-specific prompts, with at most four local views per screenshot. For MVP, we adopted the same local-view budget to ensure comparability. We ex-tract attention at layer index 24 for Qwen3-VL-8B, 48 for Qwen3-VL-32B, and 20 for Qwen2.5-VL and UI-TARS, taking the per-patch maximum across heads and averaging over probe content queries. 
+
+## 5. Results 
+
+5.1. Main Results 
+
+Grounding complex professional interfaces. Table 1 demonstrates the effectiveness of SPARK on ScreenSpot-Pro. It achieves grounding accuracies of 68.7%, 52.5%, and 58.2% with Qwen3-VL, Qwen2.5-VL, and UI-TARS, respectively, improving over single-view inference by 13.9, 25.2, and 16.1 pp. The average improvement across the three backbones is 18.4 pp. These gains span both general-purpose VLMs and a GUI-specialized model, showing that semantic inspection can improve grounding across different levels of backbone specialization. 5Table 1. Grounding accuracy (%) on ScreenSpot-Pro (SSPro). Best overall accuracy per backbone is shown in bold .
+
+Model / Method Base model Dev. Creative CAD Sci. Office OS Avg. ↑
+
+Text Icon Text Icon Text Icon Text Icon Text Icon Text Icon 
+
+General-purpose models 
+
+GPT-4o [10] – 1.3 0.0 1.0 0.0 2.0 0.0 2.1 0.0 1.1 0.0 0.0 0.0 0.8 Claude Computer Use [9] – 22.0 3.9 25.9 3.4 14.5 3.7 33.9 15.8 30.1 16.3 11.0 4.5 17.1 Qwen2.5-VL-7B-Instruct [2] – 51.9 2.8 36.9 7.7 16.2 1.6 50.7 7.3 53.1 18.9 36.4 7.9 27.3 Qwen3-VL-8B-Instruct [1] – 78.6 24.8 69.7 18.9 58.9 14.1 77.8 30.9 85.9 35.8 72.9 27.0 54.8 
+
+GUI-specific models 
+
+OS-Atlas-7B [29] 2-VL-7B 33.1 1.4 28.8 2.8 12.2 4.7 37.5 7.3 33.9 5.7 27.1 4.5 18.9 UGround-V1-7B [7] 2-VL-7B 51.9 2.8 47.5 9.8 18.8 1.6 57.6 14.5 60.5 13.2 38.3 7.9 31.1 SE-GUI-7B [36] 2.5-VL-7B 68.2 19.3 57.6 9.1 51.3 14.1 75.0 28.2 78.5 43.4 49.5 25.8 47.2 GUI-G2-7B [24] 2.5-VL-7B 68.8 17.2 57.1 15.4 55.8 12.5 77.1 24.5 74.0 32.7 57.9 21.3 47.5 UI-TARS-1.5-7B [3] 2.5-VL-7B 61.0 8.3 54.5 14.7 37.6 14.1 70.8 24.5 77.4 41.5 45.8 11.2 42.1 
+
+Test-time methods 
+
+Backbone: UI-TARS-1.5-7B BAMI [37] 1.5-7B 71.4 22.1 68.2 21.7 49.8 14.1 77.8 23.6 82.5 41.5 69.1 24.2 51.9 (+9.8) 
+
+MVP [40] 1.5-7B 71.4 28.3 67.2 27.3 64.5 18.8 77.8 31.8 82.5 50.9 65.4 36.0 55.9 (+13.8) 
+
+SPARK 1.5-7B 78.6 29.0 68.7 25.9 64.0 23.4 77.8 31.8 84.7 54.7 74.8 41.6 58.2 (+16.1) 
+
+Backbone: Qwen2.5-VL-7B RegionFocus [14] 2.5-VL-7B 53.2 3.4 42.9 4.9 28.4 3.1 56.9 10.9 59.9 24.5 41.1 15.7 32.1 (+4.8) 
+
+DRS-GUI [13] 2.5-VL-7B 60.4 13.1 54.6 16.8 42.1 9.4 59.7 16.4 66.7 26.4 52.3 23.6 40.9 (+13.6) 
+
+MVP [40] 2.5-VL-7B 67.5 17.9 64.1 19.6 51.8 12.5 72.2 22.7 80.2 32.1 61.7 31.5 49.1 (+21.8) 
+
+SPARK 2.5-VL-7B 74.7 22.1 66.7 20.3 50.3 14.1 75.0 25.5 82.5 39.6 71.0 39.3 52.5 (+25.2) 
+
+Backbone: Qwen3-VL-8B MVP [40] 3-VL-8B 87.0 40.7 76.8 34.3 72.6 32.8 83.3 38.2 89.3 56.6 78.5 43.8 65.2 (+10.4) 
+
+SPARK 3-VL-8B 87.0 39.3 79.3 37.8 75.1 40.6 87.5 43.6 91.0 67.9 83.2 56.2 68.7 (+13.9) 
+
+The category-level results highlight the benefits for vi-sually demanding interface elements. With Qwen3-VL, SPARK raises icon-grounding accuracy from 14.1% to 40.6% in CAD, from 35.8% to 67.9% in Office, and from 27.0% to 56.2% in OS. The improvements across these cat-egories support the value of observations that expose distin-guishing details together with their relevant context. 
+
+Benefits across benchmarks and backbones. Table 2 extends the evaluation to ScreenSpot-v1, ScreenSpot-v2, OSWorld-G, and UI-Vision. SPARK improves overall accuracy over single-view inference in all benchmark– backbone settings. With Qwen3-VL, it reaches 91.1% on ScreenSpot-v1 and 94.3% on ScreenSpot-v2, demonstrat-ing further gains on top of strong initial grounding perfor-mance. The benefits also extend to OSWorld-G and UI-Vision. On OSWorld-G, SPARK reaches 74.6%, 59.0%, and 70.2% with Qwen3-VL, Qwen2.5-VL, and UI-TARS, respectively. On UI-Vision, it improves the corresponding single-view accuracies from 27.3% to 33.2%, from 13.8% to 21.0%, and from 22.2% to 28.0%. Together, these results demonstrate the applicability of probe-guided observation across profes-sional, desktop, mobile, and web interfaces. 
+
+Scaling to a larger backbone. Figure 3 shows that SPARK’s benefits extend to Qwen3-VL-32B. It achieves 75.9% on ScreenSpot-Pro, 77.8% on OSWorld-G, and 44.7% on UI-Vision, improving over the single-view base-line. SPARK also consistently outperforms MVP. These re-sults show that semantic probe-guided observation remains effective at a larger model scale, complementing increased backbone capacity with task-relevant inspection. Full re-sults are provided in Appendix Table 6. 
+
+Comparison with test-time grounding methods. 
+
+SPARK achieves the highest ScreenSpot-Pro accuracy 6Table 2. Grounding accuracy (%) on ScreenSpot-{v1,v2 }, OSWorld-G, and UI-Vision. Best overall accuracy per backbone is shown in 
+
+bold . N/A indicates that the Refusal (Ref.) category is not evaluated under our protocol, consistent with MVP [40]. 
+
+(a) ScreenSpot-v1 (SSv1) Model / Method Mobile Desktop Web Avg. ↑
+
+Text Icon Text Icon Text Icon 1.5-7B 90.8 78.6 92.8 75.7 87.0 84.5 85.5 +MVP 91.6 80.8 93.8 82.1 85.7 78.6 85.8 (+0.3) 
+
++SPARK 94.1 83.0 94.3 84.3 89.1 85.0 88.7 (+3.2) 
+
+2.5-VL-7B 97.1 76.9 88.7 67.9 89.1 80.1 84.7 +MVP 90.8 77.7 89.2 74.3 86.1 79.1 83.6 (-1.1) 
+
++SPARK 94.1 80.3 93.3 81.4 90.4 82.5 87.6 (+2.9) 
+
+3-VL-8B 97.1 80.8 96.4 85.0 92.2 84.5 89.8 +MVP 98.2 79.5 96.4 90.7 91.3 84.0 90.2 (+0.4) 
+
++SPARK 96.7 82.1 96.4 91.4 94.3 85.0 91.1 (+1.3) 
+
+(b) ScreenSpot-v2 (SSv2) Model / Method Mobile Desktop Web Avg. ↑
+
+Text Icon Text Icon Text Icon 1.5-7B 93.4 82.9 95.4 78.6 90.2 87.7 88.8 +MVP 95.2 82.5 96.9 83.6 89.3 81.8 88.8 (0.0) 
+
++SPARK 95.9 86.3 96.9 85.7 92.7 86.2 91.2 (+2.4) 
+
+2.5-VL-7B 98.6 84.8 90.7 70.0 92.3 80.8 88.0 +MVP 91.7 85.8 92.3 78.6 91.0 81.3 87.6 (-0.4) 
+
++SPARK 96.9 86.3 94.8 82.1 93.6 84.2 90.6 (+2.6) 
+
+3-VL-8B 99.3 88.6 97.9 88.6 96.6 87.2 93.7 +MVP 99.0 88.6 98.5 92.9 95.3 86.7 93.9 (+0.2) 
+
++SPARK 98.3 89.6 98.5 93.6 97.4 86.7 94.3 (+0.6) 
+
+(c) OSWorld-G Model / Method Text Elem. Layout Fine Ref. Avg. ↑
+
+1.5-7B 77.8 68.2 68.8 57.0 N/A 65.6 +MVP 75.1 70.0 73.5 52.3 N/A 66.0 (+0.4) 
+
++SPARK 79.3 74.5 76.7 59.1 N/A 70.2 (+4.6) 
+
+2.5-VL-7B 55.9 46.4 53.4 28.9 N/A 45.6 +MVP 67.4 61.5 66.8 40.9 N/A 58.2 (+12.6) 
+
++SPARK 69.7 62.4 66.8 40.9 N/A 59.0 (+13.4) 
+
+3-VL-8B 80.1 71.5 74.3 59.1 N/A 68.9 +MVP 80.1 78.2 81.4 58.4 N/A 72.6 (+3.7) 
+
++SPARK 83.1 79.4 82.6 62.4 N/A 74.6 (+5.7) 
+
+(d) UI-Vision Model / Method Basic Func. Spatial Avg. ↑
+
+1.5-7B 29.3 27.7 9.6 22.2 +MVP 31.7 30.9 13.4 25.3 (+3.1) 
+
++SPARK 34.7 33.9 15.2 28.0 (+5.8) 
+
+2.5-VL-7B 16.2 17.9 7.3 13.8 +MVP 22.1 26.5 10.3 19.6 (+5.8) 
+
++SPARK 24.9 28.1 10.1 21.0 (+7.2) 
+
+3-VL-8B 32.8 34.7 14.3 27.3 +MVP 38.5 39.7 19.6 32.6 (+5.3) 
+
++SPARK 39.4 40.8 19.3 33.2 (+5.9) 
+
+among the compared test-time methods for each backbone. In particular, it surpasses zoom-based approaches: with Qwen2.5-VL, its 52.5% accuracy exceeds RegionFocus and DRS-GUI by 20.4 and 11.6 pp, respectively. With UI-TARS, SPARK reaches 58.2%, compared with 51.9% for BAMI. Against the SOTA multi-view method MVP, SPARK improves overall accuracy in all evaluated settings. The gains on ScreenSpot-Pro are 3.5 pp for Qwen3-VL, 3.4 pp for Qwen2.5-VL, and 2.3 pp for UI-TARS. These gains demonstrate the effectiveness of semantic probe-guided observation over existing test-time grounding strategies. 
+
+5.2. Ablation and Analysis 
+
+Contributions of probe-guided view construction. Ta-ble 3 examines how probe design and spatial guidance con-tribute to view construction. Without probe specialization, verification is replaced by an additional exploration view under the same four-subview budget. Restoring verification improves accuracy across all three backbones. Hierarchical descriptions also consistently outperform unified descrip-tions, supporting the separation of contextual and element-level evidence. To examine how semantic guidance is spatially grounded, we replace attention-based selection with di-rectly predicted crop coordinates, retaining the same max-imum local-view budget and final aggregation. Attention-based selection improves accuracy across all three back-bones, supporting spatial attention as an effective inter-face between semantic descriptions and visual observations. Coverage discounting further improves performance, show-ing the value of accounting for observation history when selecting complementary views. 
+
+Contributions of adaptive observation scope. Table 4 compares adaptive focusing with fixed crop scales under matched visual token budgets. Adaptive selection achieves 68.7% accuracy, outperforming all fixed-scale settings. Its average crop area lies between the fixed 1.0× and 1.4× set-tings, indicating that the gain comes from selecting an ap-propriate contextual scope for each observation rather than uniformly enlarging the crops. These results support using contextual evidence to adapt the extent of visual inspection. 7Table 3. Ablation of SPARK on ScreenSpot-Pro. Accuracy (%).                               
+
+> Configuration 1.5-7B 2.5-VL-7B 3-VL-8B Single-view baseline 42.1 27.3 54.8 w/o Probe Specialization 57.5 51.7 68.3 w/o Probe Hierarchy 57.4 51.8 68.3 w/o Coverage Discount 58.0 50.7 67.6 w/o Attention-Based Selection 54.5 46.6 68.1
+> SPARK 58.2 52.5 68.7 55 56
+> 55.4
+> 72 74 76
+> 74.5
+> 71 72
+> 71.6
+> 74 76 78
+> 75.7
+> 36 37
+> 36.2
+> 41 43 45
+> 43.6
+
+Qwen3-VL-32B       
+
+> 75.9 (+20.5)
+> ScreenSpot-Pro 77.8 (+6.2)
+> OSWorld-G 44.7 (+8.5)
+> UI-Vision
+> Grounding accuracy (%) Baseline MVP SPARK
+
+Figure 3. Grounding accuracy (%) with Qwen3-VL-32B. (a)    
+
+> 67.5 68.0 68.5 69.0 0.25 0.5 12Accuracy (%)
+
+Text-generation budget (×) 3-VL-8B (b)    
+
+> 64 66 68 70 0.25 0.5 12Accuracy (%)
+
+Visual token budget (×) 3-VL-8B (c)    
+
+> 50 55 60 65 70 2468Accuracy (%)
+
+Number of local views 1.5-7B 
+
+58.2 
+
+> 2.5-VL-7B
+
+52.5 
+
+> 3-VL-8B
+
+68.7 
+
+Figure 4. Budget scaling on ScreenSpot-Pro. (a) Probe text-generation budget. (b) Visual token budget. (c) Number of local views. Table 4. Effect of adaptive scope on SSPro with Qwen3-VL-8B.                 
+
+> Scale setting Fixed 0.7×Fixed 1.0×Fixed 1.4×Adaptive
+> Acc. ↑(%) 65.0 67.0 67.7 68.7
+> Crop area (%) 12.0 19.5 33.5 23.7
+
+Contributions of uncertainty-weighted aggregation. 
+
+Table 5 isolates the effect of aggregation on ScreenSpot-Pro using identical SPARK-generated observations and pre-dictions within each backbone. Uncertainty-weighted vot-ing achieves the highest accuracy among the evaluated rules, reaching 58.2%, 52.5%, and 68.7% with UI-TARS, Qwen2.5-VL, and Qwen3-VL, respectively. It outperforms majority voting used in MVP [40] by 1.9, 1.5, and 1.7 pp, and minimum-entropy selection by 1.6, 1.5, and 2.9 pp. These results support combining predictive uncertainty with spatial agreement. Minimum-entropy selection retains only one prediction, while majority voting weights all pre-dictions equally. Our rule instead accumulates entropy-weighted support within spatial clusters and returns the medoid of the highest-scoring cluster. The consistent gains across general-purpose and GUI-specialized back-bones demonstrate the benefit of uncertainty-weighted ag-gregation without additional observations. 
+
+Scaling text and visual token budgets. Figures 4(a,b) examine semantic description and local visual token bud-gets with Qwen3-VL on ScreenSpot-Pro. Accuracy remains between 68.1% and 68.7% as probe generation caps vary from 0.25 × to 2×, showing that concise descriptions pro-
+
+Table 5. Effect of uncertainty-weighted voting on SSPro.                   
+
+> Selection rule 1.5-7B 2.5-VL-7B 3-VL-8B Random selection 41.6 36.4 54.9 Last view 43.3 38.5 58.1 Minimum-entropy selection 56.6 51.0 65.8 Majority voting [40] 56.3 51.0 67.0
+> Uncertainty-weighted voting 58.2 52.5 68.7
+
+vide effective inspection guidance. In contrast, increasing the visual token budget from 0.25 × to 1× raises accuracy from 63.6% to 68.7%. The default setting, with up to 3,680 visual tokens per local view, achieves the highest accuracy among the evaluated budgets. These results support pairing compact semantic guidance with sufficient visual detail to resolve the identified evidence. 
+
+Scaling the number of local observations. Figure 4(c) evaluates observation budgets from two to eight local views. Increasing the budget from two to four improves accuracy across all three backbones, reaching 68.7% for Qwen3-VL, 52.5% for Qwen2.5-VL, and 58.2% for UI-TARS. Four views achieve the best result for Qwen3-VL, while ad-ditional exploration raises Qwen2.5-VL and UI-TARS to 54.2% and 59.6% at eight views. The smaller gains from six to eight views indicate diminishing returns, supporting four views as an effective default while allowing further im-provements through a larger observation budget. 86. Conclusion 
+
+We presented SPARK , a training-free framework that turns a frozen VLM’s semantic understanding into guidance for visual inspection. Hierarchical probes support explo-ration and hypothesis-conditioned verification, translating descriptions of relevant evidence into spatial attention that guides view placement and contextual scope. History-aware selection encourages complementary local views, while uncertainty-weighted voting integrates their predic-tions. Experiments across GUI grounding benchmarks and backbones demonstrate consistent improvements over single-view inference and strong performance against exist-ing test-time methods. SPARK shows that knowing what to inspect can help a VLM determine where to act , connecting semantic understanding with precise GUI grounding. 
+
+## LLM Usage Statement 
+
+The authors used generative AI tools, specifically GPT and Codex powered by GPT models, to assist with writing, La-TeX and figure formatting, and code editing. All claims, citations, code, figures, and numerical results were indepen-dently reviewed and verified by the authors, who take full responsibility for the final submission. 
+
+## References 
+
+[1] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao, Chunjiang Ge, Wenbin Ge, Zhifang Guo, Qidong Huang, Jie Huang, Fei Huang, Binyuan Hui, Shutong Jiang, Zhao-hai Li, Mingsheng Li, Mei Li, Kaixin Li, Zicheng Lin, Jun-yang Lin, Xuejing Liu, Jiawei Liu, Chenglong Liu, Yang Liu, Dayiheng Liu, Shixuan Liu, Dunjie Lu, Ruilin Luo, Chenxu Lv, Rui Men, Lingchen Meng, Xuancheng Ren, Xingzhang Ren, Sibo Song, Yuchong Sun, Jun Tang, Jianhong Tu, Jian-qiang Wan, Peng Wang, Pengfei Wang, Qiuyue Wang, Yux-uan Wang, Tianbao Xie, Yiheng Xu, Haiyang Xu, Jin Xu, Zhibo Yang, Mingkun Yang, Jianxin Yang, An Yang, Bowen Yu, Fei Zhang, Hang Zhang, Xi Zhang, Bo Zheng, Humen Zhong, Jingren Zhou, Fan Zhou, Jing Zhou, Yuanzhi Zhu, and Ke Zhu. Qwen3-VL technical report. arXiv preprint arXiv:2511.21631 , 2025. 5, 6 [2] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun Tang, Humen Zhong, Yuanzhi Zhu, Mingkun Yang, Zhao-hai Li, Jianqiang Wan, Pengfei Wang, Wei Ding, Zheren Fu, Yiheng Xu, Jiabo Ye, Xi Zhang, Tianbao Xie, Zesen Cheng, Hang Zhang, Zhibo Yang, Haiyang Xu, and Jun-yang Lin. Qwen2.5-VL technical report. arXiv preprint arXiv:2502.13923 , 2025. 5, 6 [3] ByteDance Seed. UI-TARS-1.5-7B. Hugging Face model card, 2025. 2, 5, 6 [4] Minghua Chen, Xingming Liao, Weiqiang Zhong, and Zhuowei Wang. MHVF: Training-free GUI grounding via verification-guided multi-hypothesis search. arXiv preprint arXiv:2610.17792 , 2026. 1 [5] Zhangquan Chen, Xufang Luo, and Dongsheng Li. VisRL: Intention-driven visual perception via reinforced reasoning. In Proceedings of the IEEE/CVF International Conference on Computer Vision , pages 2545–2555, 2025. 3 [6] Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Yan-tao Li, Jianbing Zhang, and Zhiyong Wu. SeeClick: Har-nessing GUI grounding for advanced visual GUI agents. In 
+
+Proceedings of the 62nd Annual Meeting of the Associa-tion for Computational Linguistics (Volume 1: Long Papers) ,pages 9313–9332, 2024. 2, 5 [7] Boyu Gou, Ruohan Wang, Boyuan Zheng, Yanan Xie, Cheng Chang, Yiheng Shu, Huan Sun, and Yu Su. Navigating the digital world as humans do: Universal visual grounding for GUI agents. In The Thirteenth International Conference on Learning Representations , 2025. 2, 6 [8] Wenyi Hong, Weihan Wang, Qingsong Lv, Jiazheng Xu, Wenmeng Yu, Junhui Ji, Yan Wang, Zihan Wang, Yux-iao Dong, Ming Ding, and Jie Tang. CogAgent: A vi-sual language model for GUI agents. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 14281–14290, 2024. 2 [9] Siyuan Hu, Mingyu Ouyang, Difei Gao, and Mike Zheng Shou. The dawn of gui agent: A preliminary case study with claude 3.5 computer use. arXiv preprint arXiv:2411.10323 ,2024. 6 [10] Aaron Hurst, Adam Lerer, Adam P Goucher, Adam Perel-man, Aditya Ramesh, Aidan Clark, AJ Ostrow, Akila Weli-hinda, Alan Hayes, Alec Radford, et al. Gpt-4o system card. 
+
+arXiv preprint arXiv:2410.21276 , 2024. 6 [11] Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo, Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng Chua. Screenspot-pro: Gui grounding for professional high-resolution computer use. In Proceedings of the 33rd ACM International Conference on Multimedia , pages 8778–8786, 2025. 5 [12] Yang Li, Jiacong He, Xin Zhou, Yuan Zhang, and Jason Baldridge. Mapping natural language instructions to mo-bile UI action sequences. In Proceedings of the 58th Annual Meeting of the Association for Computational Linguistics ,pages 8198–8210. Association for Computational Linguis-tics, 2020. 2 [13] Yichao Liu, Huawen Shen, Liu Yu, Shiyu Liu, Zeyu Chen, and Yu Zhou. DRS-GUI: Dynamic region search for training-free GUI grounding. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 34606–34616, 2026. 2, 5, 6 [14] Tiange Luo, Lajanugen Logeswaran, Justin Johnson, and Honglak Lee. Visual test-time scaling for GUI agent ground-ing. In Proceedings of the IEEE/CVF International Confer-ence on Computer Vision , pages 19989–19998, 2025. 2, 5, 6[15] Longhui Ma, Di Zhao, Siwei Wang, Zhao Lv, and Miao Wang. Trifuse: Enhancing attention-based GUI grounding via multimodal fusion. In Proceedings of the 43rd Inter-national Conference on Machine Learning , pages 85344– 85363, 2026. 2 
+
+9[16] Shravan Nayak, Xiangru Jian, Kevin Qinghong Lin, Juan A. Rodriguez, Montek Kalsi, Nicolas Chapados, M. Tamer ¨Ozsu, Aishwarya Agrawal, David Vazquez, Christopher Pal, Perouz Taslakian, Spandana Gella, and Sai Rajeswar. UI-Vision: A desktop-centric GUI benchmark for visual per-ception and interaction. In Proceedings of the 42nd Inter-national Conference on Machine Learning , pages 45817– 45851, 2025. 5 [17] Dang Nguyen, Jian Chen, Yu Wang, Gang Wu, Namyong Park, Zhengmian Hu, Hanjia Lyu, Junda Wu, Ryan Aponte, Yu Xia, et al. Gui agents: A survey. In Findings of the As-sociation for Computational Linguistics: ACL 2025 , pages 22522–22538, 2025. 2 [18] Panupong Pasupat, Tian-Shun Jiang, Evan Liu, Kelvin Guu, and Percy Liang. Mapping natural language commands to web elements. In Proceedings of the 2018 Conference on Empirical Methods in Natural Language Processing ,pages 4970–4976. Association for Computational Linguis-tics, 2018. 2 [19] Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shi-hao Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shijue Huang, Wanjun Zhong, Kuanye Li, Jiale Yang, Yu Miao, Woyu Lin, Longxiang Liu, Xu Jiang, Qianli Ma, Jingyu Li, Xiaojun Xiao, Kai Cai, Chuang Li, Yaowei Zheng, Chaolin Jin, Chen Li, Xiao Zhou, Minchao Wang, Haoli Chen, Zhaojian Li, Haihua Yang, Haifeng Liu, Feng Lin, Tao Peng, Xin Liu, and Guang Shi. UI-TARS: Pioneering auto-mated GUI interaction with native agents. arXiv preprint arXiv:2501.12326 , 2025. 2 [20] Hao Shao, Shengju Qian, Han Xiao, Guanglu Song, Zhuo-fan Zong, Letian Wang, Yu Liu, and Hongsheng Li. Visual CoT: Advancing multi-modal language models with a com-prehensive dataset and benchmark for chain-of-thought rea-soning. In Advances in Neural Information Processing Sys-tems , pages 8612–8642, 2024. 2 [21] Haozhan Shen, Kangjia Zhao, Tiancheng Zhao, Ruochen Xu, Zilun Zhang, Mingwei Zhu, and Jianwei Yin. ZoomEye: Enhancing multimodal LLMs with human-like zooming ca-pabilities through tree-based image exploration. In Proceed-ings of the 2025 Conference on Empirical Methods in Natu-ral Language Processing , pages 6602–6618, 2025. 2 [22] Fei Tang, Haolei Xu, Hang Zhang, Siqi Chen, Xingyu Wu, Yongliang Shen, Wenqi Zhang, Guiyang Hou, Zeqi Tan, Yuchen Yan, et al. A survey on (m) llm-based gui agents. 
+
+arXiv preprint arXiv:2504.13865 , 2025. 2 [23] Fei Tang, Bofan Chen, Zhengxi Lu, Tongbo Chen, Songqin Nong, Tao Jiang, Wenhao Xu, Weiming Lu, Jun Xiao, Yuet-ing Zhuang, and Yongliang Shen. UI-Zoomer: Uncertainty-driven adaptive zoom-in for GUI grounding. arXiv preprint arXiv:2604.14113 , 2026. 1 [24] Fei Tang, Zhangxuan Gu, Zhengxi Lu, Xuyang Liu, Shuheng Shen, Changhua Meng, Wen Wang, Wenqi Zhang, Yongliang Shen, Weiming Lu, et al. GUI-G 2: Gaussian re-ward modeling for GUI grounding. In Proceedings of the AAAI Conference on Artificial Intelligence , pages 33214– 33222, 2026. 6 [25] Bingchao Wang, Yongcheng Jing, Chengyu Wang, Jun Huang, Jie Yang, Wei Liu, and Dacheng Tao. Ada-Ground: Token-normalized adaptive zooming with verifier-in-the-loop refinement for GUI grounding. arXiv preprint arXiv:2610.36874 , 2026. 1 [26] Hang Wu, Hongkai Chen, Yujun Cai, Chang Liu, Qingwen Ye, Ming-Hsuan Yang, and Yiwei Wang. DiMo-GUI: Ad-vancing test-time scaling in GUI grounding via modality-aware visual reasoning. In Proceedings of the 2025 Confer-ence on Empirical Methods in Natural Language Processing ,pages 26246–26256, 2025. 2 [27] Penghao Wu and Saining Xie. V*: Guided visual search as a core mechanism in multimodal LLMs. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 13084–13094, 2024. 2 [28] Qianhui Wu, Kanzhi Cheng, Rui Yang, Chaoyun Zhang, Jianwei Yang, Huiqiang Jiang, Jian Mu, Baolin Peng, Bo Qiao, Reuben Tan, Si Qin, Lars Liden, Qingwei Lin, Huan Zhang, Tong Zhang, Jianbing Zhang, Dongmei Zhang, and Jianfeng Gao. GUI-Actor: Coordinate-free visual grounding for GUI agents. In Advances in Neural Information Process-ing Systems , 2025. 2 [29] Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng Chen, Paul Pu Liang, and Yu Qiao. OS-ATLAS: Foundation action model for generalist GUI agents. In The Thirteenth In-ternational Conference on Learning Representations , 2025. 2, 5, 6 [30] Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhoujun Cheng, Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and Tao Yu. OSWorld: Benchmarking multimodal agents for open-ended tasks in real computer environments. In Ad-vances in Neural Information Processing Systems , 2024. 2 [31] Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang, Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang, Yuhui Xu, Zekun Wang, Yiheng Xu, Junli Wang, Doyen Sahoo, Tao Yu, and Caiming Xiong. Scaling computer-use grounding via user interface decomposition and synthesis. In 
+
+Advances in Neural Information Processing Systems , 2025. 5[32] Hai-Ming Xu, Qi Chen, Lei Wang, and Lingqiao Liu. Attention-driven GUI grounding: Leveraging pretrained multimodal large language models without fine-tuning. In 
+
+Proceedings of the AAAI Conference on Artificial Intelli-gence , pages 8851–8859, 2025. 2 [33] Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tian-bao Xie, Amrita Saha, Doyen Sahoo, Tao Yu, and Caim-ing Xiong. Aguvis: Unified pure vision agents for au-tonomous GUI interaction. In Proceedings of the 42nd In-ternational Conference on Machine Learning , pages 69772– 69805, 2025. 2 [34] Yan Yang, Dongxu Li, Yutong Dai, Yuhao Yang, Ziyang Luo, Zirui Zhao, Zhiyuan Hu, Junzhe Huang, Amrita Saha, Zeyuan Chen, Ran Xu, Liyuan Pan, Caiming Xiong, and Junnan Li. GTA1: GUI test-time scaling agent. In The Fourteenth International Conference on Learning Represen-tations , 2026. 2 
+
+10 [35] Ruilin Yao, Shengwu Xiong, Tianyu Zou, Shili Xiong, and Yi Rong. AutoFocus: Uncertainty-aware active visual search for GUI grounding. arXiv preprint arXiv:2605.02630 , 2026. 1[36] Xinbin Yuan, Jian Zhang, Kaixin Li, Zhuoxuan Cai, Lujian Yao, Jie Chen, Enguang Wang, Qibin Hou, Jinwei Chen, Peng-Tao Jiang, and Bo Li. Se-gui: Enhancing visual grounding for gui agents via self-evolutionary reinforcement learning. In Advances in Neural Information Processing Sys-tems , pages 127658–127679, 2025. 6 [37] Borui Zhang, Bo Zhang, Bo Wang, Wenzhao Zheng, Yuhao Cheng, Liang Tang, Yiqiang Yan, Jie Zhou, and Jiwen Lu. BAMI: Training-free bias mitigation in gui grounding. In 
+
+Proceedings of the IEEE/CVF Conference on Computer Vi-sion and Pattern Recognition (CVPR) , pages 34596–34605, 2026. 2, 5, 6 [38] Chaoyun Zhang, Shilin He, Jiaxu Qian, Bowen Li, Liqun Li, Si Qin, Yu Kang, Minghua Ma, Guyue Liu, Qingwei Lin, et al. Large language model-brained gui agents: A survey. 
+
+arXiv preprint arXiv:2411.18279 , 2024. 2 [39] Jiarui Zhang, Mahyar Khayatkhoei, Prateek Chhikara, and Filip Ilievski. MLLMs know where to look: Training-free perception of small visual details with multimodal LLMs. In 
+
+The Thirteenth International Conference on Learning Rep-resentations , 2025. 2, 3 [40] Yunzhu Zhang, Zeyu Pan, Zhengwen Zeng, Shuheng Shen, Changhua Meng, and Linchao Zhu. MVP: Multiple view prediction improves gui grounding. In Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition , pages 27482–27492, 2026. 2, 5, 6, 7, 8, 1, 3 
+
+11 Your VLM Knows What to Inspect: Semantic Probe-Guided Adaptive Focusing for GUI Grounding 
+
+# Supplementary Material 
+
+## A. More Related Work 
+
+Recent preprints investigate uncertainty-guided search and visual verification for training-free GUI grounding. UI-Zoomer [23] combines spatial consensus and generation confidence to trigger zooming, and adapts crop size to pre-diction variance. AutoFocus [35] converts sampled coor-dinates and their axial perplexities into spatial proposals, followed by visual candidate comparison. MHVF [4] ex-plores multiple hypotheses through zoomed re-localization and uses local verification scores to guide further search and final selection. AdaGround [25] adapts zoom parameters to estimated target size and uses a marked-click verifier to guide acceptance and refinement. SPARK derives observation guidance from explicit de-scriptions of the evidence to inspect. Attention associated with hierarchical probe content jointly guides view place-ment, while the exploration Context response determines the surrounding context to retain. Its verification probe describes evidence needed to assess emerging hypotheses, turning verification into guidance for constructing a new observation. Final coordinate predictions are integrated through uncertainty-weighted spatial voting. This design connects semantic evidence descriptions to adaptive visual inspection, complementing search strategies guided by co-ordinate uncertainty and candidate verification scores. 
+
+## B. Implementation Details 
+
+All experiments were conducted on a single NVIDIA RTX PRO 6000 GPU. We set the history coverage discount ρ to 
+
+0.5 for 7B/8B models and 0.8 for the 32B model. The can-didate count K and standard window dimensions (w0, h 0)
+
+follow the default settings of MVP [40] and are identical to those used in our MVP reproduction. We developed SPARK using Qwen3-VL-8B on a 300-example develop-ment subset of ScreenSpot-Pro. We selected the 7B/8B hy-perparameters in this setting and used them without further tuning across all evaluated 7B/8B backbones and bench-marks. For Qwen3-VL-32B, we selected hyperparameters separately on the same development subset and held them fixed across all evaluated benchmarks. 
+
+## C. Detailed Prompt Templates 
+
+SPARK uses two semantic probe templates and backbone-specific localization prompts. The exploration and verifi-cation templates are shared across backbones. Each user message contains the corresponding image followed by the original instruction. In the prompt templates, Coarse and 
+
+Fine are aliases for Context and Detail, respectively. 
+
+Exploration Probe                                                                        
+
+> [System] You are an expert UI element locator. Given aGUI image and auser’s element description, identify the specified element using only visible evidence. The image resolution is height {height} and width {width}. Describe the target from coarse to fine: Coarse: name its likely containing panel or screen region and avisible landmark. Fine: name the requested UI control and avisible detail distinguishing it from nearby controls. Output only these two short phrases, at most 15 words per phrase. Do not output coordinates. [User] <Global screenshot> {instruction} [Assistant prefill] Coarse:
+
+The Context and Detail content budgets are 24 and 40 tokens, respectively. 
+
+Verification Probe                                                                                                             
+
+> [System] Use visible evidence to identify the control requested by the original instruction. The marked locations are unverified hypotheses from previous observations. Do not assume amarked location is correct. Inspect the full screenshot and use another visible region if the hypotheses do not fit the requested function. Describe evidence needed to verify the requested control, not afinal choice. Output short phrases: Control: <the requested control and identifying visible text or icon> Context: <the containing panel or arelevant nearby visible landmark> Inspect: <one specific visible detail needed to verify the target’s function or exact location> If no actionable evidence is visible, write Inspect: UNCLEAR. Do not invent details. Do not output awinner, alabel choice, or coordinates. In Inspect, name image evidence rather than the drawn marks or their labels.
+
+1Table 6. Grounding accuracy (%) with Qwen3-VL-32B. Best overall accuracy per benchmark is shown in bold . N/A indicates that the Refusal (Ref.) category is not evaluated under our protocol, consistent with MVP [40] 
+
+(a) ScreenSpot-Pro Model / Method Dev. Creative CAD Sci. Office OS Avg. ↑
+
+(∆ pp) 
+
+Text Icon Text Icon Text Icon Text Icon Text Icon Text Icon Qwen3-VL-32B 66.2 20.0 77.3 21.7 67.5 28.1 84.7 33.6 80.8 49.1 59.8 20.2 55.4 +MVP 90.3 51.0 84.8 47.6 85.8 46.9 89.6 46.4 91.5 77.4 88.8 58.4 74.5 (+19.1) 
+
++SPARK 92.9 51.0 86.9 51.0 84.3 46.9 91.0 46.4 93.2 83.0 87.9 64.0 75.9 (+20.5) 
+
+(b) OSWorld-G (c) UI-Vision Model / Method Text Elem. Layout Fine Ref. Avg. ↑ (∆ pp) Model / Method Basic Func. Spatial Avg. ↑ (∆ pp) 
+
+Qwen3-VL-32B 81.2 76.1 77.5 61.1 N/A 71.6 Qwen3-VL-32B 43.6 42.9 22.3 36.2 +MVP 81.6 82.4 85.8 61.1 N/A 75.7 (+4.1) +MVP 50.2 49.7 30.9 43.6 (+7.4) 
+
++SPARK 84.3 84.2 87.0 65.1 N/A 77.8 (+6.2) +SPARK 51.4 51.1 31.6 44.7 (+8.5)      
+
+> [User] <Global screenshot with hypothesis markers> {instruction} [Assistant prefill] Control:
+
+The Control, Context, and Inspect content budgets are 16, 24, and 32 tokens, respectively, with an overall gener-ation cap of 96 tokens. The Context and Inspect responses provide spatial guidance for the verification observation. 
+
+Localization: Qwen3-VL and UI-TARS                                             
+
+> [System] You are an expert UI element locator. Given aGUI image and auser’s element description, provide the coordinates of the specified element as asingle (x,y) point. The image resolution is height {height} and width {width}. For elements with area, return the center point. Output the coordinate pair exactly: (x,y) [User] <Current global or local view> {instruction}
+
+The image dimensions are instantiated using the actual input view. The same localization template is used for global and local observations. For Qwen2.5-VL, localization follows its native 
+
+computer use tool interface. The user message contains the current view and the original instruction, and generation continues from the following assistant prefix. 
+
+Localization: Qwen2.5-VL Assistant Prefill     
+
+> <tool_call> {"name": "computer_use", "arguments": {"action": "left_click", "coordinate": [
+
+## D. Algorithm Workflow of SPARK 
+
+Algorithm 1 summarizes the SPARK procedure. 
+
+Algorithm conventions. The probe routines return nor-malized content-token attention maps. BUILD CANDI - 
+
+> DATES
+
+constructs a shared pool from the top-K locations in each input map. F OCUS selects a window using history-discounted contextual and local evidence, then adapts its ex-tent using the undiscounted exploration Context map CE .OBSERVE grounds the selected crop within budget N , ap-pends valid predictions and their entropies to D, and up-dates H. CLUSTER AND SCORE performs complete-link clustering and uncertainty-weighted scoring as defined in the main text. 
+
+## E. Results on the Larger Model 
+
+We further evaluate SPARK with Qwen3-VL-32B on ScreenSpot-Pro, OSWorld-G, and UI-Vision. Table 6 re-ports the complete results under our evaluation setting. SPARK achieves accuracies of 75.9%, 77.8%, and 44.7%, respectively, improving over single-view inference by 20.5, 6.2, and 8.5 pp. It also exceeds MVP by 1.4, 2.1, and 1.1 pp across these benchmarks. These results extend the bene-fits of probe-guided adaptive focusing to a larger backbone, showing that semantic inspection guidance remains useful 2Algorithm 1 SPARK 
+
+Require: Screenshot I, instruction d, frozen VLM fθ , local-view budget B ≥ 1, visual token budget N
+
+Ensure: Target coordinate p⋆
+
+Initial observations  
+
+> 1:
+
+R0 ← full screenshot region  
+
+> 2:
+
+(p0, ¯H0, A G) ← GROUND (I, d, R 0) 
+
+> 3:
+
+D ← { (p0, ¯H0) | p0 is valid }; H ← ∅  
+
+> 4:
+
+R1 ← INIT (AG, w 0, h 0) 
+
+> 5:
+
+OBSERVE (R1); b ← 1
+
+Probe-guided observations  
+
+> 6:
+
+(CE , D E ) ← EXPLORATION PROBE (I, d ) 
+
+> 7:
+
+P ← BUILD CANDIDATES (CE , D E , A G) 
+
+> 8:
+
+while b < B do  
+
+> 9:
+
+R ← FOCUS (CE , D E , C E , P, H) 
+
+> 10:
+
+OBSERVE (R); b ← b + 1  
+
+> 11:
+
+C ← CLUSTER AND SCORE (D) 
+
+> 12:
+
+if b = 2 and b < B then  
+
+> 13:
+
+P hyp ← medoids of the top min(2 , |C| ) clusters  
+
+> 14:
+
+Ihyp ← MARK (I, P hyp ) 
+
+> 15:
+
+(CV , I V ) ← VERIFICATION PROBE (Ihyp , d ) 
+
+> 16:
+
+R ← FOCUS (CV , I V , C E , P, H) 
+
+> 17:
+
+OBSERVE (R); b ← b + 1  
+
+> 18:
+
+end if  
+
+> 19:
+
+end while Uncertainty-weighted aggregation  
+
+> 20:
+
+C ← CLUSTER AND SCORE (D) 
+
+> 21:
+
+C⋆ ← arg max C∈C S(C) 
+
+> 22:
+
+return p⋆ ← MEDOID (C⋆)
+
+Table 7. Uncertainty-weighted aggregation of MVP predictions on ScreenSpot-Pro. Accuracy (%).             
+
+> Method 1.5-7B 2.5-VL-7B 3-VL-8B MVP 55.9 49.1 65.2 MVP + Uncertainty-weighted voting 57.1 50.3 66.4
+> SPARK 58.2 52.5 68.7
+
+as model capacity increases. 
+
+## F. Uncertainty-weighted Voting for MVP 
+
+We apply uncertainty-weighted voting to MVP to examine its effectiveness beyond SPARK’s view construction. As shown in Table 7, this aggregation improves MVP across all three backbones, reaching 57.1%, 50.3%, and 66.4% with UI-TARS, Qwen2.5-VL, and Qwen3-VL, respectively. SPARK further achieves 58.2%, 52.5%, and 68.7%. These results demonstrate that uncertainty weighting can improve existing multi-view predictions, while SPARK’s complete framework delivers additional gains through probe-guided observation and aggregation. 
+
+Table 8. Accuracy and average inference time on ScreenSpot-Pro with Qwen3-VL-8B under different local-view budgets.                 
+
+> Method Local views Acc. ↑(%) Avg. time (s) MVP 465.2 8.39 MVP 665.2 13.75 MVP 865.5 17.53
+> SPARK 468.7 16.79
+
+Table 9. Grounding accuracy (%) on the 300-example develop-ment subset of ScreenSpot-Pro, the remaining 1,281 examples, and the full benchmark. 
+
+Model / Method 
+
+Development subset Remaining examples Full benchmark Qwen3-VL-32B 56.0 55.3 55.4 +MVP 76.3 74.1 74.5 +SPARK 77.0 75.6 75.9 
+
+Qwen3-VL-8B 55.7 54.6 54.8 +MVP 66.3 64.9 65.2 +SPARK 70.0 68.4 68.7 
+
+## G. Comparison of Baseline Methods with More Time Budget 
+
+As shown in Table 8, SPARK’s average inference time of 16.79 seconds falls between those of MVP with six and eight local views (13.75–17.53 seconds), while achiev-ing 3.2–3.5 percentage points higher accuracy. Increasing MVP’s view budget does not close this gap, consistent with its reported view-count ablation, where additional views yield limited gains and can even reduce accuracy [40]. 
+
+## H. Performance on the Development Subset and Remaining Examples 
+
+We developed SPARK and selected its 7B/8B hyperparam-eters using Qwen3-VL-8B on a 300-example development subset of ScreenSpot-Pro. We used the same settings for all evaluated 7B/8B backbones across all benchmarks with-out further tuning. For Qwen3-VL-32B, we selected hyper-parameters separately on the same development subset and held them fixed across all evaluated benchmarks. Table 9 reports accuracy on the development subset, the remaining 1,281 examples, and the full ScreenSpot-Pro benchmark. SPARK outperforms MVP on both subsets with both Qwen3-VL-8B and Qwen3-VL-32B. Together with the results on other backbones and benchmarks in the main paper, these findings suggest that the selected hyper-parameters transfer across benchmarks and backbones. 3I. Limitations and Future Work 
+
+SPARK improves GUI grounding through training-free, probe-guided observations. As with other multi-view grounding methods, processing additional views incurs an inference cost. Adaptive stopping could help allocate the observation budget according to the evidence needed for each instruction. The usefulness of semantic guidance also depends on the backbone’s ability to describe relevant vi-sual evidence and associate it with spatial attention. Future work could explore more robust probe extraction and com-plementary grounding signals. 4

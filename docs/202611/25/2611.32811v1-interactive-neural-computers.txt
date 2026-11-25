@@ -1,0 +1,2792 @@
+Preprint. Under review.
+Interactive Neural Computers
+Ross Murphy
+University College London
+r.murphy@cs.ucl.ac.uk
+Marcel Hedman
+University of Oxford
+marcel.hedman@stats.ox.ac.uk
+Gabriel Brostow
+University College London
+g.brostow@cs.ucl.ac.uk
+(a) HUMAN USES
+A COMPUTER
+(b) AI USES
+A COMPUTER
+(c) HUMAN USES AN AI
+THAT IS A COMPUTER
+Figure 1. From AI using a computer to AI being a computer. From today’s paradigm, where a human uses a computer (a), the current
+trend trains an AI agent to use a computer on the user’s behalf (b). We take a different path (c) where a human uses an AI that is a computer.
+Abstract
+Computers and their interfaces are usually treated as fixed,
+so a person, or increasingly an AI agent, must adapt to
+whatever the operating system presents. This is limiting
+when someone needs a different workflow, or an interface
+suited to hands-free use or a disability. We explore an over-
+looked alternative. Rather than training an agent to operate
+an existing computer, we train a generative model to be the
+computer, predicting each next screen from past screens and
+the user’s mouse and keyboard actions. Treating a desktop
+as an interactive world model raises problems that natural-
+video world models largely avoid. Without a camera pose
+to index memory, the model must remember content that has
+left the screen without any geometric cues. Arithmetic in a
+terminal has to be exactly right, not merely plausible. Small
+interface text must also stay legible at interactive frame
+rates. Our Interactive Neural Computer is structured like
+a Neural Turing Machine and starts to address these prob-
+lems with three modules trained end to end from pixels and
+actions. A surprise-gated slot memory, supervised by latent
+next-frame prediction (MEMORY-JEPA), stores what is off
+screen. An exploratory query bridge brings in the reason-
+ing of a pretrained VLM, and a residual renderer predicts
+only the latent changes between frames. In long closed-loop
+rollouts, our model recalls occluded files in 64.2% of trials
+(chance is 33.3%), compared with at most 56.0% for recur-
+rent and sliding-window baselines. It also raises terminal-
+text OCR accuracy from 1.3% to 50.1%. Finally, because
+the memory is explicit, it can be transplanted at test time to
+causally change what the model renders.
+1. Introduction
+Much recent work on computer use aims to build agents
+that operate a computer in the way a person does, reading
+the screen, moving a cursor, and selecting from menus, to
+complete tasks on users’ behalf [3, 45, 61]. This setting has
+three fundamental issues. First, the user is removed from
+the loop, which serves to replace human capabilities rather
+than augment them. Second, removing the user makes exe-
+cution hard to supervise, which is risky, given documented
+deceptive and alignment-faking behavior in frontier mod-
+els [20, 30, 37]. Third, this setting treats computer inter-
+faces as fixed environments to be ‘completed’. In reality,
+an interface is an arbitrary construct, so we should care less
+about whether an agent can ‘solve’ it `a la MiniGrid [15],
+and more about whether an AI can generate a useful inter-
+face that augments human capabilities. Ultimately, if the AI
+is the computer, human-AI collaboration can move toward
+open-ended interfaces. Following Hughes et al. [31], we
+call a system open-ended with respect to an observer when it
+keeps producing artifacts that the observer finds both novel
+and learnable. Here the observer is the user, and the artifacts
+are interfaces that adapt to their evolving workflow while
+1
+arXiv:2611.32811v1  [cs.AI]  24 Nov 2026
+
+
+Preprint. Under review.
+remaining easy to learn, without anyone having to rewrite,
+recompile, and reload static source code.
+We therefore set out to build a generative interactive neu-
+ral computer (Figure 1) that learns, directly from pixel and
+action trajectories, to remember abstract concepts, execute
+symbolic operations, and render crisp updates, all with-
+out a hand-crafted symbolic memory state. Each of these
+three requirements is an open problem for world models at
+large, and each takes a specific form on a computer. The
+first is long-horizon object permanence. World models of
+3D scenes can use camera pose and scene geometry to de-
+cide where to store an observation and when to retrieve
+it [35, 60], but a desktop offers no such index. A file opened
+in a pane overwrites exactly the pixels of the file that was
+there before, so the model must learn for itself what to store,
+when, and where. The second is symbolic reasoning inside
+a generated world. Approximate dynamics look convincing
+in natural video, but a terminal that receives 3+3 must print
+6 every time. The third is rendering. Most of the screen
+is static from one frame to the next, which tempts a model
+to simply copy the previous frame, yet the regions that do
+change include 10–12 px text that must stay legible at inter-
+active frame rates.
+To address these three problems, we introduce the Inter-
+active Neural Computer (Figure 2), an end-to-end architec-
+ture analogous to a Neural Turing Machine [18, 19] orga-
+nized into three core modules:
+• Memory (surprise-gated concept slots):
+To sus-
+tain object permanence without camera pose or hand-
+crafted state, we introduce a coordinate-free concept-
+slot memory grounded in predictive coding [17, 43] and
+surprise-driven memory selection (CAMBRIAN-S [65]),
+whose differentiable writes are gated by latent predic-
+tion surprise and self-supervised in representation space
+(MEMORY-JEPA).
+• Compute
+(exploratory
+single-pass
+VLM
+query
+bridge): As a preliminary step toward symbolic reason-
+ing inside a generated world, we extend learnable query
+bridges [14, 38, 39] beyond diffusion-only supervision
+by placing causal queries strictly before training-only
+outcome text, extracting symbolic execution states into
+latent tokens (Hout
+t
+) in a single forward pass without
+test-time text decoding.
+• Interface (residual latent-diffusion rendering):
+To
+render crisp updates at interactive speeds without col-
+lapsing into frame copying, we pair both modules with
+residual latent diffusion [47, 62] that predicts frame-
+to-frame latent deltas rather than re-synthesizing the
+full screen at every step, lifting persistent terminal-text
+OCR from 0.2% with full-frame diffusion to 43.5% at a
+matched training budget. Our full model reaches 50.1%
+at 512×384, close to the 4-channel codec’s 56.3% ceil-
+ing, and 88.7% with a 16-channel FLUX.1-schnell
+autoencoder at 1024×768.
+Standard perceptual metrics cannot tell whether a world
+model remembers what is off screen, because a frame can
+look plausible while its content is wrong. We therefore eval-
+uate memory directly (Section 5.2). In our hidden-shape re-
+call task, a file containing a shape is closed, the user works
+elsewhere, and the file is later reopened, so the correct shape
+can only come from memory. A harder variant first over-
+writes the same pane with a competing file. Because our
+memory is an explicit bank rather than part of an entangled
+hidden state, we can also transplant or erase it at test time
+and check that what the model renders changes accordingly
+(Section 5.3).
+Public GUI corpora rarely revisit occluded content or test
+symbolic execution after the screen is cleared, so we built
+two controlled datasets, Desktop and Maths, that do (Sec-
+tion 4). We will release the full five-source aligned cor-
+pus, including both controlled datasets and our conversion
+and alignment pipelines, together with all training code and
+model weights.
+2. Related Work
+World models of computers.
+Modeling the machine
+rather than the agent has begun to be explored in recent
+work. Neural Computers [76] models the desktop as an
+open-loop generated video of a user interacting with a
+computer, which generates compelling open-loop videos,
+but does not support closed-loop user interaction. State-
+Craft [55] similarly uses video diffusion as its substrate,
+but augments its model with an explicit symbolic mem-
+ory. This helps recall (object permanence), but its design
+requires access to hand-crafted symbolic accessibility-tree
+state graphs. Other concurrent GUI world models rely on
+external scaffolds or omit persistent memory: Solaris [1]
+stores state in text prompts, while CUWM [23] and Yu et al.
+[67] pair VLM or latent predictors with separate decoders
+without a persistent learned memory bank. NeuralOS [46],
+the precursor to these approaches, is the only open-weight,
+interactive, pixel-to-pixel desktop world model, available
+for direct closed-loop rollouts, without privileged symbolic
+state requirements. NeuralOS requires only pixel supervi-
+sion, but compressing observation history into a single re-
+current LSTM state degrades performance over long roll-
+outs. Our model differs from all of the above in that we
+learn an addressable external memory end-to-end from pix-
+els and actions without hand-crafted state schemas.
+Generative interactive world models and memory.
+More broadly, action-conditioned world models have pro-
+gressed from single-vector recurrent state spaces [24, 25]
+to large-scale video generation for driving [28], 2D and
+3D worlds [12, 40, 41], and games [2, 53].
+Across all
+2
+
+
+Preprint. Under review.
+of these domains, world models face a trade-off between
+storing raw history frames, which scales poorly with roll-
+out length, and compressing history into a fixed-size state,
+which risks overwriting older information [18, 19, 42, 69].
+Fixed-size memory is much easier to manage when the en-
+vironment provides an external index for reads and writes.
+In 3D physical environments, geometry provides that index
+‘for free’ via camera pose, field-of-view overlap [60, 66],
+3D surfels [35], or raymaps [13, 59]. A 2D interface of-
+fers no such index (Section 1), so the model must learn
+what, where, and when to write. Existing 2D world mod-
+els avoid this indexing problem by keeping a short slid-
+ing window of frames [2, 53, 69] or compressing his-
+tory into a single recurrent vector [24, 25, 46], both of
+which lose occluded state over long rollouts.
+To build
+an indexed, fixed-capacity memory without 3D geometry,
+we instead draw on three complementary ideas from the
+representation-learning and sequence-modeling literature.
+First, to decide where and when to write without spatial
+coordinates, sequence models such as Differentiable Neu-
+ral Computers [18, 19], slot attention [36, 72], and gated
+delta networks [22, 33, 48, 63, 64] address discrete slots
+by content similarity and free capacity (where). Predictive-
+coding models [10, 17, 43, 51] and CAMBRIAN-S [65] gate
+memory writes by whether a new observation is surprising
+(when). However, content addressing and surprise gating
+only work if the underlying representations capture high-
+level semantics rather than static background pixels. For
+what to store, we therefore draw on Joint-Embedding Pre-
+dictive Architectures [4, 5, 9, 71, 74], self-supervising our
+concept slots via latent next-state prediction (MEMORY-
+JEPA) rather than pixel reconstruction alone.
+Symbolic reasoning in generated worlds.
+Learning
+symbolic rules and multi-digit arithmetic purely through
+pixel diffusion [12, 40, 41] is sample-inefficient.
+Pre-
+trained vision–language models (VLMs) [6, 7] already pos-
+sess strong symbolic reasoning, though in computer use re-
+search they are typically trained as external agents operat-
+ing existing interfaces [3, 16, 34, 44, 45, 49, 52, 61, 75].
+We instead bootstrap symbolic execution inside the world
+model from a pretrained VLM, supervising its query to-
+kens [14, 38, 39] with the outcome text rather than only the
+diffusion loss (Section 3.2).
+3. Method
+An interactive world model predicts the next video frame
+xt+1 ∈R3×H×W from observations x1:t and user actions
+a1:t (mouse coordinates, clicks, and keystrokes). Following
+the three problems set out in Section 1, we split the model
+into three modules, Memory, Compute, and Interface (Fig-
+ure 2), and train them jointly end to end.
+Legend:
+learned
+frozen
+loss
+forward
+gradient
++
+add
+·
+dot
+∥
+concat
+latent tensor
+xt
+action at
+Frozen
+encoders
+FLUX VAE E
+NeuralOS LSTMs
+Qwen vision
+zt
+mlstm
+t
+F qwen
+t
+1. Memory (Mt)
+write
+soft ηtwt
+·
+fixed float slots (64×d)
+·
+read
+soft βt
+Rt
+2. Compute
+Qwen3-VL + Qout
+[xt; ˜
+Rt; at; Qout]
+∥
+Hout
+t
+3. Interface
+∥
+Residual UNet
+ˆ
+∆zt
+Csem
+t
++
+FLUX
+D
+ˆxt+1
+Rt, mmem
+t
+mlstm
+t
+ResNet-style skip zt
+LJEPA
+Lexe
++Lprobe
+Lren
++
+Ltotal
+∇Ltotal
+Figure 2. End-to-end Interactive Neural Computer. Data flows
+vertically through frozen encoders and three learned modules:
+Memory (Mt), Compute (Qout), and Interface ( ˆ∆zt).
+3.1. Memory
+Following Neural Turing Machines [18] and Differen-
+tiable Neural Computers [19], we separate computation
+from memory in an explicit, fixed-capacity bank Mt =
+(Kt ∈RM×64, V sem
+t
+∈RM×512, V vis
+t
+∈RM×8×128, ut ∈
+[0, 1]M) of M = 64 concept slots (m ∈{1, . . . , M}), stor-
+ing a unit-norm key Kt,m, semantic vector V sem
+t,m , 8 visual
+tokens V vis
+t,m, and scalar occupancy ut,m. The separation of
+the memory component also opens the door to greater in-
+terpretability and causal interventions later down the line
+(such as transplanting a donor memory M donor
+t
+into a run-
+ning rollout, for example (Section 5.3)). Operating Mt re-
+duces to four decisions, namely what, when, and where to
+write, and how to read (Figure 2, Module 1, with a cycle
+diagram in Figure S1 of Section S1).
+What to write:
+intrinsic keys and self-supervised
+MEMORY-JEPA.
+At
+step
+t,
+8
+learned
+queries
+cross-attend
+over
+frozen
+vision
+features
+F qwen
+t
+(Qwen2.5-VL-3B-Instruct [7] at 512×384, and
+Qwen3-VL-2B-Instruct [6] at 1024×768) and the
+3
+
+
+Preprint. Under review.
+latent frame encoding zt = E(xt) from our frozen au-
+toencoder (16-channel FLUX.1-schnell f8 VAE [11]
+at 1024×768, and 4-channel Stable Diffusion KL-VAE at
+512×384) to extract tokens Ot ∈R8×512 and a pooled
+summary st ∈R512. As desktop frames generally share a
+static background, we subtract a running EMA background
+vector µs before unit-sphere projection to form the write
+key kt = normalize(Wk(st −µs)) ∈S63, while combining
+the centered summary, action embedding e(at), and Ot into
+the slot write values (vsem
+t
+, vvis
+t ).
+When we initially trained these write and read heads us-
+ing only the outer diffusion loss Lren, the memory bank
+failed to learn (Section 5.3). The few pixels that depend
+on memory were swamped by static background, and noth-
+ing in the loss told the read head which stored key to ask
+for, leaving recall at chance. To fix this problem without
+requiring ground-truth slot labels, we introduce an explicit
+self-supervised objective directly on the memory module,
+MEMORY-JEPA [4, 9], which trains a predictor gθ to pre-
+dict the representation of the true next frame xt+1 from only
+the current screen summary st, the user’s action e(at), and
+the memory readout rsem
+t
+(Equation (4)), so that its predic-
+tion is
+ˆst+1 = normalize
+ st + gθ([st; e(at); rsem
+t
+])
+
+.
+(1)
+To obtain a stable target, we follow BYOL [21] and I-
+JEPA [4] and pass the ground-truth next frame xt+1 through
+an exponential moving average (EMA) copy of the frame
+encoder with gradients stopped (sg), producing the target
+summary s∗
+t+1 and target key k∗
+t+1. Why does this force
+the memory to learn across long occlusions? Suppose at
+step t the user clicks a tab (at) to reopen a file closed ∆t
+steps earlier. The current screen xt and click at contain
+no information about what was drawn inside that file, so
+gθ can match s∗
+t+1 only if the write head stored the file in
+M before it closed and the read head retrieved it into rsem
+t
+.
+MEMORY-JEPA supervises Equation (1) at every step via
+LJEPA = LInfoNCE(ˆst+1, s∗
+t+1) + λalign∥ˆst+1 −s∗
+t+1∥2
+2 +
+λq(1−⟨q(1)
+t
+, k∗
+t+1⟩)+λVICRegLVICReg(kt)+λswapLswap.
+The first term is the InfoNCE contrastive loss [54], which
+pulls the prediction ˆst+1 toward its own target s∗
+t+1 and
+away from the targets of other samples in the batch, and the
+second term aligns the two directly. The third term aligns
+the first read query q(1)
+t
+(Equation (4)) with the target key
+k∗
+t+1, so the read address is supervised without a gradient
+having to cross the occlusion. The VICReg term [8] keeps
+each key dimension’s variance high and decorrelates the di-
+mensions, which prevents all keys from collapsing to the
+same vector. Finally, Lswap requires the prediction to de-
+grade when Mt is swapped for another episode’s memory
+(Equation (S1)).
+When to write: predictive-coding surprise gate.
+Writ-
+ing unconditionally on every frame exhausts a fixed quan-
+tity of (M) slots quite quickly, and can also result in writing
+self-generated rollout noise into memory. We take inspira-
+tion from predictive coding theory [17, 43] and surprise-
+driven memory selection [65], and employ a measure of
+‘prediction surprise’ to modulate our memory-writes. In
+a nutshell, if the actual observed frame xt confounds our
+model’s expectations around what it thought it was going to
+see at step t (ˆst), then we say it is ‘surprising’. Formally,
+prediction surprise εt is the cosine distance between st and
+sg(ˆst), normalized by its running average to form the write
+gate ηt ∈(0, 1), computed as
+εt = 1 −
+
+normalize(st), normalize(sg(ˆst))
+
+,
+ηt = σ
+
+αs
+
+εt
+EMA(ε) + 10−5 −βs
+
+.
+(2)
+Predictable frames keep ηt ≈0, whereas unpredicted tran-
+sitions open ηt →1. Because gθ is inaccurate early in train-
+ing, normalizing εt by EMA(ε) ensures ηt responds only
+to relative surprise spikes, while a learned per-slot factor,
+ηt,m = ηt σ(w⊤
+g [V sem
+t−1,m; vsem
+t
+] + bg) (bg=1.0 at initializa-
+tion), lets outer gradients modulate writes during warm-up.
+Where to write: a matching slot, or else the first free
+one.
+A write should update the slot that already holds this
+content, if there is one, and otherwise claim an empty slot.
+We compute both candidate destinations following the Dif-
+ferentiable Neural Computer (DNC) [19] (Equation (S2) in
+Section S1). Content addressing ac,m points at the occupied
+slot whose key best matches kt, like a soft nearest-neighbor
+lookup, and allocation aa,m points at the first empty slot,
+since a slot is penalized while any earlier slot j < m is still
+free. A gate γt = σ(κ(maxm ut−1,m⟨Kt−1,m, kt⟩−ϑ)) ∈
+(0, 1), which measures how well kt matches its best occu-
+pied slot, chooses between them via wt,m = γt ac,m + (1 −
+γt) aa,m. Re-editing a stored file gives γt ≈1 and updates
+its slot, whereas a new file gives γt ≈0 and takes a free
+one. Scaling by the surprise gate gives the write strength
+et,m = ηt,m wt,m ∈[0, 1], so a slot is written only when it
+is the chosen destination and the frame is surprising. Each
+slot’s key, semantic vector, and visual tokens then move
+toward (kt, vsem
+t
+, vvis
+t ) in proportion to et,m, so an unad-
+dressed slot is left untouched and a strongly addressed one
+is overwritten. Its occupancy ut,m ∈[0, 1] rises toward
+1 when written and is lowered by a forget gate ft,m that
+releases slots whose contents have been superseded. To-
+gether, these give the slot updates
+Kt,m = clip1
+ (1 −et,m)Kt−1,m + et,mkt
+
+,
+V sem
+t,m = (1 −et,m)V sem
+t−1,m + et,mvsem
+t
+,
+V vis
+t,m = (1 −et,m)V vis
+t−1,m + et,mvvis
+t ,
+ut,m =
+ ut−1,m + (1 −ut−1,m) et,m
+
+(1 −ηtft,m),
+(3)
+4
+
+
+Preprint. Under review.
+where clip1(v) = v/ max(1, ∥v∥2) keeps keys in the unit
+ball and leaves empty slots at zero norm, and multiplying
+ft,m by ηt releases slots only at surprising steps, so memory
+does not decay while the screen is static.
+How to read: action-conditioned predictive retrieval.
+Once Mt has been updated, the model must decide what
+information to read back out to render the next frame xt+1.
+In many cases, the current screen xt alone does not tell us
+which stored slot is needed next. We also need the user’s ac-
+tion at. For instance, if a user is viewing file B on screen
+(xt) and clicks the tab for file A (at), it is the combination
+of the screen and the click that tells the model to retrieve
+file A from memory. Each of our Hr = 4 read heads
+therefore forms its query q(h)
+t
+= normalize(ϕ(h)
+q ([st −
+µs; e(at)])) ∈S63 from both the centered screen summary
+and the action, and attends over the occupied slots. A learn-
+able no-op logit b∅lets it abstain when no off-screen mem-
+ory is needed, and the attention weights are
+β(h)
+t
+= softmaxm∈{1,...,M,∅}
+h⟨Kt,m, q(h)
+t
+⟩
+τr
++ log(ut,m+ϵ), b∅
+i
+1:M,
+(4)
+where each head returns one semantic vector rsem
+t
+and 8 vi-
+sual tokens (4×9 = 36 tokens Rt ∈R36×512), over which
+every screen patch attends to form a spatial map mmem
+t
+(Figure 2, violet skip).
+3.2. Compute
+We bootstrap symbolic execution capabilities from a pre-
+trained vision–language model. Learning exact arithmetic
+purely from pixels is prohibitively slow, and hand-crafted
+state graphs [55] do not scale across open-ended applica-
+tions or general world models. However, pretrained VLMs
+already have symbolic reasoning capabilities. Given this,
+we asked whether a VLM backbone could guide our inter-
+face diffusion module directly.
+The problem is that a VLM cannot be plugged into a
+diffusion model out of the box. Attending over prompt-
+prefix states [xt; ˜Rt; at] ( ˜Rt: Rt projected into the VLM’s
+embedding space) without explicit symbolic supervision
+(Lexe = 0), yields 0.0% arithmetic accuracy (Section S4.3).
+Another alternative, conditioning on decoded text yt, made
+each state-generation step of the outer world model very
+slow, as we had to wait for slow test-time autoregressive
+decoding from the VLM.
+To get explicit text supervision during training without
+paying the test-time decoding penalty, we build on recent
+methods that connect autoregressive VLMs to diffusion de-
+coders using learnable query tokens [14, 38, 39] (Figure S2
+in Section S1). We insert Nout = 16 learnable query to-
+kens Qout ∈R16×2048 into the input sequence of a Qwen-
+VL model with a frozen vision tower and LoRA-adapted
+language backbone (Qwen3-VL-2B-Instruct [6] /
+Qwen2.5-VL-3B-Instruct [7, 29]) strictly between
+the multimodal prefix and the training target yt, the text of
+the action’s outcome (e.g. the printed answer), so that the
+sequence is ordered as
+
+xt; ˜Rt; at
+
+|
+{z
+}
+multimodal prefix
+−→
+Qout
+|{z}
+causal queries
+−→
+yt
+|{z}
+train target
+.
+(5)
+Under the causal mask, Qout precedes yt, so its output states
+Hout
+t
+∈R16×2048 cannot see the answer (∂Hout
+t
+/∂yt = 0)
+and are computed in one forward pass at test time. Dur-
+ing training, yt attends backward over Qout, so next-token
+cross-entropy (Lexe) and a linear probe (Lprobe) force the
+VLM to retrieve cleared variables from ˜Rt, execute the op-
+eration, and store the answer in Hout
+t
+.
+3.3. Interface
+Once Memory has retrieved the off-screen slots Rt and
+Compute has produced the outcome states Hout
+t
+, the Inter-
+face module renders ˆxt+1 at interactive speeds by solving
+two sub-problems: updating only changing regions without
+blurring static typography, and routing non-spatial memory
+and VLM tokens, to 2D screen coordinates. Rather than
+training low-level cursor movement and desktop-interface
+rendering from scratch, we build directly on the open-
+source release of NeuralOS [46], whose authors gener-
+ously released well-documented training code and weights
+pretrained for many GPU-hours across millions of desk-
+top transitions. We initialize our short-term action LSTM
+(mlstm
+t
+) and base UNet channels from their pretrained back-
+bone to inherit strong local action-to-pixel priors.
+Routing memory and compute into 2D space.
+Whereas
+the UNet operates on a 2D latent grid (96×128), Rt ∈
+R36×512 and Hout
+t
+∈R16×2048 are 1D token sequences
+specifying what file or arithmetic result should appear, not
+where on the screen to draw it.
+We bridge this gap via
+two pathways (Figure 2, Module 3, with the full condition-
+ing diagram in Figure S3 of Section S1). First, to localize
+where actions occur, 2D maps carrying screen coordinates
+are stacked at the UNet input for 2D convolutions. These
+are the noised residual ∆z(k)
+t
+(the latent change the UNet
+predicts, described below), short-term LSTM map mlstm
+t
+,
+(y, x) cursor heat map, spatial memory readout mmem
+t
+, and
+noise-corrupted reference ˜zt (a noised copy of zt). Second,
+to let any screen region look up non-local content from Rt
+and Hout
+t
+, we project both into R512 to form a 52-token se-
+mantic bank Csem
+t
+= LN([WRRt; WHHout
+t
+]+αposP1D) ∈
+R52×512, where 1D sinusoidal encodings P1D preserve left-
+to-right character and digit order (e.g. 842 vs. 248). At
+each UNet stage ℓ∈{1, . . . , 7}, every 2D patch in U (ℓ)
+5
+
+
+Preprint. Under review.
+acts as a query (with 2D coordinates P2D) attending over
+Csem
+t
+as keys and values, so that each stage is updated as
+˜U (ℓ) = U (ℓ) + tanh(gℓ) Projℓ
+
+MHAℓ
+ GN(U (ℓ)) + P2D,
+Csem
+t
+, Csem
+t
+
+,
+(6)
+retrieving the content relevant to its (y, x) region and adding
+it into U (ℓ) via a learnable gate tanh(gℓ) (g0 = 0.25).
+Residual latent prediction.
+Standard 4-channel full-
+frame diffusion tends to blur dense features such as 10–
+12 px glyphs, and also wastes capacity regenerating the
+∼95% of pixels that stay static per step.
+At both reso-
+lutions, we train an x0-parameterized Residual UNet [27,
+47, 62, 68] to predict only the standardized frame-to-frame
+delta ∆zt = (zt+1 −zt)/sc (sc per-channel training std)
+and add it to the skip zt to form ˆzt+1 = zt + sc ⊙ˆ∆zt
+(Figure 2, green skip), converging in 2–4 DDIM steps [50]
+(Section 5.1; Figure S4 in Section S1).
+Section 5 uses NeuralOS’s native 4-channel 512×384
+SD KL-VAE for compute-matched baseline comparisons,
+and pairs the same Memory and Compute modules (via
+parameter-free 2×2 latent pooling) with the frozen 16-
+channel 1024×768 FLUX.1-schnell VAE [11] to over-
+come the 4-channel codec’s 56.3% text-legibility ceiling.
+3.4. End-to-End Training
+Because most of the screen is static, an unweighted loss
+can predict ˆ∆zt
+≈
+0.
+To combat this, we define
+our rendering loss as Lren
+=
+P
+p ωp∥ˆ∆zt,p−∆zt,p∥2
+2
+P
+p ωp
++
+λstatic
+|St|C
+P
+p∈St ∥ˆ∆zt,p∥1 (Equation (S3) in Section S1). This
+has the effect of upweighting active patches via ωp =
+1 + 4 · 1[maxc |∆zt,p,c| > δchg] alongside a static-patch
+L1 quietness penalty over St. We also corrupt two inputs
+during training, adding schedule-dependent noise to ˜zt [73]
+and masking xt (pdrop = 0.5, Section S4.4), so that the
+model cannot simply copy the current frame and has to
+rely on ˜Rt and Hout
+t
+. All three modules train jointly over
+128-step trajectories (a 64-frame warm-up without gradi-
+ents, followed by 64 frames of truncated backpropagation
+through time (BPTT) [57, 58]) under Ltotal = Lren +
+λJEPALJEPA + λexeLexe + λprobeLprobe, backpropagat-
+ing outer losses along one trunk (Figure 2, dashed red) into
+the memory heads and surprise gate (Section 5.3 and Sec-
+tion S4).
+4. Training Corpus and Data Mixture
+Training a world model to function as a usable computer
+requires training examples of both (a) open-world GUI di-
+versity (cursor dynamics, window management, and varied
+typography), and (b) controlled multi-step workflows where
+off-screen files or cleared variables uniquely determine fu-
+ture frames. Public GUI corpora alone rarely revisit oc-
+cluded state or test symbolic execution after screen clears.
+Due to this, we chose to curate five separate datasets, which
+we group into three regimes (Figures S5–S7 and Table S2
+in Section S3):
+1. Three open-world GUI corpora (AgentNet, ProCUA-
+SFT, and CUA-Gym, with > 2.1 TB raw, 173,975
+trajectories / 8.83 M steps):
+Human recordings on
+Windows, macOS, and Ubuntu from (1) AgentNet [56]
+(21,957 cleaned episodes), plus Ubuntu rollouts from
+(2) ProCUA-SFT [32] (92,964 Kimi-K2.5 episodes) and
+(3) CUA-Gym (55,139 Qwen3.5 VM episodes).
+2. Controlled XFCE file persistence (Desktop, source 4):
+Hand-collected VS Code sessions (768 train, 96 eval
+episodes in 32 matched triplets) where a geometric dia-
+gram (triangle, circle, or star) is edited, occluded for 13–
+256 steps while competing files are edited in the same
+pane, and reopened from pixel-identical frames.
+3. Controlled XFCE cleared-screen CLI (Maths, source
+5): Interactive Python REPL sessions (4,000 train, 300
+eval episodes, four task families) where variables (q =
+854) are cleared via Ctrl+L before evaluating queries
+(q * 738).
+Synthesis of sources.
+All 16:9 recordings are letterboxed
+onto a 4:3 canvas, and pyautogui scripts are parsed into
+abstract syntax trees without being executed, which lets us
+filter 194 corrupted gap/scroll records and fix an undocu-
+mented post-action frame offset in ProCUA-SFT so every
+step obeys (xt, at) →xt+1 (Section S3). Each step emits
+a verbatim keystroke string (preserving character order and
+Ctrl+L) for Compute, plus (y, x) cursor heat maps, click
+flags, and held-key vectors for Memory and Interface.
+Data mixtures, training windows, and public release.
+Three of our five sources are already public. Upon publica-
+tion, we will release the full aligned corpus, including Desk-
+top and Maths, along with our alignment pipelines, mixture
+manifests, training code, and model weights.
+To fully evaluate all of our architectural mechanisms un-
+der academic compute budgets, our multi-seed ablations
+and long-horizon rollouts train on 128-step windows (64-
+frame warm-up + 64-frame BPTT) for 3,000–9,000 steps
+(48,000–144,000 128-step trajectories) on the Dense In-
+teractive Mixture (50% Desktop, 50% Maths), comple-
+mented by a high-resolution 1024×768 transfer run on
+the Broad Mixture (75.0% equally stratified AgentNet,
+ProCUA-SFT, and CUA-Gym, 12.5% Desktop, and 12.5%
+Maths, comprising 12,268 FLUX.1-schnell episodes
+/ 325,573 transitions resampled to 694,266 windows (for
+more details see Table S2 and Sections S4, S6, and S7 in
+the Supplementary Material)).
+6
+
+
+Preprint. Under review.
+Desktop
+Active CLI
+Text OCR
+261-step Render Speed
+(A) 512×384
+LPIPS ↓
+PSNR ↑
+LPIPS ↓
+PSNR ↑
+(%) ↑
+PSNR ↑
+(fps) ↑
+NEURALOS (recurrent LSTM) [46]
+0.115 ± 0.002
+25.51
+0.128 ± 0.009
+23.82
+0.0
+20.64
+20.5
+WINDOW (8-frame diffusion)
+0.111 ± 0.002
+25.70
+0.094 ± 0.002
+25.23
+1.3
+20.69
+19.8
+Ours
+0.107 ± 0.002
+25.80
+0.086 ± 0.003
+25.75
+50.1 ± 2.0
+22.09
+18.2
+Whole
+Active-edit
+Text OCR
+16-step
+Speed
+(B) 1024×768
+LPIPS ↓
+FID ↓
+PSNR ↑
+gain (dB) ↑
+(%) ↑
+PSNR ↑
+(fps) ↑
+COPY-ONLY (no Memory/Compute)
+0.051 ± 0.001
+66.1
+29.50 ± 0.23
++2.73 ± 0.21
+83.4 ± 6.4
+17.38
+21.0
+Ours
+0.044 ± 0.004
+56.1
+31.22 ± 0.18
++5.20 ± 0.11
+88.7 ± 4.6
+22.34
+10.5
+Table 1.
+Visual fidelity, text legibility, and speed.
+(A) Controlled 512×384 suite (SD KL-VAE). (B) 1024×768 suite
+(FLUX.1-schnell 16-ch VAE) against COPY-ONLY, our renderer without Memory or Compute. Mean ± s.d. over 3 seeds. Active-edit
+gain is changed-pixel PSNR minus that of copying the previous frame. NeuralOS is fine-tuned from the public release on our data, follow-
+ing their exact training configuration. Zero-shot, it ignores our screens and renders its own desktop.
+Ground Truth
+t = 3 (Right-Click Menu)
+t = 4 (Create Dialog)
+t = 6 (Folder Created)
+t = 7..262 (Desktop)
+t = 265 (Reopen Documents)
+Ours
+NeuralOS
+(Fine-Tuned)
+Figure 3. Long-horizon 512×384 persistence on the XFCE File Manager task. The user creates New Folder in Documents
+(t=3..6), closes the File Manager for 256 steps, and reopens Documents at t=265 (col. 5). Ours preserves the New Folder icon,
+whereas fine-tuned NEURALOS draws an empty pane. Note how the two models agree while the folder is on screen and diverge only once
+it has been hidden for 256 steps.
+5. Experiments and Results
+We ask three questions of each model. Is it a competent
+renderer (Section 5.1)? Does it remember off-screen state
+(Section 5.2)? And is the slot memory what drives that re-
+call (Section 5.3)?
+We
+use
+two
+evaluation
+settings
+(Section
+S1):
+a
+Controlled
+512×384
+Suite
+(SD KL-VAE
++
+Qwen2.5-VL-3B) that matches NEURALOS [46] in
+codec and resolution for fair 3-seed comparisons, and a
+High-Resolution 1024×768 Suite (FLUX.1-schnell
+16-ch VAE + Qwen3-VL-2B). We do not compare models
+across resolutions.
+5.1. Visual Fidelity
+Table 1 compares Ours against NEURALOS [46], WIN-
+DOW (8-frame sliding-window diffusion [2, 53]), for the
+512×384 setting. At 1024×768, we compare with COPY-
+ONLY, our residual renderer without Memory or Compute,
+trained on the same mixture.
+At 512×384 the three models are close on desktop
+LPIPS (0.107 vs. 0.111 and 0.115), and Ours pulls ahead
+where content changes or must be kept: active CLI tran-
+sitions (0.086 vs. 0.094 and 0.128 LPIPS) and persistent
+terminal text (50.1% vs. 1.3% and 0.0% OCR).
+At 1024×768, the comparison with COPY-ONLY iso-
+lates what Memory and Compute add to an otherwise iden-
+tical renderer. Adding them improves every fidelity metric,
+most clearly 16-step rollout PSNR (22.34 vs. 17.38 dB) and
+active-edit gain (+5.20 vs. +2.73 dB).
+5.2. Our Learned Memory Module Survives Occlu-
+sion and Overwriting
+We test object permanence directly with hidden-shape re-
+call: across 32 matched VS Code triplets (96 episodes × 3
+seeds = 288 evaluations), a file containing a triangle, cir-
+7
+
+
+Preprint. Under review.
+Edited-file
+Same-pane overwrite for ∆t steps (%) ↑
+Donor memory
+Model (512×384)
+recall (%) ↑
+∆t=32
+∆t=64
+∆t=128
+swap (%) ↑
+NEURALOS (recurrent LSTM) [46]
+56.0
+36.8
+36.5
+38.2
+–
+WINDOW (8-frame diffusion)
+49.6
+37.8
+34.0
+39.9
+–
+COORDINATE SLOTS ((y, x)-addressed bank)
+51.9
+38.9
+39.6
+37.5
+–
+Ours (content-addressed slots)
+64.2
+46.2
+50.0
+42.4
+64.7 ± 1.1
+Table 2. Off-screen memory: 3-way hidden-shape accuracy (33.3% chance). Edited-file recall reopens an edited file after occlusion (3
+seeds). In Overwrite, a competing file is first edited in the same pane for ∆t steps (288 evaluations each). Donor swap counts trials that
+render the donor’s shape after a memory transplant. Bold marks the best result in each column.
+(true triangle)
+Recorded target
+(recalls triangle)
+Intact 𝘔𝘵
+(renders circle, 64.7%)
+Donor 𝘔𝖽𝗈𝗇𝗈𝗋
+𝘵
+(erased: guesses star)
+Reads blocked
+Figure 4.
+Test-time memory transplant and erasure.
+With
+xt, at, and the LSTM fixed, keeping Mt recalls the true trian-
+gle, transplanting M donor
+t
+renders the donor’s circle (64.7%), and
+blocking reads erases the file, leaving the model to guess (here, a
+star). Since the screen, click, and LSTM state are identical across
+panels, the change in shape can only come from the slot memory.
+cle, or star is closed, an agent navigates away from the
+closed file (and carries out distracting tasks on screen), be-
+fore eventually navigating back to the file.
+At that mo-
+ment nothing on screen says which shape to draw, so the
+answer can only come from memory. A recall counts as
+correct when the rendered frame is closer in L1 to the
+true shape than to either foil (33.3% chance, with margin
+∆L1 = Lfoil
+1
+−Ltrue
+1
+).
+The results of this test can be seen under ‘Edited-file re-
+call’ in Column 1 of Table 2. When an edited file is re-
+opened after occlusion, Ours recalls the correct shape in
+64.2% of episodes, against 49.6–56.0% for the baselines.
+A harder test is overwriting: before the file is reopened,
+a competing file (with another shape, or text) is edited
+in the same VS Code pane for ∆t steps, so the content
+to be remembered and the distractor occupy identical pix-
+els.
+WINDOW and NEURALOS now sit close to chance
+(34.0–39.9%). COORDINATE SLOTS, the same slot bank
+addressed by (y, x) position rather than by content, fares
+no better (37.5–39.6%), because two files in one pane can
+share one address. Ours holds 50.0% at ∆t=64 (∆L1 =
++0.070, 95% CI [+0.046, +0.095]). The lead narrows at
+∆t=128 (42.4%) (as all models eventually tend toward
+chance over long enough time horizons with fixed memory
+buffers).
+Figure 3 shows the effect visually on NEURALOS’s na-
+tive XFCE file-manager task. A folder hidden for 256 steps
+is still there when Documents is reopened by Ours, where
+fine-tuned NEURALOS draws an empty pane.
+5.3. Memory is Causal and Editable
+High recall does not by itself show that the learned mem-
+ory module is responsible. For example, abstract concepts
+such as shapes could have been carried by the LSTM, or
+by the renderer. However, because our memory is an ex-
+plicit bank Mt, rather than part of an entangled latent state,
+we can test this directly. We hold the screen xt, the ac-
+tion at, and the LSTM (hidden-state) fixed, and change
+only Mt (Figure 4). With Mt intact, the model recalls the
+true shape (a triangle). When we transplant the memory
+with a donor Mt ←M donor
+t
+from an episode in which a
+circle was drawn, the model renders the donor’s circle on
+64.7±1.1% of trials (Table 2), and when we block memory
+reads, the stored file is erased. What the model draws on re-
+opening a file is therefore determined by the contents of its
+slots, which a supervisor can inspect, replace, or potentially
+even wipe without resetting the rest of the latent state of our
+model.
+Ablations.
+In ablations at 3,000 steps (Section S4), re-
+moving MEMORY-JEPA (LJEPA=0) drops edited-file re-
+call to chance (32.1%), and removing residual prediction
+drops terminal OCR from 43.5% to 0.2% (p=0.0007). For
+full ablations of every component of our model, see the Sup-
+plementary Material.
+6. Conclusion
+We introduce a world model of a computer, with a novel
+surprise-gated memory component. Our model improves
+on the baselines in edited-region fidelity, text legibility, and
+resistance to overwriting. It learns how to interact with a
+modular and detachable memory state, and is significantly
+more functional (useful) than the learned alternatives.
+Due to academic compute limits, we trained on only a
+small portion of our full data mixture, and performance has
+not yet saturated, so scaling up training is a clear next step.
+Another exciting angle for future work is to explore
+open-ended interface generation, where applications which
+augment human capabilities are generated in real time
+around a user depending on their goals, abilities, and en-
+vironment.
+8
+
+
+Preprint. Under review.
+References
+[1] Yuval Alaluf, Omri Avrahami, Guy Bukchin Leshem, Michal
+Geyer, Kfir Goldberg, Elad Richardson, et al. Solaris: To-
+wards interfaces that are generated, not coded, 2026. 2
+[2] Eloi Alonso, Adam Jelley, Vincent Micheli, Anssi Kan-
+ervisto, Amos Storkey, Tim Pearce, and Franc¸ois Fleuret.
+Diffusion for world modeling:
+Visual details matter in
+atari. In Advances in Neural Information Processing Systems
+(NeurIPS), 2024. 2, 3, 7
+[3] Anthropic. Developing a computer use model. https://
+www.anthropic.com/news/3-5-models-and-
+computer-use, 2024. 1, 3
+[4] Mahmoud Assran, Quentin Duval, Ishan Misra, Piotr Bo-
+janowski, Pascal Vincent, Michael Rabbat, Yann LeCun, and
+Nicolas Ballas. Self-supervised learning from images with
+a joint-embedding predictive architecture.
+In IEEE/CVF
+Conference on Computer Vision and Pattern Recognition
+(CVPR), 2023. 3, 4
+[5] Mahmoud Assran, Adrien Bardes, David Fan, et al.
+V-
+JEPA 2: Self-supervised video models enable understanding,
+prediction and planning. arXiv preprint arXiv:2506.09985,
+2025. 3
+[6] Shuai Bai, Yuxuan Cai, Ruizhe Chen, Keqin Chen, Xionghui
+Chen, Zesen Cheng, Lianghao Deng, Wei Ding, Chang Gao,
+Chunjiang Ge, et al. Qwen3-VL technical report, 2025. 3, 5,
+14
+[7] Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin
+Ge, Sibo Song, Kai Dang, Peng Wang, Shijie Wang, Jun
+Tang, et al. Qwen2.5-VL technical report, 2025. 3, 5
+[8] Adrien Bardes, Jean Ponce, and Yann LeCun.
+VI-
+CReg:
+Variance-invariance-covariance regularization for
+self-supervised learning.
+In International Conference on
+Learning Representations (ICLR), 2022. 4, 13
+[9] Adrien Bardes, Quentin Garrido, Jean Ponce, Xinlei Chen,
+Michael Rabbat, Yann LeCun, Mahmoud Assran, and Nico-
+las Ballas. Revisiting feature prediction for learning visual
+representations from video. Transactions on Machine Learn-
+ing Research (TMLR), 2024. 3, 4
+[10] Ali Behrouz, Peilin Zhong, and Vahab Mirrokni.
+Titans:
+Learning to memorize at test time. In Advances in Neural
+Information Processing Systems (NeurIPS), 2025. 3
+[11] Black Forest Labs.
+FLUX.
+https://github.com/
+black-forest-labs/flux, 2024. 4, 6, 15
+[12] Jake Bruce, Michael Dennis, Ashley Edwards, Jack Parker-
+Holder, Yuge Shi, Edward Hughes, Matthew Lai, Aditi
+Mavalankar, Richie Steigerwald, Chris Apps, Yusuf Aytar,
+Sarah Bechtle, Feryal Behbahani, Stephanie Chan, Nicolas
+Heess, Lucy Gonzalez, Simon Osindero, Sherjil Ozair, Scott
+Reed, Jingwei Zhang, Konrad Zolna, Jeff Clune, Nando de
+Freitas, Satinder Singh, and Tim Rockt¨aschel. Genie: Gener-
+ative interactive environments. In International Conference
+on Machine Learning (ICML), 2024. 2, 3
+[13] Eren Cetin, Julius Erbach, Vukasin Bozic, Hyojun Go, Zix-
+iang Zhao, Nikolai Kalischek, Federico Tombari, Konrad
+Schindler, and Dominik Narnhofer. Long-horizon video gen-
+eration with slot memory addressed by region tokens, 2026.
+3
+[14] Jiuhai Chen, Zhiyang Xu, Xichen Pan, Yushi Hu, Can Qin,
+Tom Goldstein, Lifu Huang, Tianyi Zhou, Saining Xie, Sil-
+vio Savarese, Le Xue, Caiming Xiong, and Ran Xu. BLIP3-
+o: A family of fully open unified multimodal models — ar-
+chitecture, training and dataset, 2025. 2, 3, 5
+[15] Maxime Chevalier-Boisvert, Bolun Dai, Mark Towers, Ro-
+drigo de Lazcano, Lucas Willems, Salem Lahlou, Suman
+Pal, Pablo Samuel Castro, and Jordan Terry.
+Minigrid &
+Miniworld: Modular & customizable reinforcement learning
+environments for goal-oriented tasks. In Advances in Neu-
+ral Information Processing Systems (NeurIPS), Datasets and
+Benchmarks Track, 2023. 1
+[16] Xiang Deng, Yu Gu, Boyuan Zheng, Shijie Chen, Samuel
+Stevens, Boshi Wang, Huan Sun, and Yu Su. Mind2Web:
+Towards a generalist agent for the web. In Advances in Neu-
+ral Information Processing Systems (NeurIPS) Datasets and
+Benchmarks Track, 2023. 3
+[17] Karl Friston. The free-energy principle: a unified brain the-
+ory?
+Nature Reviews Neuroscience, 11(2):127–138, 2010.
+2, 3, 4, 13, 17
+[18] Alex Graves, Greg Wayne, and Ivo Danihelka. Neural turing
+machines. arXiv preprint arXiv:1410.5401, 2014. 2, 3
+[19] Alex Graves,
+Greg Wayne,
+Malcolm Reynolds,
+Tim
+Harley, Ivo Danihelka, Agnieszka Grabska-Barwi´nska, Ser-
+gio G´omez Colmenarejo, Edward Grefenstette, Tiago Ra-
+malho, John Agapiou, et al. Hybrid computing using a neural
+network with dynamic external memory. Nature, 538(7626):
+471–476, 2016. 2, 3, 4, 13
+[20] Ryan Greenblatt, Carson Denison, Benjamin Wright, Fabien
+Roger, et al. Alignment faking in large language models,
+2024. 1
+[21] Jean-Bastien Grill, Florian Strub, Florent Altch´e, Corentin
+Tallec, Pierre Richemond, Elena Buchatskaya, Carl Doersch,
+Bernardo Avila Pires, Zhaohan Guo, Mohammad Ghesh-
+laghi Azar, Bilal Piot, Koray Kavukcuoglu, R´emi Munos,
+and Michal Valko. Bootstrap your own latent: A new ap-
+proach to self-supervised learning. In Advances in Neural
+Information Processing Systems (NeurIPS), pages 21271–
+21284, 2020. 4
+[22] Albert Gu and Tri Dao. Mamba: Linear-time sequence mod-
+eling with selective state spaces. In Conference on Language
+Modeling (COLM), 2024. 3
+[23] Yiming Guan, Rui Yu, John Zhang, Lu Wang, Chaoyun
+Zhang, Liqun Li, Bo Qiao, Si Qin, He Huang, Fangkai Yang,
+et al. Computer-using world model. In International Con-
+ference on Learning Representations (ICLR), 2026. 2
+[24] David Ha and J¨urgen Schmidhuber. Recurrent world models
+facilitate policy evolution. In Advances in Neural Informa-
+tion Processing Systems (NeurIPS), 2018. 2, 3
+[25] Danijar Hafner, Jurgis Pasukonis, Jimmy Ba, and Timothy
+Lillicrap. Mastering diverse domains through world models.
+arXiv preprint arXiv:2301.04104, 2023. 2, 3
+[26] Martin Heusel, Hubert Ramsauer, Thomas Unterthiner,
+Bernhard Nessler, and Sepp Hochreiter. GANs trained by a
+two time-scale update rule converge to a local Nash equilib-
+rium. In Advances in Neural Information Processing Systems
+(NIPS), 2017. 16
+9
+
+
+Preprint. Under review.
+[27] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising dif-
+fusion probabilistic models. In Advances in Neural Informa-
+tion Processing Systems (NeurIPS), 2020. 6
+[28] Anthony Hu, Lloyd Russell, Hudson Yeo, Zak Murez,
+George Fedoseev, Alex Kendall, Jamie Shotton, and Gian-
+luca Corrado. GAIA-1: A generative world model for au-
+tonomous driving. arXiv preprint arXiv:2309.17080, 2023.
+2
+[29] Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-
+Zhu, Yuanzhi Li, Shean Wang, Lu Wang, and Weizhu Chen.
+LoRA: Low-rank adaptation of large language models. In In-
+ternational Conference on Learning Representations (ICLR),
+2022. 5, 14
+[30] Evan Hubinger, Carson Denison, Jesse Mu, Mike Lambert,
+et al. Sleeper agents: Training deceptive LLMs that persist
+through safety training, 2024. 1
+[31] Edward Hughes,
+Michael Dennis,
+Jack Parker-Holder,
+Feryal Behbahani,
+Aditi Mavalankar,
+Yuge Shi,
+Tom
+Schaul, and Tim Rockt¨aschel.
+Open-endedness is essen-
+tial for artificial superhuman intelligence.
+arXiv preprint
+arXiv:2406.04268, 2024. 1
+[32] Jaehun Jung, Ximing Lu, Brandon Cui, Muhammad Khalifa,
+Shaokun Zhang, Hao Zhang, Jin Xu, Amala Sanjay Desh-
+mukh, Karan Sapra, Andrew Tao, Yejin Choi, Jan Kautz,
+Mingjie Liu, and Yi Dong. ProCUA-SFT technical report,
+2026. 6, 18
+[33] Angelos Katharopoulos, Apoorv Vyas, Nikolaos Pappas, and
+Franc¸ois Fleuret.
+Transformers are RNNs: Fast autore-
+gressive transformers with linear attention. In Proceedings
+of the 37th International Conference on Machine Learning
+(ICML), pages 5156–5165, 2020. 3
+[34] Kenton Lee, Mandar Joshi, Iulia Turc, Hexiang Hu, Fangyu
+Liu, Julian Eisenschlos, Urvashi Khandelwal, Peter Shaw,
+Ming-Wei Chang, and Kristina Toutanova.
+Pix2struct:
+Screenshot parsing as pretraining for visual language under-
+standing. In International Conference on Machine Learning
+(ICML), 2023. 3
+[35] Runjia Li, Philip Torr, Andrea Vedaldi, and Tomas Jakab.
+VMem: Consistent interactive video scene generation with
+surfel-indexed view memory.
+In Proceedings of the
+IEEE/CVF International Conference on Computer Vision
+(ICCV), 2025. 2, 3
+[36] Francesco Locatello,
+Dirk Weissenborn,
+Thomas Un-
+terthiner, Aravindh Mahendran, Georg Heigold, Jakob
+Uszkoreit, Alexey Dosovitskiy, and Thomas Kipf. Object-
+centric learning with slot attention. In Advances in Neural
+Information Processing Systems (NeurIPS), 2020. 3
+[37] Alexander Meinke, Bronson Schoen, J´er´emy Scheurer,
+Mikita Balesni, Rusheb Shah, and Marius Hobbhahn. Fron-
+tier models are capable of in-context scheming, 2024. 1
+[38] Xichen Pan, Satya Narayan Shukla, Aashu Singh, Zhuokai
+Zhao, Shlok Kumar Mishra, Jialiang Wang, Zhiyang Xu, Ji-
+uhai Chen, Kunpeng Li, Felix Juefei-Xu, Ji Hou, and Saining
+Xie. Transfer between modalities with MetaQueries, 2025.
+2, 3, 5
+[39] PAN Team, Zihan Liu, Yi Gu, Mingkai Deng, Guangyi Liu,
+Zeyu Feng, Qiyue Gao, Yiyan Hu, Benhao Huang, Yichi
+Yang, Kun Zhou, Jiannan Xiang, Zhiting Hu, Zhengzhong
+Liu, and Eric P. Xing. PAN: A world model for general, ac-
+tionable, and long-horizon world simulation, 2025. 2, 3, 5
+[40] Jack Parker-Holder and Shlomi Fruchter. Genie 3: A new
+frontier for world models. Google DeepMind blog, 2025. 2,
+3
+[41] Jack Parker-Holder, Philip Ball, Jake Bruce, Vibhavari
+Dasagi, Kristian Holsheimer, Christos Kaplanis, Alexandre
+Moufarek, Guy Scully, Jeremy Shar, Jimmy Shi, et al. Genie
+2: A large-scale foundation world model. Google DeepMind
+blog, 2024. 2, 3
+[42] Ryan Po, Yotam Nitzan, Richard Zhang, Berlin Chen, Tri
+Dao, Eli Shechtman, Gordon Wetzstein, and Xun Huang.
+Long-context state-space video world models. In Proceed-
+ings of the IEEE/CVF International Conference on Com-
+puter Vision (ICCV), 2025. 3
+[43] Rajesh P. N. Rao and Dana H. Ballard. Predictive coding in
+the visual cortex: a functional interpretation of some extra-
+classical receptive-field effects. Nature Neuroscience, 2(1):
+79–87, 1999. 2, 3, 4, 13, 17
+[44] Christopher Rawles, Alice Li, Daniel Rodriguez, Oriana
+Riva, and Timothy Lillicrap. AndroidInTheWild: A large-
+scale dataset for android device control. In Advances in Neu-
+ral Information Processing Systems (NeurIPS) Datasets and
+Benchmarks Track, 2023. 3
+[45] Christopher Rawles, Sarah Clinckemaillie, Yifan Chang,
+Jonathan Waltz, Gabrielle Lau, Marybeth Fair, Alice Li,
+William Bishop, Wei Li, Folawiyo Campbell-Ajala, Daniel
+Riva, Timothy Lillicrap, Kris Toyama, and Oriana Riva. An-
+droidWorld: A dynamic benchmarking environment for au-
+tonomous agents. arXiv preprint arXiv:2405.14573, 2024.
+1, 3
+[46] Luke Rivard, Sun Sun, Hongyu Guo, Wenhu Chen, and Yun-
+tian Deng. NeuralOS: Towards simulating operating systems
+via neural generative models. In International Conference on
+Learning Representations (ICLR), 2026. 2, 3, 5, 7, 8, 14, 16,
+19
+[47] Mohammadreza Salehi, Mehdi Noroozi, Luca Morreale,
+Ruchika Chavhan, Malcolm Chadwick, Alberto Gil Ramos,
+and Abhinav Mehrotra.
+RFDM: Residual flow diffusion
+model for efficient causal video editing. In Proceedings of
+the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition (CVPR), 2026. 2, 6
+[48] Imanol Schlag, Kazuki Irie, and J¨urgen Schmidhuber. Linear
+transformers are secretly fast weight programmers. In Pro-
+ceedings of the 38th International Conference on Machine
+Learning (ICML), pages 9355–9366, 2021. 3
+[49] Peter Shaw, Mandar Joshi, James Cohan, Jonathan Berant,
+Panupong Pasupat, Hexiang Hu, Urvashi Khandelwal, Ken-
+ton Lee, and Kristina Toutanova.
+From pixels to UI ac-
+tions: Learning to follow instructions via graphical user in-
+terfaces. In Advances in Neural Information Processing Sys-
+tems (NeurIPS), 2023. 3
+[50] Jiaming Song, Chenlin Meng, and Stefano Ermon. Denois-
+ing diffusion implicit models. In International Conference
+on Learning Representations (ICLR), 2021. 6, 15
+[51] Yu Sun, Xinhao Li, Karan Dalal, Jiarui Xu, Arjun Vikram,
+Genghan Zhang, Yann Dubois, Xinlei Chen, Xiaolong Wang,
+10
+
+
+Preprint. Under review.
+Sanmi Koyejo, Tatsunori Hashimoto, and Carlos Guestrin.
+Learning to (learn at test time): RNNs with expressive hid-
+den states. In Proceedings of the 42nd International Con-
+ference on Machine Learning (ICML), pages 57503–57522,
+2025. 3
+[52] Daniel Toyama, Philippe Hamel, Anita Gergely, Gheorghe
+Comanici, Amelia Glaese, Zafarali Ahmed, Tyler Jackson,
+Shibl Mourad, and Doina Precup.
+AndroidEnv: A rein-
+forcement learning platform for android.
+arXiv preprint
+arXiv:2105.13231, 2021. 3
+[53] Dani Valevski, Yaniv Leviathan, Moab Arar, and Shlomi
+Fruchter.
+Diffusion models are real-time game engines.
+In International Conference on Learning Representations
+(ICLR), 2025. 2, 3, 7
+[54] A¨aron van den Oord, Yazhe Li, and Oriol Vinyals. Repre-
+sentation learning with contrastive predictive coding, 2018.
+4
+[55] Lorenzo Venturoli, Nedko Savov, Xi Wang, Marc Pollefeys,
+and Luc Van Gool.
+Statecraft: Augmenting video world
+models with abstract-state reasoning, 2026. 2, 5
+[56] Xinyuan Wang, Bowen Wang, Dunjie Lu, Junlin Yang, Tian-
+bao Xie, Junli Wang, Jiaqi Deng, Xiaole Guo, Yiheng Xu,
+Chen Henry Wu, et al.
+OpenCUA: Open foundations for
+computer-use agents, 2025. 6, 18, 19
+[57] Paul J. Werbos. Backpropagation through time: What it does
+and how to do it. Proceedings of the IEEE, 78(10):1550–
+1560, 1990. 6
+[58] Ronald J. Williams and Jing Peng.
+An efficient gradient-
+based algorithm for on-line training of recurrent network tra-
+jectories. Neural Computation, 2(4):490–501, 1990. 6
+[59] Junyi Wu, Zekun Li, Chenhongyi Yang, Chen Guo, Lingchen
+Yang, Yongan Zhang, Xinyi Zhang, Hongbing Hu, Bartek
+Rymkowski, Srinath Sridhar, Yan Yan, and Xijie Huang.
+World-T3: Test-time training as persistent memory for real-
+time video world models, 2026. 3
+[60] Zeqi Xiao, Yushi Lan, Yifan Zhou, Wenqi Ouyang, Shuai
+Yang, Yanhong Zeng, and Xingang Pan. WorldMem: Long-
+term consistent world simulation with memory. In Advances
+in Neural Information Processing Systems (NeurIPS), 2025.
+2, 3
+[61] Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li,
+Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhoujun Cheng,
+Dongchan Shin, Fangyu Lei, Yitao Liu, Yiheng Xu, Shuyan
+Zhou, Silvio Savarese, Caiming Xiong, Victor Zhong, and
+Tao Yu.
+OSWorld: Benchmarking multimodal agents for
+open-ended tasks in real computer environments.
+In Ad-
+vances in Neural Information Processing Systems (NeurIPS)
+Datasets and Benchmarks Track, 2024. 1, 3
+[62] Ruihan Yang, Prakhar Srivastava, and Stephan Mandt. Dif-
+fusion probabilistic modeling for video generation. Entropy,
+25(10):1469, 2023. 2, 6
+[63] Songlin Yang, Bailin Wang, Yikang Shen, Rameswar Panda,
+and Yoon Kim.
+Gated linear attention transformers with
+hardware-efficient training. In Proceedings of the 41st In-
+ternational Conference on Machine Learning (ICML), pages
+56501–56523, 2024. 3
+[64] Songlin Yang, Jan Kautz, and Ali Hatamizadeh. Gated delta
+networks: Improving Mamba2 with delta rule.
+In Inter-
+national Conference on Learning Representations (ICLR),
+2025. 3
+[65] Shusheng Yang, Jihan Yang, Pinzhi Huang, Ellis Brown, Zi-
+hao Yang, Yue Yu, Shengbang Tong, Zihan Zheng, Yifan
+Xu, Muhan Wang, Rob Fergus, Yann LeCun, Li Fei-Fei, and
+Saining Xie. Cambrian-S: Towards spatial supersensing in
+video, 2025. 2, 3, 4, 13, 17
+[66] Jiwen Yu, Jianhong Bai, Yiran Qin, Quande Liu, Xintao
+Wang, Pengfei Wan, Di Zhang, and Xihui Liu. Context as
+memory: Scene-consistent interactive long video generation
+with memory retrieval. In SIGGRAPH Asia 2025 Conference
+Papers, 2025. 3
+[67] Seungjun Yu, Hojun Choi, Seojeong Park, Jaeyo Shin, and
+Hyunjung Shim. Latent world action model for GUI agents,
+2026. 2
+[68] Zongsheng Yue, Jianyi Wang, and Chen Change Loy.
+ResShift:
+Efficient diffusion model for image super-
+resolution by residual shifting. In Advances in Neural In-
+formation Processing Systems (NeurIPS), 2023. 6
+[69] Lvmin Zhang, Shengqu Cai, Muyang Li, Gordon Wetzstein,
+and Maneesh Agrawala.
+Frame context packing and drift
+prevention in next-frame-prediction video diffusion mod-
+els. In Advances in Neural Information Processing Systems
+(NeurIPS), 2025. 3
+[70] Richard Zhang, Phillip Isola, Alexei A. Efros, Eli Shecht-
+man, and Oliver Wang. The unreasonable effectiveness of
+deep features as a perceptual metric. In Proceedings of the
+IEEE Conference on Computer Vision and Pattern Recogni-
+tion (CVPR), 2018. 16, 19
+[71] Xinyu Zhang, Zhengtong Xu, Yutian Tao, Yeping Wang, Yu
+She, and Abdeslam Boularias. Learning visual feature-based
+world models via residual latent action. In Advances in Neu-
+ral Information Processing Systems (NeurIPS), 2026. 3
+[72] Yu Zhang, Songlin Yang, Ruijie Zhu, Yue Zhang, Leyang
+Cui, Yiqiao Wang, Bolun Wang, Freda Shi, Bailin Wang,
+Wei Bi, Peng Zhou, and Guohong Fu. Gated slot attention
+for efficient linear-time sequence modeling. In Advances in
+Neural Information Processing Systems (NeurIPS), 2024. 3
+[73] Min Zhao, Hongzhou Zhu, Chendong Xiang, Kaiwen Zheng,
+Chongxuan Li, and Jun Zhu. Identifying and solving con-
+ditional image leakage in image-to-video diffusion model.
+In Advances in Neural Information Processing Systems
+(NeurIPS), 2024. 6
+[74] Gaoyue Zhou, Hengkai Pan, Yann LeCun, and Lerrel Pinto.
+DINO-WM: World models on pre-trained visual features en-
+able zero-shot planning. In Proceedings of the 42nd Interna-
+tional Conference on Machine Learning (ICML), 2025. 3
+[75] Shuyan Zhou, Frank F. Xu, Hao Zhu, Xuhui Zhou, Robert
+Lo, Abishek Sridhar, Xianyi Cheng, Tianyue Ou, Yonatan
+Bisk, Daniel Fried, Uri Alon, and Graham Neubig.
+We-
+bArena:
+A realistic web environment for building au-
+tonomous agents. In International Conference on Learning
+Representations (ICLR), 2024. 3
+[76] Mingchen Zhuge, J¨urgen Schmidhuber, et al. Neural com-
+puters, 2026. 2
+11
+
+
+Preprint. Under review.
+Interactive Neural Computers
+Supplementary Material
+S1. Method Equations, Diagrams, and Evalua-
+tion Protocols
+The main paper asks whether a generative world model can
+be a usable computer rather than merely render plausible
+frames. In order to achieve this goal, we first needed to
+overcome three critical problems:
+1. Given the lack of 3D camera pose to rely on, world mod-
+els of computers forget off-screen state, even over short
+time-horizons.
+2. World models in general tend to struggle with explicit
+symbolic reasoning, but nowhere is this more apparent
+than in a world model of a computer. Baseline mod-
+els often generate plausible-looking but patently illogi-
+cal text on screen.
+3. As ∼95% of a desktop can remain static from one frame
+to the next (think of a terminal shell), diffusing the next
+screen state without weighting the rendering loss can
+cause the model to collapse into simply copying the pre-
+vious frame.
+Our Interactive Neural Computer (Main Figure 2) ad-
+dresses these three failures in turn by separating the system
+into three modules, trained end-to-end: Memory, Com-
+pute, and Interface. We give each module targeted super-
+vision rather than asking pixel diffusion alone to teach all
+three.
+This section ‘opens the hood’ of the main paper’s Fig-
+ure 2, and provides the intuition, exact equations, and eval-
+uation protocols behind the architecture introduced in the
+main paper’s Sections 3 and 5.
+We organize the details into four parts: why each training
+objective and addressing rule takes the form it does (Sec-
+tion S1.1), how the architecture stays compact and scales
+to 1024×768 (Section S1.2), how we test functional useful-
+ness beyond single-step image metrics (Section S1.3), and
+how we train long-horizon memory under bounded GPU
+memory (Section S1.4).
+S1.1. Training Objectives and Slot Addressing
+Each component of our loss fixes a concrete failure mode
+we encountered when training this neural computer end to
+end.
+Why can’t a vanilla world model—or the outer render-
+ing loss alone—learn long-horizon memory, and how
+does MEMORY-JEPA fix it?
+Suppose a user edits a file,
+closes it, and works elsewhere for roughly a hundred steps
+(several minutes) before clicking the tab of the original file
+to reopen it. A vanilla visual world model has no explicit
+xt
+at
+1. What
+key kt(xt), val vt(xt, at)
+2. When
+surprise εt(st, ˆst)→ηt
+3. Where
+γtac,m+(1−γt)aa,m
+Fixed bank Mt
+M=64 slots
+(donor-swappable)
+4. Read
+query qt(xt, at)
+→Rt, mmem
+t
+et=ηtwt
+Figure S1.
+Zoom-in on Module 1 (Memory) of Main Fig-
+ure 2: concept-slot memory splits writing and reading into
+four learned decisions. Inside the violet Memory box of Main
+Figure 2, step t extracts keys and values from (xt, at) (what),
+gates writes by prediction surprise εt via ηt so static frames do not
+overwrite the bank (when), blends content matching with free-slot
+allocation via wt to place updates in the 64-slot bank Mt (where,
+Eq. (S2)), and issues action-conditioned queries to retrieve off-
+screen state into Rt and mmem
+t
+(read).
+off-screen storage: it relies on a short sliding window of re-
+cent frames or a single recurrent hidden state, trained purely
+to reconstruct pixels. Over a long gap, the closed file is
+crowded out of that finite context, and even when the file
+reappears, the handful of pixels that reveal its contents are
+drowned out by thousands of unchanged background pixels.
+To remember abstract concepts across long horizons, we
+add a fixed-capacity slot memory—akin to a neural hard
+disk (Figure S1)—with learned read and write heads that
+decide what to store and what to retrieve. Training is still
+purely from unlabeled frame-and-action trajectories, with-
+out ground-truth slot labels. However, if these read and
+write heads receive gradients only from the outer render-
+ing loss Lren backpropagated through the UNet, they suffer
+the same drowning-out problem.
+Our MEMORY-JEPA architecture solves both failures—
+drowning out and crowding out—with one self-supervised
+predictor, trained directly on the memory controller in rep-
+resentation space.
+First, instead of reconstructing hundreds of thousands of
+pixels through the UNet, the predictor must predict a sin-
+gle 512-dimensional semantic vector summarizing the next
+screen (pooled from Qwen-VL vision features and the VAE
+latent) from only the current screen, the user’s action, and
+what the read head retrieves from memory. Trained con-
+trastively against other screens in the batch (via LInfoNCE),
+this loss asks which screen is about to appear rather than
+averaging over thousands of unchanged background pixels;
+and because neither the current screen nor the click reveals
+what was inside a closed file, the predictor can match the
+right target only if the write head filed the content earlier
+12
+
+
+Preprint. Under review.
+and the read head fetched it back.
+Second, because the predictor produces a live expecta-
+tion of the next screen at every step, it gives us a prin-
+cipled measure of prediction surprise (Main Section 3.1;
+Figure S1, Step 2), inspired by predictive coding [17, 43]
+and CAMBRIAN-S [65]. We can thus gate every write we
+make to the slot bank by the magnitude of surprise: pre-
+dictable, static frames keep the gate shut so repetitive desk-
+top frames do not crowd out the bank, and only unpredicted
+transitions—such as editing or closing a file—open the gate
+to commit a write.
+This JEPA-style architecture can be subject to two po-
+tential types of collapse, and we guard against both. First,
+consider representation collapse: if the encoder and pre-
+dictor simply map every screen to the same constant vec-
+tor, prediction error drops to zero without learning anything
+about the desktop. To close this loophole, we employ an
+exponential moving average (EMA) copy of the encoder—
+with gradients stopped—to compute a stable target sum-
+mary s∗
+t+1 ∈R512 from the true next frame xt+1. Then,
+we train the controller’s prediction ˆst+1 ∈R512 to match
+s∗
+t+1 both contrastively (LInfoNCE) and directly (squared
+L2 distance). Second, memory-write collapse: even when
+screen summaries stay informative, the controller can file
+every screen under the same write key kt ∈S63 (a unit vec-
+tor in R64), or the read head’s first query q(1)
+t
+∈S63 can
+fail to discover which stored key matches the screen about
+to appear. We close this loophole by adding LVICReg [8] to
+spread write keys across the unit sphere, and directly align-
+ing q(1)
+t
+with the EMA encoder’s target key k∗
+t+1 ∈S63 for
+the next frame—supervising the read address without ask-
+ing gradients to survive across the occlusion.
+However, one last shortcut still remains.
+In many
+computer-interface transitions, the predictor could simply
+ignore the memory bank Mt and rely on the current screen
+alone—it would do quite well in this regime, in many in-
+stances, given how static computer interfaces are from one
+timestep to the next. To block this, we form a counterfactual
+prediction ˆs swap
+t+1
+by replacing Mt with another episode’s
+bank, and require the swapped prediction to be worse by a
+margin ρ = 0.1:
+Lswap = max
+ 0, ρ+∥ˆst+1−s∗
+t+1∥2
+2−∥sg(ˆs swap
+t+1 )−s∗
+t+1∥2
+2
+
+,
+(S1a)
+with all three vectors normalized, averaged over frames on
+which the screen changes and k∗
+t+1 has cosine similarity
+above 0.7 with the key of an occupied slot.
+Putting all five components together—contrastive pre-
+diction,
+direct L2 alignment,
+read-query supervision,
+key-spread regularization, and the counterfactual swap
+margin—gives the full MEMORY-JEPA loss:
+LJEPA = LInfoNCE
+ normalize(ˆst+1), normalize(s∗
+t+1)
+
++ λalign
+ normalize(ˆst+1) −normalize(s∗
+t+1)
+2
+2
++ λq
+ 1 −⟨q(1)
+t
+, k∗
+t+1⟩
+
++ λVICReg LVICReg(kt) + λswap Lswap.
+(S1b)
+Removing LJEPA drops edited-file recall back to chance
+(Section S4.1).
+How does the memory decide whether to update an ex-
+isting slot or claim a free one?
+Unlike 3D physical world
+models, a computer interface has no camera pose for mem-
+ory addressing. Screen coordinates are not a viable replace-
+ment either, because a new application window routinely
+opens over the exact coordinates of a closed one—which
+would simply overwrite old files. The third alternative, a
+fixed-length queue, eventually fills up and evicts long-lived
+state.
+We confront these issues by following the Differentiable
+Neural Computer (DNC) [19]. A write chooses between
+two destinations (Figure S1, Step 3): it either updates the
+occupied slot whose stored content best matches the current
+screen, or claims the first empty slot.
+Each slot m ∈{1, . . . , M} stores a key Kt−1,m ∈
+R64 and an occupancy ut−1,m ∈[0, 1], both initialized
+to zero.
+A gate γt ∈(0, 1) (Main Section 3.1) mea-
+sures how strongly the current write key kt matches the
+best occupied slot and blends a content distribution ac,m
+with an allocation distribution aa,m as wt,m = γtac,m +
+(1 −γt)aa,m—updating an existing slot when re-editing a
+known file (γt ≈1), and claiming a free slot for a new
+file (γt ≈0). For content matching, we score each slot by
+its similarity to kt and add a log-occupancy bias so empty
+slots receive negligible weight once any slot is occupied.
+For allocation, rather than maintaining the DNC’s discrete
+usage-sorted free list, we claim free slots from left to right
+differentiably: we favor low-occupancy slots and penalize
+every slot m by how many earlier slots j < m are still be-
+low the free threshold ufree:
+ac,m = softmaxm
+⟨Kt−1,m, kt⟩
+τw
++ log(ut−1,m+ϵ)
+
+,
+aa,m = softmaxm
+−ut−1,m
+τa
+−λprec
+m−1
+X
+j=1
+σ
+ufree −ut−1,j
+τa
+
+.
+(S2)
+Here τw and τa are softmax temperatures, λprec weights the
+left-to-right precedence penalty, σ is the logistic sigmoid,
+and ϵ=10−6 prevents log 0.
+13
+
+
+Preprint. Under review.
+Multimodal prefix
+[xt;
+˜
+Rt; at]
+Causal queries Qout
+Nout=16 learnable
+Target yt
+(train only)
+causal mask: ∂Hout
+t
+/∂yt = 0
+Qwen-VL Backbone (frozen vision tower + LoRA language layers)
+Single-pass Hout
+t
+∈R16×2048
+→Renderer Csem
+t
+& Lprobe
+Next-token Lexe
+(forces execution in Hout
+t
+)
+Figure S2. Zoom-in on Module 2 (Compute) of Main Figure 2:
+post-prefix causal queries extract single-pass VLM execution
+without test-time decoding.
+Inside the blue Compute box of
+Main Figure 2, 16 learnable queries Qout sit strictly between the
+multimodal prefix [xt; ˜Rt; at] and the training-only outcome text
+yt. Under causal masking, Qout reads the prefix without seeing yt
+(∂Hout
+t
+/∂yt = 0), so yt is dropped at test time; during training,
+next-token loss Lexe over yt (dashed orange) forces the VLM to
+compress the executed answer into Hout
+t
+.
+Why does standard diffusion loss fail on a mostly static
+desktop?
+Most desktop pixels do not move much be-
+tween state transitions. Re-synthesizing the entire frame
+at every step wastes capacity redrawing static backgrounds,
+and tends to blur small interface text. Predicting only the
+frame-to-frame change, then, seems like a good idea. It
+would avoid touching static text, by only predicting the
+delta in the state on each timestep. However, this format
+introduces another trap: an unweighted loss is dominated
+by the unchanged patches, tempting the renderer to predict
+zero change everywhere and freeze the screen.
+We resolve this tension with an active-weighted residual
+loss in latent space (Figure S3). Let ∆zt = (zt+1 −zt)/sc
+be the latent increment standardized by its per-channel scale
+sc, and let ˆ∆zt be the Residual UNet’s prediction. We mark
+a latent patch p as static if its largest change across the C
+channels stays below a quiet threshold δstat, forming the
+static set St = {p : maxc |∆zt,p,c| < δstat}. Conversely,
+patches whose change exceeds δchg receive extra weight
+ωp = 1 + ωchg · 1[maxc |∆zt,p,c| > δchg]. The rendering
+loss then balances active edits against static quietness:
+Lren =
+P
+p ωp∥ˆ∆zt,p −∆zt,p∥2
+2
+P
+p ωp
++ λstatic
+|St| C
+X
+p∈St
+∥ˆ∆zt,p∥1.
+(S3)
+The first term ensures changing regions cannot be drowned
+out by the static background, while the second applies an L1
+quietness penalty on static patches so unchanged regions do
+not accumulate drift across rollouts. Replacing this residual
+target with full-frame prediction collapses terminal OCR
+(Section S4.4); all loss weights and thresholds are listed in
+Table S1.
+How do we harness a VLM’s symbolic reasoning with-
+out paying for test-time text decoding?
+Approximate
+dynamics look convincing in natural video, but typing 3+3
+in a terminal must produce 6 every time.
+So, we need
+our model to have an understanding of symbolic computa-
+tion. However, learning exact arithmetic from pixels alone
+is prohibitively slow. We therefore asked whether we could
+reach for a pretrained VLM here: most pretrained VLMs
+already know how to compute; the one remaining question
+is whether we can route a VLM’s answer into the renderer.
+We hit two problems when we went down this path. Read-
+ing prompt features directly from the VLM without text su-
+pervision does not reveal the answer. Waiting for the VLM
+to autoregressively generate the answer is far more accu-
+rate; however, this dramatically slows down inference, as
+we must wait for a full autoregressive rollout of the VLM
+on every time-step.
+Our post-prefix causal query bridge (Figure S2, zoom-
+ing into Module 2 of Main Figure 2) resolves this trade-
+off with a single ordering trick. During training, we ap-
+pend Nout=16 learnable query tokens Qout immediately
+after the multimodal prefix [xt; ˜Rt; at] and strictly before
+the target outcome string yt. Under causal attention, Qout
+reads the prefix without seeing yt (∂Hout
+t
+/∂yt = 0), so at
+test time we simply drop yt and compute the query hidden
+states Hout
+t
+∈R16×2048 in one forward pass. During train-
+ing, however, yt attends back over Qout: next-token cross-
+entropy Lexe over yt forces the VLM to retrieve cleared
+variables from ˜Rt, execute the operation, and pack the an-
+swer into Hout
+t
+. Finally, an auxiliary linear head trained
+with cross-entropy Lprobe predicts the first 16 tokens of yt
+from Hout
+t
+through the frozen language-model output head,
+keeping the answer linearly readable by the renderer. Re-
+moving both execution losses drops cleared-screen arith-
+metic accuracy to 0.0% (Section S4.3).
+S1.2. Architecture Footprint and Resolution Bridg-
+ing
+A practical neural computer must keep memory overhead
+constant as sessions grow long and scale to high-resolution
+typography without blowing up parameter count or latency.
+How much overhead do Memory and Compute add, and
+how are user actions encoded?
+Because off-screen state
+is compressed into a fixed bank of 64 slots rather than a
+growing frame buffer or KV cache, memory cost is inde-
+pendent of rollout length: the slot memory adds 7.78M
+trainable parameters and holds a constant 0.41 MB FP32
+state per episode. In summary, the fixed memory compo-
+nent adds very little overhead, leaving substantial room to
+scale it up.
+On the compute side, we keep the VLM backbone frozen
+and adapt only its language layers with LoRA [29] (r=16;
+17.4M parameters for Qwen3-VL-2B-Instruct [6]).
+For rendering, pretrained short-term action LSTMs [46]
+14
+
+
+Preprint. Under review.
+2D maps on the latent grid, stacked as channels
+noised change ∆z(k)
+t
+action map mlstm
+t
+cursor heat map
+memory map mmem
+t
+noised current screen ˜zt
+Residual UNet
+Token bank Csem
+t
+(52 tokens)
+36 memory tokens Rt
+16 VLM tokens Hout
+t
+every UNet stage
+attends over the bank
+ˆ∆zt
+predicted change
++
+zt
+current screen
+ˆzt+1
+decoder
+frozen
+ˆxt+1
+next screen
+Figure S3. Zoom-in on Module 3 (Interface) of Main Figure 2: memory and compute reach the renderer as a 2D map stacked
+with the other inputs, and as tokens that every UNet stage attends over. Left, the stacked maps. Five maps share the latent grid and
+are concatenated as channels at the UNet input: the noised change ∆z(k)
+t
+, which is the quantity being denoised (the difference between
+the next and the current screen latent, at diffusion step k); the action map mlstm
+t
+, in which a pretrained LSTM summarizes recent mouse
+and keyboard input; a heat map peaked at the cursor; the memory map mmem
+t
+, which holds what each screen location reads from the slot
+memory; and a noised copy ˜zt of the current screen, corrupted so that the model cannot simply copy it. Top, the token bank. Some content
+has no screen position: the 36 memory tokens Rt (4 read heads, each returning 1 semantic and 8 visual tokens) and the 16 VLM tokens
+Hout
+t
+, which carry the computed outcome. Both are projected to a common width to form the 52-token bank Csem
+t
+. At each of its 7 stages,
+every location of the UNet attends over the bank and adds the result through a learned gate that starts small, so the pretrained renderer is not
+disturbed at initialization. Right, the output. The UNet predicts only the change in the latent, ˆ∆zt. Adding it to the current latent zt gives
+the next latent, which a frozen decoder turns into the next screen ˆxt+1; regions that do not change are therefore carried over untouched.
+The UNet is trained with Lren (Eq. (S3)). Schematic.
+2 steps
+4 steps
+12 steps
+0
+2
+4
+6
++5.20 dB
+10.0 fps
++4.90 dB
+6.0 fps
++4.62 dB
+2.3 fps
+Active-edit gain (dB), higher is better
+Figure S4. Two DDIM steps suffice at 1024×768: more steps
+are slower and do not improve active-edit gain. Active-edit gain
+of Ours (the model of Main Table 1B) at 2, 4 and 12 sampling
+steps, with the end-to-end frame rate on one GH200 GPU above
+each bar; we use 2 steps (blue). Gain falls slightly with more steps,
+by 0.6 dB from 2 to 12. Bars are means, error bars s.d. and dots
+the 3 trained seeds, on 862 active transitions per seed.
+supply the local conditioning map mlstm
+t
+, while gated 2D
+cross-attention layers in the Residual UNet (Figure S3) in-
+ject the projected memory and compute tokens Csem
+t
+∈
+R52×512. Because symbolic reasoning and 2D rendering
+need different views of user input, each step provides both
+a verbatim keystroke string at for the VLM (preserving ex-
+act character order and shortcuts such as Ctrl+L) and a
+2D cursor heat map, click flags, and multi-hot key vector
+for the UNet and LSTMs.
+How does the same memory scale to 1024×768 at inter-
+active frame rates?
+The 4-channel 512×384 Stable Dif-
+fusion VAE caps terminal legibility at 56.3% OCR, so scal-
+ing to 1024×768 with the 16-channel FLUX.1-schnell
+f8 VAE [11] (96×128 latents) is essential for crisp text. To
+decouple memory size from pixel resolution, the memory
+bank always operates on a fixed 48×64 spatial grid: mov-
+ing from 512×384 to 1024×768 adds zero memory param-
+eters because we simply 2×2 average-pool the latents to
+48×64 before memory read and write, and bilinearly up-
+sample mmem
+t
+back to 96×128. To keep generation inter-
+active, we sample with 2 DDIM steps [50] at 1024×768
+(while every 512×384 model uses 32 steps to match NEU-
+RALOS; Table S3). As Figure S4 shows, active-edit gain at
+1024×768 is +5.20±0.11 dB at 2 steps, +4.90±0.16 dB at
+4, and +4.62±0.22 dB at 12, so extra steps cost speed with-
+out improving quality; we have not tested the step count at
+512×384. At 2 steps the full model runs at 10.0 ± 0.4 fps
+end to end on one NVIDIA GH200 GPU over three seeds;
+Main Table 1B reports the first seed (10.5 fps).
+S1.3. Evaluation Suites and Scoring Protocols
+Why do we evaluate functional benchmarks alongside
+PSNR and LPIPS? Roughly 95% of a desktop does not
+change on each time-step, so a model that simply copies the
+previous frame—or, worse, hallucinates plausible-looking
+nonsense when reopening a closed file—can still achieve re-
+spectable single-step perceptual scores. Evaluating desktop
+15
+
+
+Preprint. Under review.
+world models solely on perceptual metrics such as PSNR
+and LPIPS is therefore a major blind spot of existing bench-
+marks.
+To separate a working computer from a stateless frame
+interpolator, we pair standard perceptual metrics with direct
+tests of object permanence, causal memory use, and sym-
+bolic execution.
+We evaluate in two separate settings:
+a controlled
+512×384 suite that matches NEURALOS [46] in codec and
+resolution for fair baseline comparisons, and a 1024×768
+suite using the FLUX.1-schnell autoencoder. Models
+are not compared across resolutions.
+• Hidden-shape recall and same-pane overwrite. Each
+matched triplet pairs three VS Code episodes whose
+hidden file holds a triangle, circle, or star. At the re-
+open frame (downsampled to 256×192 in [0, 1]), we ex-
+tract the region where the three ground-truth targets Tu
+(u ∈{0, 1, 2}) differ, R = {(y, x) : maxc(maxu Tu −
+minu Tu) > 0.1} (|R| ≥500 pixels). 3-way recall
+accuracy is the fraction of generated frames ˆx whose
+mean L1 error on R is lowest for the true shape (33.3%
+chance - a model that copies the current frame scores
+exactly 33.3%). The Desktop dev set has 32 matched
+triplets, of which 18 have an edited hidden file and 14
+an unedited one. Edited-file recall uses the 18 edited
+triplets: 54 episodes, each generated with 3 noise sam-
+ples, give 162 evaluations per trained model. Overwrite
+uses all 32 triplets: 96 episodes with 3 noise samples
+give 288 evaluations per ∆t. In this supplement, ± is
+the standard deviation over independently trained mod-
+els. The dev triplets are divided once into a 17-triplet
+half and a 15-triplet half; the ablations (Section S4) are
+scored on the first (9 edited triplets, 81 evaluations per
+trained model). Edited-file recall, overwrite and donor-
+swap results are in Main Table 2.
+• XFCE File Manager persistence. Matched episodes
+create New Folder inside Documents, close the
+File Manager for 64, 128, or 256 steps, and reopen
+Documents.
+We show these episodes qualitatively
+(Main Figure 3 and Section S8).
+• Counterfactual donor memory swap. To test whether
+recall is causally driven by the explicit slot bank rather
+than by shortcuts in the current frame or LSTMs, we
+hold xt, at, and the LSTM states fixed at the reopen
+frame of episode i and replace Mt ←M donor
+t
+from
+an episode j of the same triplet with a different shape.
+Donor-swap follow is the fraction of trials in which the
+generated frame has lower mean L1 error, on the same
+region R as above, to the donor’s shape than to the orig-
+inal (50.0% chance). The model is trained with Lswap
+(Equation (S1a)), which rewards sensitivity of the mem-
+ory prediction to such a swap.
+• Perceptual fidelity and active-edit gain. Single-step
+quality is measured with AlexNet LPIPS v0.1 [70], In-
+ceptionV3 FID [26], PSNR, and SSIM. To discount triv-
+ial frame copying, on active transitions (≥64 pixels
+changing by > 2/255) we also report active-edit gain:
+changed-pixel PSNR minus the changed-pixel PSNR of
+copying xt. 1024×768 scores use 862 transitions per
+seed, and the 512×384 scores of Table S4 use 930 Desk-
+top and 701 Maths frames.
+• CLI execution and terminal legibility.
+The Maths
+dev split has 324 scored transitions across four Python
+REPL families, of which 124 are cleared-operand transi-
+tions where Ctrl+L wipes the screen before the query.
+Cleared-screen answers (%) is greedy exact match of the
+VLM’s decoded answer, and Hout
+t
+probe (%) is argmax
+exact match from the single-pass linear head. Terminal
+OCR (%) is the fraction of earlier terminal lines (n=157)
+that EasyOCR recovers, as a case-insensitive substring,
+from the generated frame upscaled 2×.
+S1.4. Training and Optimization
+How do we train a memory to survive long occlusions un-
+der bounded GPU memory? Every model trains on win-
+dows of 128 consecutive frames (Figure S10).
+The first
+64 frames are a warm-up: the model runs forward on them
+without gradients, so that by frame 65 its memory already
+holds what the episode showed earlier, such as a file that
+was edited and then closed. The remaining 64 frames are
+trained with truncated BPTT, with a loss on 8 of them. We
+use AdamW (β1=0.9, β2=0.999, weight decay 0.01), a lin-
+ear learning-rate warm-up to a constant rate (200 steps at
+512×384; 150 to 300 at 1024×768), global gradient-norm
+clipping at 1.0, and a T=1,000 diffusion schedule. Table S3
+gives the training budget and sampling settings of every
+model, and Table S1 the remaining settings of the 512×384
+model. All 512×384 models are initialized from NEURA-
+LOS’s joint-272k checkpoint; the baseline is fine-tuned
+with the published NEURALOS recipe. The 1024×768 runs
+of Ours stop at a wall-clock limit, so their step counts are
+means over seeds (867, 834 and 826 steps on the Dense
+Interactive Mixture; 1,510, 2,105 and 2,069 on the Broad
+Mixture). Notably, every budget difference favors the base-
+lines rather than Ours: fine-tuned NEURALOS sees three
+times as many windows as our 512×384 model, and COPY-
+ONLY sees about four times as many as ours on the Dense
+Interactive Mixture. The 1024×768 models use the mem-
+ory and loss settings of Table S1 with a learning rate of 10−5
+for pretrained weights and 10−4 (1.5×10−4 on the Dense
+Interactive Mixture) for new modules.
+S2. Model Hyperparameters
+Table S1 lists the settings of the 512×384 model, as trained
+for the ablation experiment of Section S4; training budgets
+16
+
+
+Preprint. Under review.
+Symbol
+Value
+Role
+M, Hr
+64, 4
+Slots and read heads
+–
+64, 512, 8×128 Key, semantic, visual sizes
+µEMA
+0.996
+JEPA target momentum
+αs, βs
+4.0, 1.25
+Surprise-gate scale, offset
+τw, τr, τa
+0.1, 0.1, 0.05
+Write, read, alloc. temp.
+λprec, ufree
+5, 0.1
+Alloc. penalty, threshold
+λalign, λq
+0.5, 0.5
+Alignment, query weights
+–
+0.07
+InfoNCE temperature
+δstat, δchg
+0.02, 0.35
+Static, changed thresh.
+λVICReg, λswap, ρ
+0.25, 0.5, 0.1
+VICReg, swap, margin
+Nout
+16
+VLM outcome queries
+r
+16
+LoRA rank
+λJEPA, λexe, λprobe 0.5, 0.2, 0.1
+Joint loss weights
+ωchg, λstatic
+4, 0.1
+Rendering loss (Equation (S3))
+g0
+0.25
+Cross-attn. gate init
+pdrop
+0.5
+Blank screen to the VLM
+–
+0.3
+Reference-copy dropout
+–
+10−4, 10−5
+LR: new, pretrained
+–
+200, 3,000
+LR warm-up, total steps
+–
+16
+Batch size
+–
+8
+Loss frames per window
+Table S1. Settings of the 512×384 model. Symbols follow Main
+Section 3 and Section S1.1; rows without a symbol are described
+in Section S1.4. sc is the per-channel standard deviation of the
+training residuals.
+are in Table S3.
+S3. Data Corpus Provenance and 1024×768
+Mixture
+Public GUI corpora offer broad application diversity but
+rarely revisit closed files or test arithmetic after the screen
+is cleared. Pairing three public desktop corpora with our
+controlled XFCE recordings gives 173,975 cleaned train-
+ing trajectories across all five sources (169,207 public and
+4,768 in-house XFCE, Table S2). Figure S5 shows all five
+sources, Figure S6 shows three AgentNet episodes at full
+resolution, and Figure S7 shows one complete episode of
+each controlled task.
+Alignment and sanitization.
+The sources differ in as-
+pect ratio, action logging, and frame timing, so we normal-
+ize each before training. We letterbox all 16:9 recordings
+onto a 4:3 canvas and parse pyautogui scripts with a
+non-executing abstract syntax tree (AST) parser. This re-
+moves 194 corrupted trajectories (45 ProCUA-SFT records
+with misparsed (0, 0) scroll coordinates and 149 Agent-
+Net records with missing gap frames) and corrects a one-
+frame action offset in ProCUA-SFT, so that every step obeys
+(xt, at) →xt+1. Episodes shorter than 64 frames are left-
+padded with zero latents, which are masked out of all losses.
+1https://huggingface.co/datasets/p-doom/cuagym-
+qwen35-rollouts
+S4. Four Ablations at 3,000 Steps
+The ablations are separate, shorter experiments. Every arm,
+including the full model, was trained for only 3,000 steps
+(Section S1.4), so the numbers in Sections S4.1 to S4.4
+should be compared with each other and not with the main
+tables, which report longer training.
+In this setting, the full model reaches 40.3±0.7% edited-
+file recall, 28.2 ± 2.1% cleared-screen answers and 43.5 ±
+2.2% Terminal OCR. Each ablation removes one compo-
+nent from the full model2. Answer accuracy is counted over
+124 transitions, so it moves in steps of 0.8 points; several
+arms that keep the execution loss average to the same value,
+28.2% (35 of 124).
+S4.1. Memory Supervision (MEMORY-JEPA)
+The memory objective is intended to supply a learning sig-
+nal across an occlusion, where a hidden file affects only a
+small patch of the single reopen frame. Without the mem-
+ory objective (LJEPA=0), edited-file recall is 32.1% (seeds
+25.9% and 38.3%), against 40.3±0.7% for the full model of
+the same experiment; cleared-screen answers (28.2%) and
+Terminal OCR (45.2%) are unchanged.
+S4.2. Surprise Gating
+Writing on every frame (ηt ≡1) gives 35.8% edited-file
+recall (seeds 33.3% and 38.3%), against 40.3±0.7% for the
+full model of the same experiment, which uses the surprise
+gate [17, 43, 65].
+S4.3. Symbolic Compute Supervision
+Cleared-screen answer accuracy scores the VLM’s decoded
+text, not the rendered screen. With the execution losses, the
+full model answers 28.2 ± 2.1% of the 124 cleared-screen
+queries (15.5% of arithmetic queries and 38.7% of number-
+recall queries), against 65.5 ± 0.5% of the 200 queries
+whose operands are still on screen. Without them (Lexe=0,
+Lprobe=0), cleared-screen answer accuracy is 0.0% in all
+three seeds, and Hout
+t
+probe accuracy falls from 23.7±2.8%
+to 0.0%. The answer does not arise from rendering supervi-
+sion alone.
+S4.4. Residual Target; Screen-Dropout Setting
+Regenerating the full frame at every step blurs small glyphs.
+Replacing the residual target ∆zt with full-frame x0 pre-
+diction lowers Terminal OCR from 43.5 ± 2.2% to 0.2 ±
+0.4% and leaves cleared-screen answers unchanged (28.2±
+2.4%). In this experiment the residual target trades recall
+for legible text: the full-frame arm has higher edited-file re-
+call (65.4 ± 10.5% against 40.3 ± 0.7%). During training
+2The full model and the arms without the execution loss or the residual
+target have three seeds. The arms without the memory loss or the surprise
+gate have two.
+17
+
+
+Preprint. Under review.
+Source
+Origin / License
+Train / Dev ep.
+Share
+Notes
+Desktop (VS Code)
+In-house XFCE
+768 / 96
+12.5%
+32 matched triplets
+Maths (Python REPL)
+In-house XFCE
+4,000 / 300
+12.5%
+4 arithmetic families
+AgentNet [56]
+xlangai/AgentNet (MIT)
+21,957 / 425
+75.0%
+2,500 ep. at 1024×768
+ProCUA-SFT [32]
+nvidia/ProCUA-SFT (CC BY 4.0)
+92,964 / 396
+2,500 ep. at 1024×768
+CUA-Gym1
+p-doom/cuagym-qwen35-rollouts (CC0)
+54,286 / 531
+2,500 ep. at 1024×768
+Total
+5 sources (> 2.1 TB raw)
+173,975 / 1,748
+100.0%
+12,268 ep. at 1024×768
+Table S2. The 1024×768 Broad Mixture combines 75% public GUI trajectories with 25% controlled XFCE tasks. The cleaned
+pool holds 173,975 training trajectories (8.83M steps), and a stratified FLUX.1-schnell subset encodes 12,268 trajectories (694,266
+training windows) into FP16 R16×96×128 latents.
+Model
+Steps
+Win.
+/step
+Win.
+total
+DDIM
+steps
+512×384
+Ours (Section S4)
+3,000
+16
+48k
+32
+NEURALOS, fine-tuned 9,000
+16 144k
+32
+1024×768
+Ours, Dense Interactive
+842
+16
+13k
+2
+Ours, Broad
+1,895
+16
+30k
+2
+COPY-ONLY
+3,500
+16
+56k
+2
+Table S3.
+Training budget and sampling settings of every
+model. Win./step is the number of 128-frame training windows
+per optimizer step, and Win. total their product with the step count.
+the VLM sees a blank screen in place of xt with probability
+pdrop=0.5, and the reference copy ˜zt is dropped with prob-
+ability 0.3; we do not report an ablation of either setting.
+S5. Baseline Verification and Closed-Loop
+Rollouts
+In a closed-loop rollout the model’s own output replaces
+the ground-truth frame at every step, so errors can com-
+pound. Figure S8 shows one such student-forced rollout
+in VS Code, Section S8 shows further examples, and Main
+Table 1A reports PSNR after 261 self-generated steps.
+Zero-shot
+NEURALOS.
+The
+public
+joint-272k
+checkpoint, evaluated without fine-tuning on our XFCE
+suite, follows clicks but renders its own training desktop
+(9.84 dB PSNR and 0.708 LPIPS on Desktop, 9.04 dB and
+0.714 on Maths, Table S4). Fine-tuning it on our corpus
+adds 15.8 dB on Desktop (25.66 dB) and 15.0 dB on Maths
+(24.05 dB), and we use the fine-tuned model as the baseline
+throughout.
+Table S4 is a single evaluation seed, so its
+values differ slightly from the three-seed means of Main
+Table 1A.
+S6. High-Resolution 1024×768 Training on the
+Broad Mixture
+We also train the 1024×768 model on the 694,266-window
+Broad Mixture (Table S2), in addition to the Dense Interac-
+tive Mixture of Main Table 1B. Training ran for 21.5 h on
+4 GH200 GPUs, which covers 0.044 epochs. Between step
+500 and the last checkpoint, whole-frame PSNR rises from
+27.8 to 29.6 dB, active-edit gain from +0.09 to +2.97 dB,
+and AlexNet LPIPS falls from 0.074 to 0.056 (Figure S9).
+These are rendering metrics on the 862 active dev transi-
+tions used for Main Table 1B: 474 from VS Code, 324 from
+Maths and 64 from AgentNet. This set is 93% in-house
+data, which is all of the Dense Interactive Mixture and a
+quarter of the Broad Mixture, so it favors the model trained
+on the former. We report no memory or compute metric for
+this run.
+S7. Training Progression and Compute Budget
+The 1024×768 models train on the 128-frame windows
+of Section S1.4 for 6.3 h (Dense Interactive) and 21.5 h
+(Broad) on 4 NVIDIA GH200 GPUs, and their PSNR and
+active-edit gain are still rising at the last checkpoint (Fig-
+ure S9).
+S8. Additional Qualitative Rollouts
+Four further 512×384 rollout strips complement Main Fig-
+ures 3 and 4. Each is a single episode chosen by hand to
+illustrate a behavior; aggregate results are in Main Tables 1
+and 2. Each figure carries a banner stating its protocol. In a
+teacher-forced rollout every frame is predicted from the real
+frames before it, so the test isolates memory across the gap.
+In a student-forced rollout the model is given only its own
+previous output, so errors can compound. Teacher-forced:
+on a second episode of the File Manager task of Main Fig-
+ure 3, Ours redraws the New Folder icon after a 128-
+step occlusion (Figure S11).
+Student-forced: Ours re-
+draws the hidden star after 37 VS Code steps (Figure S12),
+keeps the created folder across 16 File Manager steps (Fig-
+ure S13), and keeps the terminal header legible across 9
+18
+
+
+Preprint. Under review.
+Split (frames)
+NEURALOS (512×384)
+LPIPS ↓
+PSNR ↑
+SSIM ↑
+FID ↓
+Terminal OCR (%) ↑
+Desktop (930)
+Public release (zero-shot)
+0.708
+9.84
+0.565
+376.8
+–
+Fine-tuned (9k steps)
+0.113
+25.66
+0.914
+67.9
+–
+Maths (701)
+Public release (zero-shot)
+0.714
+9.04
+0.425
+466.1
+0.0
+Fine-tuned (9k steps)
+0.127
+24.05
+0.795
+85.2
+0.0
+Table S4. Fine-tuning NEURALOS on our corpus adds +15–16 dB over the unmodified public release. Evaluated on identical
+512×384 dev frames (32 DDIM steps, seed 0). Zero-shot joint-272k renders its own training desktop, and even after fine-tuning
+Terminal OCR stays at 0.0% (n=157).
+Python REPL steps (Figure S14).
+S9. Generalization to Unseen Desktops
+Ours generalizes to unseen desktops better than NEURA-
+LOS [46]: trained on the same recordings, the two models
+render VS Code with similar fidelity, but on Windows, ma-
+cOS and Ubuntu desktops NEURALOS loses 20.0 dB PSNR
+and ours 11.1 dB (Figure S15).
+Setup.
+We compare the two 512×384 models of Table S3.
+Both start from the NEURALOS joint-272k checkpoint
+and are trained only on the Dense Interactive Mixture, our
+recordings of VS Code in an XFCE desktop (Desktop) and
+of a Python REPL (Maths); NEURALOS is fine-tuned for
+9,000 steps and ours for 3,000. Neither model has seen
+an AgentNet frame. The seen-app set is 30 held-out VS
+Code episodes from Desktop. The unseen-desktop set is 30
+AgentNet [56] dev episodes: 16 from Windows, 9 from ma-
+cOS and 5 from Ubuntu, covering browsers, office and pre-
+sentation software, a terminal, system settings and maps; 4
+of them show VS Code under another operating system and
+theme. Each frame is predicted teacher-forced, that is, from
+the true preceding frames and actions, so both models al-
+ways receive the real current screen. We score the first 12
+transitions of each episode, sampled with 32 DDIM steps,
+for one training seed and one sampling seed per model. We
+report PSNR and LPIPS [70], a learned perceptual distance
+computed on AlexNet features (lower is better), averaged
+within each episode and then over episodes, with 95% boot-
+strap intervals over episodes.
+Result.
+On VS Code the two models are close: 26.2
+against 25.8 dB PSNR and 0.097 against 0.120 LPIPS for
+ours and NEURALOS. On unseen desktops NEURALOS
+falls to 5.8 dB and 0.86 LPIPS and ours to 15.1 dB and 0.34;
+the intervals do not overlap (Figure S15). In the generated
+screens of Figure S16, NEURALOS replaces a Windows or
+macOS screen with a dark screen, with illegible text in the
+Windows example, while ours keeps the screen it is given.
+When an action opens a new page or a dialog on these
+desktops, ours keeps the old screen, with artifacts.
+Our
+1024×768 model, trained on the same mixture and scored
+on the same episodes after downsampling to 512×384, falls
+from 30.4 to 19.2 dB.
+Why NEURALOS fails.
+In NEURALOS the UNet that
+draws the next screen never sees the current one: the latent
+zt of the current screen (16×48×64 = 49,152 numbers)
+enters the lower of two stacked LSTMs only as one atten-
+tion read-out of 1,024 numbers, and the UNet is conditioned
+only on an MLP projection of the upper LSTM’s 4,096-
+number output. Whatever this state does not encode about
+the current screen must come from the UNet’s weights,
+which have learned the screens of the training data. The
+zero-shot result of Table S4 shows the same failure without
+our fine-tuning: the public NEURALOS release, shown our
+XFCE desktop, renders its own training desktop (9.84 dB).
+S10. Broader Impact and Ethics
+Off-screen state lives in an explicit memory bank, so it can
+be inspected, replaced, or wiped without resetting the rest
+of the model (Main Section 5.3). The main misuse risk
+is the generation of deceptive screenshots or ‘spoofed’ ap-
+plication sessions, which motivates provenance watermark-
+ing for generative interface systems. Our in-house data are
+XFCE virtual-machine recordings and contain no personal
+data. The AgentNet examples in Figures S5 and S6 are
+screenshots distributed with that corpus; we show none that
+contain photographs of people or account details. The pub-
+lic corpora are used under their licenses (AgentNet under
+MIT, ProCUA-SFT under CC BY 4.0, and CUA-Gym un-
+der CC0). On publication, we will release the aligned five-
+source corpus, our conversion and alignment pipelines, and
+our training code.
+19
+
+
+Preprint. Under review.
+𝘵: move
+Desktop (VS Code)
+𝘵+ 𝟣: ctrl+p
+𝘵+ 𝟤: type (12 keys)
+𝘵+ 𝟥: enter
+𝘵: move
+Maths (Python REPL)
+𝘵+ 𝟣: type (5 keys)
+𝘵+ 𝟤: enter
+𝘵+ 𝟥: ctrl+l
+𝘵: start
+AgentNet (human)
+𝘵+ 𝟣: type query, Enter
+𝘵+ 𝟤: scroll
+𝘵+ 𝟥: click result
+𝘵: move
+ProCUA-SFT (Kimi-K2.5)
+𝘵+ 𝟣: L-click (512,256)
+𝘵+ 𝟤: type (15 keys)
+𝘵+ 𝟥: enter
+𝘵: move
+CUA-Gym (Qwen3.5)
+𝘵+ 𝟣: L-click (176,651)
+𝘵+ 𝟤: L-click (78,261)
+𝘵+ 𝟥: type (18 keys)
+Figure S5. Representative four-frame trajectories across all five training sources. Top two rows: controlled XFCE Desktop persistence
+and Maths Ctrl+L arithmetic. Bottom three rows: letterboxed public GUI corpora (orange circles mark clicks). Each frame is labelled
+with the action that led to it.
+20
+
+
+Preprint. Under review.
+Web search
+to travel article
+t
+t + 1
+t + 2
+t + 3
+t + 4
+Music site
+navigation
+Download page
+to code repository
+Figure S6. Three AgentNet episodes from the 1024×768 open-world corpus: five consecutive recorded steps each. Frames are shown
+at full resolution with the letterbox bars cropped. Episodes are among the first dev episodes with six consecutive steps of visible change.
+shape file open
+(a) Desktop: a shape is shown, hidden while other files are edited, and reopened
+7 steps later
+15 steps later
+22 steps later
+30 steps later
+37 steps later: reopened
+type "f = 1"
+(b) Maths: a variable is assigned, the screen is cleared, and a query that needs it is evaluated
+Enter
+Ctrl+L
+type "n = 394"
+Enter
+type "f - 3"
+Enter (prints -2)
+Figure S7. The two controlled tasks, each shown as one complete recorded episode. (a) Desktop: the reopened frame can only be drawn
+correctly from memory of the first. (b) Maths: the value of f is no longer on screen when f - 3 is evaluated. All frames are recordings
+at 512×384; each is labelled with the action that led to it.
+21
+
+
+Preprint. Under review.
+STUDENT-FORCED
+after the first frame (at t = 17), the model is auto-regressively fed its own previous output.
+Ground Truth
+t = 17 (onset)
+t + 3 (frame 20)
+t + 6 (frame 23)
+t + 8 (frame 25)
+t + 11 (frame 28)
+t + 14 (reopen, f=31)
+Ours
+NeuralOS
+(Fine-Tuned)
+NeuralOS
+(Not Fine-Tuned)
+Figure S8. Ours recovers the edited circle after 14 closed-loop VS Code steps, whereas NEURALOS reverts to the pre-edit star.
+Student-forced: from t=17 the model is given only its own previous output. Unmodified NEURALOS (joint-272k) snaps back to its
+training desktop.
+500
+1000
+1500
+2000
+Optimizer steps
+28
+29
+30
+31
+interactive mixture
+broad mixture
+(a) 1024: whole-frame PSNR (dB)
+500
+1000
+1500
+2000
+Optimizer steps
+0
+2
+4
+copy previous frame
+(b) 1024: active-edit gain (dB)
+Figure S9. Rendering quality at 1024×768 is still rising when training stops. (a, b) Whole-frame PSNR and active-edit gain on the
+Dense Interactive (6.3 h) and Broad (21.5 h) mixtures on 4 GH200 GPUs. Error bars are s.d. over 3 trained seeds.
+Warm-up: frames 1 . . . 64, forward pass only
+Truncated BPTT window: frames 65 . . . 128 (8 frames with a loss)
+M0, h0
+reset state
+x1, a1
+step 1
+· · ·
+x64, a64
+step 64
+x65, a65
+step 65
+xt, at
+step t
+· · ·
+x128, a128
+step 128
+sg(M64, h64)
+Mt, ht
+BPTT grad
+xt+1, yt+1
+loss frame
+x129, y129
+loss frame
+One unified optimizer step
+1. Warm up Mt, ht for 64 steps
+(populates slots, zero grad cost)
+2. Unroll 64 BPTT steps; loss on 8
+(last step +7 sampled)
+3. Joint loss at those frames:
+Lren + λJEPALJEPA + λexeLexe + λprobeLprobe
+4. Backprop through Mt reads & writes
+into ϕq, ϕk, surprise gate ηt, LoRA, UNet
+5. Global grad clip 1.0 →AdamW step
+Figure S10. Each training window is 128 frames: 64 warm-up frames that only fill memory, then 64 frames that are trained on.
+The warm-up frames are run forward without gradients, so that the memory Mt and the LSTM state ht already hold what happened earlier
+in the episode (for example a file that was edited and then closed). The state (M64, h64) is then detached, and the losses (Lren, LJEPA,
+Lexe + Lprobe) are applied at 8 of the next 64 frames and backpropagated through the memory reads and writes within those frames.
+22
+
+
+Preprint. Under review.
+TEACHER-FORCED
+every frame is predicted from the real frames before it
+Ground Truth
+t = 3 (menu)
+t = 4 (dialog)
+t = 6 (created)
+t = 7 (closed)
+t = 137 (reopen)
+t = 137 (zoom)
+Ours (seed 1)
+Ours (seed 2)
+NeuralOS
+(seed 1)
+NeuralOS
+(seed 2)
+Figure S11. Both seeds of Ours retain New Folder after a 128-step occlusion, while fine-tuned NEURALOS blurs or erases it.
+Teacher-forced: every frame is predicted from the real frames before it. A second episode of the XFCE File Manager task of Main Figure 3
+(512×384): folder created at t=3..6, reopened at t=137 (rightmost column: 2.5× zoom).
+STUDENT-FORCED
+after the first frame, the model is auto-regressively fed its own previous output.
+Ground Truth
+t (file open)
+t + 7
+t + 15
+t + 22
+t + 30
+t + 37 (reopen)
+Ours
+NeuralOS
+(Fine-Tuned)
+Figure S12. Ours recovers the hidden star over 37 closed-loop VS Code steps, whereas fine-tuned NEURALOS draws a triangle.
+Student-forced: the model is given only its own previous output (512×384; 32 occluded steps in todo.md, 24.93 dB on reopen). NEU-
+RALOS also draws the star at t+22, while the file is still closed, before drawing a triangle on reopen.
+23
+
+
+Preprint. Under review.
+STUDENT-FORCED
+after the first frame, the model is auto-regressively fed its own previous output.
+Ground Truth
+t = 1 (onset)
+t = 4 (dialog)
+t = 6 (created)
+t = 7 (closed)
+t = 12 (desktop)
+t = 17 (reopen)
+t = 17 (2.5x zoom)
+Ours
+(25.2 dB)
+NeuralOS
+(Fine-Tuned, 25.3 dB)
+Figure S13. Ours keeps the New Folder icon across 16 student-forced File Manager steps. Student-forced: every frame after t=1
+is generated from the model’s own previous output (512×384, rightmost column 2.5× zoom): Ours retains the icon and label, while
+fine-tuned NEURALOS nearly erases it. Whole-frame PSNR is the same for the two models (25.2 and 25.3 dB); they differ in the folder
+region shown in the zoom.
+STUDENT-FORCED
+after the first frame, the model is auto-regressively fed its own previous output.
+Ground Truth
+t = 1 (onset)
+t + 2
+t + 4
+t + 6
+t + 8
+t + 9 (2x zoom)
+Ours
+(20.2 dB)
+NeuralOS
+(Fine-Tuned, 19.0 dB)
+Python REPL, dark terminal (string echo)
+Figure S14. Ours keeps the terminal header and the first command legible across 9 student-forced REPL steps, while fine-tuned
+NEURALOS loses the header within 2 steps. Student-forced: the model is given only its own previous output. 512×384 rollout on a
+dark-theme terminal (rightmost column: 2× zoom). Later lines blur for both models.
+Seen app
+(VS Code)
+Unseen desktops
+(AgentNet)
+0
+10
+20
+30
+NeuralOS
+Ours
+(a) PSNR (dB) ↑
+Seen app
+(VS Code)
+Unseen desktops
+(AgentNet)
+0.0
+0.2
+0.4
+0.6
+0.8
+NeuralOS
+Ours
+(b) LPIPS ↓
+Figure S15. Both models render VS Code with similar fi-
+delity; on unseen desktops NEURALOS loses 20.0 dB and
+ours 11.1 dB. Next-frame PSNR (a; higher is better) and
+LPIPS (b; a learned perceptual distance, lower is better) of the
+512×384 models, both trained only on our VS Code and Python
+REPL recordings. Each frame is predicted from the true preced-
+ing frames and actions (teacher-forced). Seen app: 30 held-out
+VS Code episodes. Unseen desktops: 30 AgentNet episodes
+from Windows, macOS and Ubuntu. Each point averages the
+first 12 frames of each episode, then the episodes; bars are 95%
+bootstrap intervals over episodes.
+24
+
+
+Preprint. Under review.
+Seen app
+VS Code (XFCE)
+Current screen 𝘹𝘵
+True next screen 𝘹𝘵+ 𝟣
+NeuralOS
+Ours
+Seen app
+VS Code (XFCE)
+Unseen desktop
+Windows
+Unseen desktop
+macOS
+Figure S16. On an unseen desktop NEURALOS replaces the screen with a dark one; ours keeps it. Each row is one teacher-forced
+step: the model receives the true screens up to xt and the user’s action, and predicts xt+1. On VS Code (top two rows) both models redraw
+the screen correctly, including closing the file that shows the star. On Windows (third row) the true next screen is a new page of templates;
+on macOS (bottom row) a dialog opens. NEURALOS draws a dark screen, with illegible text in the Windows row; ours keeps the current
+screen with blotchy artifacts and draws neither the page nor the dialog. Rows are selected by rule: in each set, frames in which at least 2%
+of pixels change are ranked by how much lower our LPIPS is than NEURALOS’s, and the frames at the one-third and two-thirds points are
+shown. Frames are at the native 512×384.
+25

@@ -1,0 +1,106 @@
+Title: GUI-WEdit and GUI-SkillEvo: Gradient-Free Adaptation of Small GUI Agents
+
+URL Source: https://arxiv.org/pdf/2611.32332v1
+
+Published Time: Wed, 25 Nov 2026 02:49:50 GMT
+
+Number of Pages: 5
+
+Markdown Content:
+# GUI-WEdit and GUI-SkillEvo: Gradient-Free Adaptation of Small GUI Agents 
+
+## Haixia Bi 1, Yingtian Chen 1, Sihan Yang 1, Zuzheng Kuang 1
+
+## Yuzhen Tong 2, Kai Fu 2, Zhengyong Wan 2
+
+> 1
+
+School of Information and Communications Engineering, Xi’an Jiaotong University, Xi’an 710049, China 
+
+> 2
+
+Ninetech Information Technology (Shenzhen) Co., Ltd. 
+
+haixia.bi@xjtu.edu.cn 
+
+Technical report — November 2026 
+
+## Abstract 
+
+Small graphical user interface (GUI) agents can execute desktop workflows, but repeated local errors and fragile procedural decisions limit their reliability. We present GUI-WEdit-4B and GUI-SkillEvo-2B, two gradient-free adaptations of GUI-Owl-1.5 backbones. For the 4B model, we use trajectory feedback to construct guarded, closed-form updates to a late multilayer perceptron (MLP), retaining successful states as protection constraints. The final checkpoint changes 23,739,095 parameter values, or 0.535% of the 4,437,815,808-parameter backbone, within one weight tensor. For the 2B model, an assistant iteratively proposes and refines procedural skills while the model weights remain fixed. On the 361-task OSWorld subset excluding Google Drive tasks, the frozen systems obtain final aggregate scores of 48.02% and 45.47%, respectively.  
+
+> Date:
+
+November 16, 2026 
+
+## 1 Introduction 
+
+OSWorld evaluates agents through executable desktop tasks and task-specific evaluators, requiring a model to translate visual observations into actions across applications [1]. A small model may locate the correct interface element yet fail by selecting an inappropriate mode, repeating a completed operation, or terminating at the wrong time. These failures motivate adaptation at two different points: the policy weights that produce actions and the procedural context supplied to the policy. We investigate these routes using GUI-Owl-1.5-4B-Instruct and GUI-Owl-1.5-2B-Instruct [2]. We call the resulting systems GUI-WEdit-4B (weight editing) and GUI-SkillEvo-2B (skill evolution). The 4B route edits a small fraction of the existing parameters without backpropagation or an optimizer. The 2B route keeps the backbone fixed and refines skills through execution feedback. Both retain the OSWorld task definitions and scoring criteria. Our contribution is an engineering study of a feedback-driven adaptation workflow, an audited 4B checkpoint with localized weight changes, and a frozen 2B skill harness with documented execution settings. Weight-space programming motivates using a language-model assistant to inspect failures and implement targeted changes to model parameters [3, 4]. Our implementation uses supervised state–action evidence and a constrained closed-form solve. For skills, we adopt the propose–evaluate–retain principle associated with 1arXiv:2611.32332v1 [cs.CV] 24 Nov 2026 Figure 1 Development and execution of the two adaptation routes. Repair and guard evidence inform the 4B closed-form edit; execution feedback refines the 2B skill library. The accepted checkpoint and skill library are fixed for evaluation. Matrix tiles and the GUI thumbnail are schematic. 
+
+recursive self-improvement [5]. Agent S2 studies a compositional computer-use harness [6]. 
+
+Related visual modeling. In remote sensing, methods incorporate task-specific structure through three-dimensional wavelet textures with Markov random fields or through unsupervised polarimetric image factor-ization with convolutional networks [7, 8]. More recent work uses adaptive graph relations for multilabel scene classification, local enhancement and cross-modal state-space fusion for land-cover classification, and multiscale contrastive pretraining for polarimetric image classification [9–11]. In a different domain, Transformers have been applied to the inverse design of terahertz polarization converters [12]. These studies adapt representations or architectures to their domains. Here, we instead start with existing GUI policies and adapt their behavior through localized weight edits or procedural guidance, without retraining their visual backbones. 
+
+## 2 Feedback-Driven Adaptation 
+
+Development uses feedback from public OSWorld tasks. We inspect recorded screenshots, action sequences, and evaluator outputs to identify actionable failures. Candidate changes are checked against successful reference states and then evaluated in closed-loop desktop interaction. The research assistant operates offline during development. Figure 1 summarizes the two routes. 
+
+2.1 GUI-WEdit-4B: Guarded Weight-Space Editing 
+
+Edit location. The selected matrix is model.language_model.layers.35.mlp.down_proj.weight , using zero-based layer numbering. It maps a 9,728-dimensional MLP activation to the 2,560-dimensional residual stream. Let this matrix be W ∈ R2560 ×9728 . We save a separate checkpoint with W ′ = W + ∆ W . Vision parameters, token embeddings, attention weights, other MLP layers, and model configuration are unchanged. 
+
+Target construction and protection. A desired action is chosen from the diagnosed interaction state. With the instruction, screenshots, history, and preceding response tokens fixed, we capture MLP inputs and residual activations using the serving implementation. Desired token readout margins define residual corrections 2U at target activation columns K. Successful reference states form a guard bank. A compact form of the construction objective is min 
+
+> ∆W
+
+∑
+
+> j∈G
+
+∥∆W g j ∥22
+
+∥hj ∥22
+
++ λ∥∆W D −1∥2 
+
+> F
+
+, subject to ∆ W K = U, (1) where gj is a guard activation, hj its residual state, and D contains the original column norms. The normalization discourages large relative changes to successful states. Writing the resulting positive-definite geometry as C, the equality-constrained solution is ∆W = U (KTC−1K)−1KTC−1. (2) Hard protection anchors are represented by zero-correction columns in U . We bound relative column and matrix perturbations, account for BF16 rounding and the configured repetition penalty in token checks, and reject candidates that violate the declared checks after serialization. These are analytic interventions, with gradients disabled and no optimizer updates. Guard residual perturbation screens candidates before closed-loop evaluation. 
+
+Final artifact. The final construction stage used one target input and 812 guard inputs, yielding 34,707 protected token states, including already-correct positions from the target response. It applied one corrective target position and one hard zero-change anchor. Earlier accepted edits are retained in the final checkpoint. An elementwise audit against the original backbone found 23,739,095 changed values in this single tensor out of 4,437,815,808 total parameter values (0.5349%). The other 712 serialized tensors are identical. No skill text is injected in the 4B evaluation. 
+
+2.2 GUI-SkillEvo-2B: Iterative Skill Refinement 
+
+The second route iteratively refines procedural skills while keeping the 2B backbone fixed. A development assistant inspects recorded screenshots and actions to diagnose a failed execution, then drafts a skill containing action guidance and stopping conditions. The skill is evaluated through the normal agent interface. The assistant uses the resulting trajectory and task score to revise the procedure or retain it in the skill library. The accepted library is fixed during evaluation. The wrapper uses exact instruction matching to select a procedure and append it to the instruction-side context; unmatched instructions retain the original prompt. At each step, the agent observes the current screenshot and generates a computer-use action. This separates offline skill refinement from online action generation, with the model weights remaining bitwise unchanged. 
+
+## 3 Evaluation Setup 
+
+Task scope and metric. We use the same fixed 361 tasks in ten domains, excluding the eight Google Drive tasks from the 369-task OSWorld suite. This subset is supported by the OSWorld setup guide [13]. The task scope follows OSWorld 1.0. We preserve raw finite scores from result.txt , including partial credit. A full-score task has score exactly one; the headline metric is the arithmetic mean of task scores, multiplied by 100. 
+
+Execution parameters. Table 1 records the actual settings of the frozen systems. The history parameter retains up to five image observations under the native agent’s message construction. Both systems use screenshot observations and the original GUI-Owl action parser connected to OSWorld’s parallel runner. The 4B route changes model weights, and the 2B route adds skill context; neither changes evaluator functions, scoring thresholds, or task objectives. 
+
+Score aggregation. We report the arithmetic mean of the valid score for each of the 361 tasks. Historical backbone test scores are included for reference. 3Table 1 Recorded execution settings for GUI-WEdit-4B and GUI-SkillEvo-2B. Setting GUI-WEdit-4B GUI-SkillEvo-2B Backbone GUI-Owl-1.5-4B-Instruct GUI-Owl-1.5-2B-Instruct History parameter 5 5Runner max_steps 50 75 Agent max_trajectory_length 50 50 Temperature / top-p / top-k 0 / 0.9 / 1 0 / 0.9 / 1 Repetition penalty 1.05 1.05 Maximum output tokens 4,096 4,096 Screen resolution 1920 × 1080 1920 × 1080 Post-action wait 4 seconds 4 seconds 
+
+keep_full_response 0 0Environments per runner 2 4Serving GPU / tensor parallelism A100 / 1 A100 / 1 vLLM / PyTorch 0.30.0 / 2.13.0 0.25.1 / 2.11.0 Task skill injection Off Enabled    
+
+> The native agent returns FAIL when its response-history count reaches max_trajectory_length . Both systems therefore retain the agent’s 50-response termination rule.
+
+## 4 Results 
+
+Table 2 Final results and historical project references on the same 361-task scope. System Historical base (%) Final (%) Difference (pp) Full score GUI-SkillEvo-2B 37.68 45.47 +7.79 159/361 GUI-WEdit-4B 43.43 48.02 +4.59 168/361 
+
+The frozen 4B checkpoint obtains a final aggregate of 48.02%, and the frozen 2B system obtains 45.47% (Table 2). The 4B result is 4.59 percentage points above its historical project reference, while the 2B difference is 7.79 points. Table 3 gives all ten domains. The 4B system scores 80.77% on GIMP, 69.57% on VS Code, and 56.51% on Writer. The 2B system scores 93.33% on Thunderbird, 91.67% on operating-system tasks, and 69.57% on VS Code. Multi-application workflows and Calc remain difficult for both systems. 
+
+Table 3 Domain-level final mean scores and full-score counts. Overall means weight domains by their task counts. Domain Tasks 2B mean (%) 2B full 4B mean (%) 4B full Chrome 46 43.39 19 45.56 20 GIMP 26 69.23 18 80.77 21 LibreOffice Calc 47 25.53 12 27.66 13 LibreOffice Impress 47 33.84 15 53.06 24 LibreOffice Writer 23 65.21 14 56.51 12 Multi-application 93 26.23 23 30.71 27 Operating system 24 91.67 22 66.67 16 Thunderbird 15 93.33 14 66.67 10 VLC 17 40.56 6 58.21 9VS Code 23 69.57 16 69.57 16 Overall 361 45.47 159 48.02 168 
+
+Task-level outcomes. Against the historical 4B reference, 38 tasks improve, 20 decrease, and 303 retain the same score. 45 Conclusion 
+
+We document two practical routes to adapting small desktop agents without conventional gradient-based model training. Guarded weight-space editing concentrates the 4B changes in one late MLP tensor, while iterative skill refinement adapts the 2B harness with fixed model weights. The frozen systems reach final 361-task aggregates of 48.02% and 45.47%. 
+
+## References 
+
+[1] Tianbao Xie, Danyang Zhang, Jixuan Chen, Xiaochuan Li, Siheng Zhao, Ruisheng Cao, Toh Jing Hua, Zhoujun Cheng, Dongchan Shin, Fangyu Lei, et al. OSWorld: Benchmarking Multimodal Agents for Open-Ended Tasks in Real Computer Environments, 2024. URL https://arxiv.org/abs/2404.07972 .[2] Haiyang Xu, Xi Zhang, Haowei Liu, Junyang Wang, Zhaoqing Zhu, et al. Mobile-Agent-v3.5: Multi-platform Fundamental GUI Agents, 2026. URL https://arxiv.org/abs/2602.16855 .[3] Rikiya Takehi, Jayden Teoh, Alex Zhang, and Omar Khattab. Sparks of Weight-Space Programming: LLMs can natively read & write neural network weights, 2026. URL https://rikiyat.github.io/blog/ weight-space-programming/ . Published November 2, 2026; accessed November 16, 2026. [4] Jusheng Zhang, Keze Wang, and Liang Lin. Can LLMs Debug Robots by Editing Their Weights?, 2026. URL 
+
+https://arxiv.org/abs/2611.09376 .[5] Taoyong Cui, Pinxian Zeng, Wanghan Xu, Hao Xiao, Shuhan Xue, Qiang Gao, Wanli Ouyang, Pheng Ann Heng, Zhenfei Yin, Yingcheng Wu, and Ling Yang. RSI-Anything: Unlocking Recursive Self-Improvement with World Models, 2026. URL https://arxiv.org/abs/2610.13912 .[6] Saaket Agashe, Kyle Wong, Vincent Tu, Jiachen Yang, Ang Li, and Xin Eric Wang. Agent S2: A Compositional Generalist-Specialist Framework for Computer Use Agents, 2025. URL https://arxiv.org/abs/2504.00906 .[7] Haixia Bi, Lin Xu, Xiangyong Cao, and Zongben Xu. PolSAR image classification based on three-dimensional wavelet texture features and markov random field. In 2017 IEEE International Geoscience and Remote Sensing Symposium (IGARSS), pages 3921–3928, 2017. doi: 10.1109/IGARSS.2017.8127858. [8] Haixia Bi, Feng Xu, Zhiqiang Wei, Yibo Han, Yuanlong Cui, Yong Xue, and Zongben Xu. Unsupervised PolSAR image factorization with deep convolutional networks. In IGARSS 2019—2019 IEEE International Geoscience and Remote Sensing Symposium, pages 1061–1064, 2019. doi: 10.1109/IGARSS.2019.8900489. [9] Haixia Bi, Honghao Chang, Xiaotian Wang, and Danfeng Hong. Cross-attention-driven adaptive graph relational network for multilabel remote sensing scene classification. IEEE Transactions on Geoscience and Remote Sensing, 62:1–14, 2024. doi: 10.1109/TGRS.2024.3476089. Article 5644115. [10] Honghao Chang, Haixia Bi, Chen Xu, and Fan Li. LSFMamba: Local-enhanced spiral fusion Mamba for multi-modal land cover classification. IEEE Transactions on Circuits and Systems for Video Technology, 36(5): 6081–6094, 2026. doi: 10.1109/TCSVT.2026.3651397. [11] Zuzheng Kuang, Haixia Bi, Fan Li, and Chen Xu. ECP-Mamba: An efficient multiscale self-supervised contrastive learning method with state space model for PolSAR image classification. IEEE Transactions on Geoscience and Remote Sensing, 63:1–18, 2025. doi: 10.1109/TGRS.2025.3601583. Article 5218718. [12] Bingxuan Mao, Honghao Chang, Xiaohua Xing, Qiankun Zhang, Die Zou, Yin Liu, Jianquan Yao, Haixia Bi, and Liang Wu. Designing ultra-broadband terahertz polarization converters based on the Transformer model. Optics Communications, 559:130434, 2024. doi: 10.1016/j.optcom.2024.130434. [13] OSWorld Maintainers. OSWorld Setup and Evaluation Guide, 2026. URL https://github.com/xlang-ai/ OSWorld/blob/main/SETUP_GUIDELINE.md . Accessed November 16, 2026. 
+
+5
