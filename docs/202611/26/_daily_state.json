@@ -1,0 +1,41 @@
+{
+  "date": "20261126",
+  "date_label": "2026-11-25 06:00 ~ 2026-11-26 06:00 (UTC+8)",
+  "generated_at": "2026-11-26 04:02:51 UTC",
+  "recommend_exists": true,
+  "run_count": 1,
+  "papers": [
+    {
+      "paper_id": "2611.33760v1",
+      "route": "202611/26/2611.33760v1-glassground-gui-grounding-beyond-native-screenshots-with-egocentric-wearable-vision",
+      "title": "GlassGround: GUI Grounding Beyond Native Screenshots with Egocentric Wearable Vision",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "将截图与可穿戴相机视角配对的 GUI 定位基准",
+      "first_seen_at": "2026-11-26 04:02:51 UTC",
+      "updated_at": "2026-11-26 04:02:51 UTC"
+    },
+    {
+      "paper_id": "2611.34232v1",
+      "route": "202611/26/2611.34232v1-os-omni-benchmarking-generalist-computer-using-agents-on-long-horizon-workflows-across-platforms",
+      "title": "OS-Omni: Benchmarking Generalist Computer-Using Agents on Long-Horizon Workflows Across Platforms",
+      "section": "deep",
+      "tags": [
+        {
+          "kind": "query",
+          "label": "gui-agents"
+        }
+      ],
+      "score": 9.0,
+      "evidence": "跨平台计算机使用智能体的实时基准与执行环境",
+      "first_seen_at": "2026-11-26 04:02:51 UTC",
+      "updated_at": "2026-11-26 04:02:51 UTC"
+    }
+  ]
+}

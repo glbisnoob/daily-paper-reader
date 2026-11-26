@@ -48,17 +48,17 @@
 <section class="dpr-home-dashboard-card dpr-home-report-card">
   <div class="dpr-home-dashboard-header">
     <div>
-      <span class="dpr-home-dashboard-kicker">2026-11-24 06:00 ~ 2026-11-25 06:00 (UTC+8)</span>
+      <span class="dpr-home-dashboard-kicker">2026-11-25 06:00 ~ 2026-11-26 06:00 (UTC+8)</span>
       <h3 class="dpr-home-dashboard-title">今日汇总</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">共 8 篇</strong>
+    <strong class="dpr-home-dashboard-count">共 2 篇</strong>
   </div>
   <dl class="dpr-home-dashboard-stats">
     <div class="dpr-home-dashboard-stat"><dt>累计更新</dt><dd>1 次</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>5</dd></div>
-    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>3</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>精读</dt><dd>2</dd></div>
+    <div class="dpr-home-dashboard-stat"><dt>速读</dt><dd>0</dd></div>
   </dl>
-  <p class="dpr-home-dashboard-body">最近更新：2026-11-25 04:57:39 UTC<br>状态：成功</p>
+  <p class="dpr-home-dashboard-body">最近更新：2026-11-26 04:02:51 UTC<br>状态：成功</p>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-brief-card">
   <div class="dpr-home-dashboard-header">
@@ -69,7 +69,7 @@
     <strong class="dpr-home-dashboard-count">AI</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<p>今日共筛出8篇论文（精读5篇、速读3篇），重点覆盖GUI智能体与视觉语言模型方向。最值得看的是GUI定位：语义探针引导的自适应聚焦与GUI-PRISM高效动作解码双双拿到9.0分。建议普通读者先读这两篇9分精读，再按兴趣浏览7.0分的FigmaEval等速读作为背景。</p>
+<p>今日精读两篇 9.0 分论文，聚焦 GUI 智能体的“看见”与“评测”。最值得看的是 GlassGround 用第一视角可穿戴视觉突破原生截图限制，以及 OS-Omni 跨平台长流程基准。普通读者可优先看 OS-Omni 的评测设计，理解智能体落地难点。</p>
   </div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-deep-card">
@@ -78,12 +78,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">精读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">5 篇</strong>
+    <strong class="dpr-home-dashboard-count">2 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="Your VLM Knows What to Inspect: Semantic Probe-Guided Adaptive Focusing for GUI Grounding">Your VLM Knows What to Inspect: Semantic Probe-Guided Adaptive Focusing for GUI Grounding</span></li><li><span class="dpr-home-dashboard-paper-title" title="GUI-PRISM: Efficient Action Decoding for GUI Agents">GUI-PRISM: Efficient Action Decoding for GUI Agents</span></li><li><span class="dpr-home-dashboard-paper-title" title="RISE: Reasoning with Implicit State Embeddings for GUI Agents">RISE: Reasoning with Implicit State Embeddings for GUI Agents</span></li></ul>
+<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="GlassGround: GUI Grounding Beyond Native Screenshots with Egocentric Wearable Vision">GlassGround: GUI Grounding Beyond Native Screenshots with Egocentric Wearable Vision</span></li><li><span class="dpr-home-dashboard-paper-title" title="OS-Omni: Benchmarking Generalist Computer-Using Agents on Long-Horizon Workflows Across Platforms">OS-Omni: Benchmarking Generalist Computer-Using Agents on Long-Horizon Workflows Across Platforms</span></li></ul>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>5</strong></span></div>
+  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>2</strong></span></div>
 </section>
 <section class="dpr-home-dashboard-card dpr-home-skim-card">
   <div class="dpr-home-dashboard-header">
@@ -91,12 +91,12 @@
       <span class="dpr-home-dashboard-kicker">今日累计</span>
       <h3 class="dpr-home-dashboard-title">速读推荐</h3>
     </div>
-    <strong class="dpr-home-dashboard-count">3 篇</strong>
+    <strong class="dpr-home-dashboard-count">0 篇</strong>
   </div>
   <div class="dpr-home-dashboard-body">
-<ul class="dpr-home-dashboard-paper-list"><li><span class="dpr-home-dashboard-paper-title" title="FigmaEval: A Benchmark for Evaluating AI Agents in Professional UI Design">FigmaEval: A Benchmark for Evaluating AI Agents in Professional UI Design</span></li><li><span class="dpr-home-dashboard-paper-title" title="Interactive Neural Computers">Interactive Neural Computers</span></li><li><span class="dpr-home-dashboard-paper-title" title="ShellBench: What Matters More for AI Agents, Models, or Harness for Everyday Tasks">ShellBench: What Matters More for AI Agents, Models, or Harness for Everyday Tasks</span></li></ul>
+<p class="dpr-home-dashboard-empty">今日暂无推荐。</p>
   </div>
-  <div class="dpr-home-dashboard-tags"><span class="dpr-home-dashboard-tag">gui-agents <strong>3</strong></span></div>
+
 </section>
 </div>
 

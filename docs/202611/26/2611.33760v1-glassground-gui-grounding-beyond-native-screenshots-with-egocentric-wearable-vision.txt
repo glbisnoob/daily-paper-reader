@@ -1,0 +1,3880 @@
+GlassGround: GUI Grounding Beyond Native Screenshots with
+Egocentric Wearable Vision
+Yun Wang1
+Siyue Sun2
+Jiaying Du1
+Xinyi Wei1
+Xiaoming Zhai1
+Zhenlin An1
+Ninghao Liu3
+1University of Georgia
+2Northeastern University
+3The Hong Kong Polytechnic University
+{yun.wang1, jd04294, xinyi.wei, xiaoming.zhai, zhenlin.an}@uga.edu
+sun.siyue@northeastern.edu
+ninghliu@polyu.edu.hk
+Abstract
+Wearable assistants must localize interface elements from
+camera observations when direct screenshot access is un-
+available, yet existing GUI grounding benchmarks primar-
+ily evaluate native screenshots. We introduce GlassGround,
+a new benchmark that pairs native screenshots with wear-
+able camera observations while holding GUI states, in-
+structions, and targets fixed. GlassGround contains 3,250
+tasks across Android and iOS, captured using four wear-
+able devices under four viewing conditions.
+Across ten
+open-source models, mean grounding accuracy drops from
+94.8% on screenshots to 48.5% on camera images. Further
+analysis reveals that changes in target scale, screen geom-
+etry, and background cannot fully explain this performance
+degradation. We then study two ways to narrow this gap. At
+inference time, local zooming and screen rectification help
+but leave most of the gap. For training-time adaptation, we
+build on GlassGround’s paired-view design and introduce
+PairDistill, a baseline that aligns target representations
+across views alongside coordinate supervision. Trained on
+independently collected data and using no screenshots at
+inference, it improves camera-image accuracy by 9.4 and
+12.2 points on two backbones and transfers to unseen de-
+vices and operating systems. Combined with local zoom-
+ing, it reaches 69.6% and 64.4%, but does not close the
+gap. The GlassGround dataset and code are available at
+https://github.com/yunnw/GlassGround.
+1. Introduction
+Wearable AI assistants on smart glasses can guide users
+through smartphone tasks using egocentric camera views of
+the phone screen [18]. For example, when a user is learning
+an unfamiliar application, an assistant needs to identify the
+next action based on the current screen and update its guid-
+ance after the user acts [7]. Making this guidance actionable
+Figure 1. GUI grounding is more challenging in physical obser-
+vations (e.g., wearable camera views) than in native screenshots.
+See our repository for a demo video of the live headset prototype.
+requires visual GUI grounding, which localizes the inter-
+face element corresponding to an action instruction, typi-
+cally in a native screenshot [4, 19]. However, unlike con-
+ventional GUI agents that operate directly on digital inter-
+faces, wearable assistants may observe a smartphone only
+through their cameras, without direct access to its screen-
+shots or underlying interface state [50]. In these egocentric
+camera views, the interface may occupy only a small part
+of the frame and exhibit perspective distortion, while illu-
+mination, reflections, and display-camera imaging effects
+can reduce the visibility or legibility of its content [33, 49].
+These visual changes may affect grounding: a model
+can correctly localize a target in a screenshot yet fail
+on the corresponding camera image (Fig. 1). Evaluating
+physical GUI grounding therefore requires a benchmark
+that captures real camera observations while controlling
+for differences in task content.
+However, existing GUI
+grounding benchmarks [4, 19] primarily evaluate ground-
+ing on native screenshots, while camera-captured screen
+datasets [49, 55] focus on image restoration rather than
+instruction-conditioned grounding.
+To address this need, we introduce GlassGround, a new
+benchmark for evaluating GUI grounding on real wearable
+1
+arXiv:2611.33760v1  [cs.CV]  25 Nov 2026
+
+
+camera observations. It pairs native screenshots with cam-
+era observations of the same GUI state, instruction, and tar-
+get. To construct these pairs, we display each screenshot
+on its original smartphone and capture the interface using
+multiple wearable devices under varied viewing conditions.
+Grounding tasks are constructed on native screenshots and
+shared across their paired camera observations to avoid the
+exclusion of targets that are difficult to discern in cam-
+era images. This paired design enables us to compare the
+grounding performance of the same model on native screen-
+shots and camera observations, and to analyze performance
+differences across devices and viewing conditions. When
+evaluated on camera images, models receive only the image
+and instruction, without access to the paired screenshot.
+Our evaluation using GlassGround reveals a substantial
+physical grounding gap. Across ten open-source models,
+mean accuracy drops from 94.8% on native screenshots to
+48.5% on physical observations, with considerable variation
+across devices and lighting conditions. To investigate this
+gap, we construct intermediate observations that account
+for changes in target scale, screen geometry, and back-
+ground. Yet the remaining gap between these transformed
+screenshots and real camera images still accounts for nearly
+two-thirds of the original degradation. We further evaluate
+ReGround, a local crop-and-reground strategy to improve
+grounding on small targets [19, 54]. Although ReGround
+improves accuracy, it leaves the gap between transformed
+screenshots and physical observations largely unchanged.
+Building on GlassGround’s paired-view design, we fur-
+ther introduce PairDistill, which uses target representa-
+tions from native screenshots to supervise corresponding
+representations in physical observations, alongside coordi-
+nate supervision. We construct training pairs by displaying
+annotated GUI screenshots on smartphones and capturing
+them with wearable cameras. On GlassGround, PairDis-
+till improves camera image grounding accuracy by 9.4 and
+12.2 pp for UI-Venus-2-9B and MAI-UI-8B, respectively.
+Combined with ReGround, their accuracies further increase
+to 69.6% and 64.4%. These gains also generalize to un-
+seen wearable devices, viewing conditions, and operating
+systems during training. Our contributions are as follows.
+• We introduce GlassGround, a benchmark for controlled
+comparisons of GUI grounding on native screenshots and
+real wearable camera observations.
+• We characterize the observation gap through intermediate
+observation stages, showing that most of the gap remains
+between transformed screenshots and real camera images.
+• We show that inference-time processing and training-time
+adaptation (PairDistill) provide complementary gains,
+narrowing but not closing the physical grounding gap.
+2. Related Work
+2.1. Visual GUI Grounding and Benchmarks
+Visual GUI grounding localizes the interface element re-
+ferred to by a natural language instruction and is a ba-
+sic capability of GUI agents. Grounding models such as
+UGround [9], OS-Atlas [40], and GUI-Actor [39] learn this
+capability from large collections of GUI screenshots, and
+GUI agents such as Aguvis [44] and UI-TARS [30] build on
+it to operate interfaces from screenshots. Grounding bench-
+marks have expanded alongside these models, starting with
+ScreenSpot [4] across mobile, desktop, and web interfaces.
+ScreenSpot-Pro [19] extends evaluation to small targets
+in high-resolution professional software, OSWorld-G [42]
+and VenusBench-GD [53] cover more complex ground-
+ing tasks, and IGG [14] studies targets that become visi-
+ble only after interaction. Recently, ScreenHaystack [17],
+WinDeskGround [52], and GUI-Perturbed [37] analyze
+grounding robustness by controlling target position, win-
+dow occlusion, interface layout and rendering, and instruc-
+tion phrasing. Whether they broaden task coverage or probe
+robustness, these benchmarks evaluate grounding on digital
+screenshots or rendered interfaces. GlassGround instead
+evaluates GUI grounding on physical screens observed
+through wearable cameras, introducing real display-to-
+camera imaging effects into the evaluation.
+2.2. Camera-Observed and Physical Interfaces
+Prior work has examined camera-observed physical in-
+terfaces from several perspectives. Screen recapture and
+demoir´eing studies use the correspondence between source
+images and their photographs to analyze imaging degrada-
+tion [48, 49, 51], and PC-Restore [55] further provides pairs
+of real camera-captured GUI images and clean references
+for image restoration with OCR-based evaluation. Screen-
+shotMatcher [33] retrieves the native screenshot that cor-
+responds to a photograph of a screen, and document rec-
+tification methods recover canonical geometry from pho-
+tographs [5, 8, 24].
+Systems such as RoScript [29],
+NiCro [41], RoboTest [46], and BrushLens [20] use exter-
+nal cameras to recognize, match, or operate elements on
+physical interfaces. Egocentric studies address visual in-
+tention grounding [34], visual question answering on smart
+glasses [12], pointing comprehension [16], and the transi-
+tion from scene perception to web tasks [47]. Unlike prior
+camera-based interface work, GlassGround benchmarks
+instruction-conditioned GUI grounding from wearable
+views, pairing camera observations with native screen-
+shots to measure the grounding gap on identical tasks.
+3. GlassGround: Benchmark Construction
+GlassGround is a benchmark with paired samples for GUI
+grounding from egocentric wearable viewpoints. Each sam-
+2
+
+
+(a) Paired Benchmark Unit
+(b) Egocentric Capture Setup
+Instruction:
+µ Change the Text
+6L]Hµ
+Wearable Devices
+Meta Project
+Aria Gen 1
+Meta Project
+Aria Gen 2
+Meta Quest 3
+Samsung
+Galaxy XR
+Native Screenshot
+(clean observation)
+Human-worn Capture
+(of iOS / Android Phones)
+(c) Clean-Side Task Construction
+1. Clean Screenshot
+2. Candidate
+Element Discovery
+3. Set-of-Mark
+Numbering
+4. Candidate-wise VLM
+Task Proposal
+5. Human Review
+(100%)
+(d) Geometry Transfer to Egocentric Observation
+1.CleanCorners&
+Targets
+2. Screen Geometry
+3. Project & Refine
+4. Physical-image
+Ground Truth
+Viewing Conditions
+Indoor - Dark
+Indoor - Lamp
+Outdoor - Shade
+Outdoor - Sun
+Egocentric Wearable Observation
+(physical observation)
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+OCR
+UI Parser
++
+Output for each candidate
+
+Taskable? (yes / no)
+
+Instruction (e.g.,
+´&KDQJH the VW\OHµl
+
+Element type (text /
+visual / functional /
+positional)
+VLM
+
+Validity & clickability
+
+Instruction quality
+
+Bounding box accuracy
+
+Keep / rewrite / reject
+Mark ID: 6
+Instruction: 
+Change the Text Size
+Type: Text
+Target: 
+[54, 1375, 1127, 1525]
+6
+interactive elements
+Clickable text
+regions
+1
+2
+3
+4
+5
+6
+7
+8
+9
+10
+Automatic
+detection
+Human
+corrected
+1
+2
+3
+4
+1Ѝ
+2Ѝ
+3Ѝ
+4Ѝ
+Human-verified polygon
+( ൒4 vertices)
+Same GUI State
+Same target
+Different observation
+Same instruction
+ܪܾܾ
+݋ݔܿ݋ݎ݊݁
+ݎݏൈܪ՜ ݎ݈݁ܽ
+ݍݑܽ݀
+Output: Human-
+Verified Clean Task
+Correct:
+point in polygon
+Incorrect
+5. Evaluation
+Figure 2. Overview of the GlassGround benchmark construction. (a) Each benchmark unit pairs a native screenshot (Clean) with
+an egocentric observation (Physical) of the same GUI state, instruction, and target. (b) Physical displays are captured with four head-
+worn devices under four viewing conditions. (c) Tasks are constructed on clean screenshots using candidate discovery, VLM-based task
+proposals, and full human verification. (d) Clean targets are transferred to egocentric images using human-verified screen geometry,
+homography, and optional local refinement, producing polygon ground truth for point-in-polygon evaluation.
+ple contains a native screenshot paired with egocentric im-
+ages of the same interface shown on a physical smartphone
+and captured by wearable devices. This design allows us to
+study the effect of physical observation on grounding with
+task content fixed. Fig. 2 shows the construction process.
+3.1. Paired Task Formulation
+A GlassGround task is defined as a triplet (s, q, e): a GUI
+state s, an instruction q, and the target element e ∈E(s)
+that q refers to, where E(s) is the set of UI elements in s.
+An observation I is an image showing the interface in s.
+For a given grounding task (s, q, e), each observation yields
+an evaluation instance (I, q, y), where y is the region in I
+corresponding to e. Given an instance, a grounding model
+receives only I and q and predicts a point ˆp ∈R2 in the
+coordinates of I. The prediction is correct if ˆp ∈y.
+We consider two observation processes that produce dif-
+ferent visual inputs for the same grounding task. The clean
+observation Ic = Oc(s) is the native screenshot of the
+GUI state. The physical observation Ip = Op(s; ϕ) is an
+egocentric image of the same state displayed on a physical
+screen and captured by a wearable device (see Fig. 2(a)).
+Here, ϕ denotes the capture setting. For each GUI state, we
+obtain one clean observation and collect K physical obser-
+vations under different capture settings {ϕk}K
+k=1, yielding
+I(k)
+p
+= Op(s; ϕk). Since they depict the same state, each
+I(k)
+p
+is paired with Ic. Each grounding task therefore yields
+K + 1 instances, one per observation, and each physical
+instance is paired with the clean instance of the same task:
+(Ic, q, yc) ←→{(I(k)
+p , q, y(k)
+p )}K
+k=1.
+(1)
+We refer to the change in the observation process, from Oc
+to Op with the underlying state held fixed, as an observa-
+tion shift. It changes the model input from Ic to I(k)
+p
+while
+leaving the task unchanged within each pair. This allows
+us to measure how physical observation affects grounding
+performance independently of differences in task content.
+3.2. Physical Display Capture Protocol
+We instantiate the physical observation process Op through
+a capture protocol designed to preserve identical GUI con-
+tent while varying the conditions under which it is observed.
+Specifically, we consider two major sources of variation:
+wearable imaging devices and viewing conditions. Their
+cross product defines K = 16 capture settings, comprising
+four devices and four viewing conditions (Fig. 2(b)).
+Preserving GUI content.
+Live interfaces may change
+across captures due to dynamic content. To preserve an
+3
+
+
+identical GUI state across all paired observations, we dis-
+play each native screenshot Ic full-screen on its original
+smartphone instead of repeatedly navigating to the same
+live interface. All physical observations of a state thus share
+identical GUI content, so their differences from Ic arise
+from the physical observation process.
+Imaging devices.
+Different wearable devices produce
+distinct image characteristics due to differences in optics,
+sensors, exposure control, and image signal processing
+(ISP) [28, 32]. To capture this variation, we include Meta
+Project Aria Gen 1 and Gen 2, research egocentric glasses
+that record from onboard RGB cameras, and Meta Quest 3
+and Samsung Galaxy XR, consumer XR headsets whose im-
+ages are obtained through their built-in capture functions.
+Viewing conditions.
+We capture each GUI state under
+four lighting conditions that affect screen visibility and leg-
+ibility [21]: Indoor-Dark (room lights off), Indoor-Lamp
+(fixed indoor lighting), Outdoor-Shade (daylight without di-
+rect sunlight on the phone), and Outdoor-Sun (phone di-
+rectly exposed to sunlight).
+Handheld capture and quality control.
+Operators wear
+the device and hold the phone naturally without a mount, al-
+lowing screen position, viewing distance, and viewing angle
+to vary within each capture setting. Display settings remain
+fixed for each phone and viewing condition, with adaptive
+brightness disabled. We retain device-specific appearance
+differences and natural artifacts such as mild blur, reflec-
+tions, and partial occlusion, but retake captures if any target
+falls partially outside the image boundary (Supp. Sec. 8.1).
+3.3. Grounding Task Construction
+We construct grounding tasks on native screenshots and
+reuse them across the corresponding physical observations.
+For each state s, we define an instruction q and target ele-
+ment e from the clean screenshot Ic, together with the corre-
+sponding target region yc (Fig. 2(c)). We avoid using phys-
+ical observations here, as doing so could preferentially omit
+tasks whose physical observations are hard to recognize.
+To generate candidate tasks, we first identify poten-
+tial target regions using OmniParser [22], supplemented by
+OCR to recover text regions that the parser may miss. We
+then assign Set-of-Mark labels [45] to the candidates, and
+query a VLM (Claude Fable 5.1 [2]) for each candidate in-
+dividually. It judges whether the candidate is a suitable tar-
+get and, if so, writes a grounding instruction without pre-
+dicting a target region. It also classifies each instruction as
+text, visual, functional, or positional according to its pri-
+mary grounding cue (see Supp. Sec. 8.2).
+Since generated instructions may contain ambiguous in-
+structions or invalid targets, human annotators review every
+candidate. They verify target validity and clickability, in-
+struction clarity and type, and bounding-box accuracy. An-
+notators may retain, revise, or reject proposals and add valid
+tasks missed by the automated pipeline. This yields the fi-
+nal q, e, and human-verified region yc. The resulting tasks
+are shared across all K physical observations of each GUI
+state, with only their target regions transferred (Sec. 3.4).
+3.4. Physical Ground-Truth Transfer
+To obtain target annotations for physical observations,
+we transfer the human-verified target regions from clean
+screenshots using geometric correspondence (Fig. 2(d)).
+Since the smartphone display is planar, a homography can
+map screenshot points into the wearable camera image.
+For each physical observation I(k)
+p , we detect the screen
+corners using YOLO11n-pose [13] fine-tuned on human-
+verified screen-corner annotations. Since errors in screen
+localization would affect all transferred targets, annotators
+manually verify and correct every corner prediction. Let
+{cj}4
+j=1 denote the corners of Ic and {c(k)
+j }4
+j=1 the corre-
+sponding verified screen corners in I(k)
+p . We compute the
+homography Hk determined by these correspondences,
+c(k)
+j
+= π(Hk˜cj) ,
+j = 1, . . . , 4,
+(2)
+where ˜cj denotes the homogeneous coordinates of cj, and
+π(·) maps them back to image coordinates. Applying the
+homography to the clean target region, with mesh refine-
+ment where local misalignment remains, yields the ground-
+truth region y(k)
+p , which we retain as a polygon to preserve
+its perspective geometry. Cross-review of all images shifts
+accuracy by at most 0.16 pp (see Supp. Sec. 8.3).
+3.5. Benchmark Statistics
+GlassGround contains 536 GUI states from 102 applica-
+tions across iOS and Android, comprising 303 iOS states
+and 233 Android states, with 3,250 grounding tasks in to-
+tal. The applications span eight categories: System, Media,
+Work, Shopping, Travel, Lifestyle, Social, and Web. Cate-
+gory, application, and instruction-type distributions are pro-
+vided in Supp. Sec. 8.2. Each GUI state is captured un-
+der the full 4 × 4 cross product of wearable devices and
+viewing conditions, yielding 8,576 unique physical images.
+Because multiple grounding tasks may share the same GUI
+state, these captures correspond to 52,000 task–observation
+instances. Thus, each of the 3,250 tasks forms one clean
+observation paired with 16 physical observations.
+4. Analyzing the Physical Grounding Gap
+We use GlassGround to evaluate GUI grounding in physical
+environments. Our analysis addresses three questions: (1)
+How large is the gap between native screenshots and phys-
+ical observations, and how does it vary across models and
+capture settings? (2) To what extent can changes in target
+4
+
+
+Table 1. Grounding accuracy (%) on GlassGround. Single-pass results cover observation stages and rectification with annotated (Oracle)
+or detected (Auto) screen corners. ReGround is reported separately. Open-source baselines are grouped into GUI-specialized and general-
+purpose models. Each column highlights the best and second-best scores on the full benchmark. † Evaluated on a shared stratified subset.
+Model
+Single-pass Accuracy ↑
+Rectified (Single-pass) ↑
+ReGround Accuracy ↑
+Clean
+Resized
+Warped
+Physical
+Oracle
+Auto
+Resized
+Warped
+Physical
+Closed-source VLMs†
+Claude Sonnet 5.5 [1]
+97.20
+90.13
+94.95
+70.29
+71.49
+69.96
+96.51
+96.98
+76.83
+GPT-6 Luna [26]
+95.80
+86.56
+88.96
+58.35
+47.53
+46.66
+90.39
+91.44
+61.28
+Jev 1.14 [36]
+83.60
+31.03
+27.14
+16.53
+48.91
+49.18
+49.76
+48.28
+31.35
+Open-source baselines
+MAI-UI-8B [54]
+95.45
+84.12
+75.41
+45.80
+62.54
+62.63
+92.43
+89.75
+59.03
+GUI-Owl-1.5-8B [43]
+92.37
+81.72
+74.29
+44.28
+56.33
+56.43
+88.89
+85.73
+53.62
+GUI-Owl-1.5-32B [43]
+95.17
+83.74
+77.06
+49.07
+60.34
+60.30
+90.81
+88.21
+57.09
+KV-Ground-8B [15]
+94.15
+83.63
+77.41
+47.93
+60.17
+60.09
+90.23
+87.06
+56.16
+UI-Venus-2-9B [35]
+95.94
+87.92
+84.43
+55.13
+65.97
+65.82
+93.66
+91.77
+63.68
+UI-Mate-27B [6]
+96.46
+85.69
+80.97
+49.77
+64.64
+64.53
+93.03
+91.32
+59.93
+Holo3.1-35B-A3B [10]
+94.52
+88.36
+78.20
+46.78
+63.63
+63.59
+93.32
+90.54
+59.69
+Indeed-UI-32B [11]
+95.78
+85.12
+78.71
+50.28
+60.68
+60.47
+91.87
+89.32
+57.57
+Muse Glimmer-30B [25]
+95.97
+85.16
+67.26
+39.76
+69.50
+69.18
+93.78
+92.43
+62.88
+Qwen3.8-27B [31]
+92.15
+88.65
+83.52
+56.04
+67.52
+67.37
+94.16
+92.21
+64.13
+Open-source Avg.
+94.80
+85.41
+77.73
+48.48
+63.13
+63.04
+92.22
+89.83
+59.38
+Adapted models (mean ± std., 3 seeds)
+UI-Venus-2-9B + PD
+96.24±0.37 89.90±0.23 87.80±0.27 64.48±0.53 69.58±0.58 69.65±0.62 93.91±0.17 92.86±0.18 69.62±0.47
+MAI-UI-8B + PD
+94.74±0.16
+85.46±0.70
+82.33±0.38
+57.96±0.21
+65.20±0.45
+65.17±0.41
+91.53±0.33
+90.09±0.46
+64.36±0.10
+scale, screen geometry, and background explain this degra-
+dation? (3) To what extent can inference-time processing
+recover grounding accuracy without changing the model?
+4.1. Evaluation Setup
+Models.
+Our model selection prioritizes recent GUI-
+specialized models with strong reported performance on
+screenshot-based GUI grounding benchmarks, allowing
+us to examine whether their grounding capabilities trans-
+fer to physical observations.
+Our open-source suite in-
+cludes eight GUI-specialized models: MAI-UI-8B [54],
+GUI-Owl-1.5-8B and GUI-Owl-1.5-32B [43], KV-Ground-
+8B [15], UI-Venus-2-9B [35], UI-Mate-27B [6], Holo3.1-
+35B-A3B [10], and Indeed-UI-32B [11]. To broaden the
+comparison beyond GUI-specialized models, we evaluate
+two general-purpose VLMs, Muse Glimmer-30B [25] and
+Qwen3.8-27B [31]. For closed-source baselines, we con-
+sider inference efficiency for wearable assistance and select
+Claude Sonnet 5.5 [1] and GPT-6 Luna [26], two efficiency-
+oriented VLMs, and Jev 1.14 [36], which targets fast struc-
+tured prediction. Open-source models are evaluated on the
+full benchmark, while closed-source models use a fixed sub-
+set comprising 500 clean and 8,000 physical instances.
+Inference and evaluation.
+By default, the model pre-
+dicts the target location from the input image and instruc-
+tion in a single call (Single-pass). In physical observations,
+the screen occupies only part of the image, so target ele-
+ments occupy a smaller fraction of it than in clean observa-
+tions. We therefore also evaluate ReGround, following prior
+work showing that region-focused refinement can improve
+small-target GUI grounding [19, 23, 27, 54]. ReGround re-
+localizes the target in an enlarged crop around the initial
+prediction, using at most one additional model call. For
+evaluation, we use the predicted point or the center of the
+predicted bounding box, depending on the model’s output
+format. Grounding accuracy is the percentage of evaluated
+instances satisfying the point-in-polygon criterion. Further
+details and matched-subset comparisons are in Supp. Sec. 9.
+4.2. Evaluating GUI Grounding with GlassGround
+We evaluate GUI grounding models on GlassGround. Our
+analysis focuses on three aspects: overall grounding accu-
+racy, performance differences across models, and variations
+across wearable devices and viewing conditions. Results
+are reported in Table 1. Some observations are as below.
+1 Existing GUI grounding models struggle with phys-
+ical observations.
+All ten open-source models achieve
+an average accuracy of 94.8% on native screenshots, but
+only 48.5% on physical observations of the same tasks.
+The gap is consistent across models, with individual drops
+ranging from 36.1 to 56.2 percentage points (pp). Three
+closed-source models show similar degradation (26.9–67.1
+pp). These results highlight the limited transfer of existing
+screenshot grounding capabilities to physical environments.
+2 High screenshot accuracy does not guarantee strong
+physical performance.
+Muse Glimmer-30B and UI-
+Venus-2-9B achieve similar accuracy on Clean (∼96%), but
+differ substantially on Physical (39.8% vs. 55.1%). Across
+5
+
+
+Clean
+Resized
+Warped
+Physical
+40
+50
+60
+70
+80
+90
+100
+Accuracy (%)
+Single-pass
+−46.3
++ ReGround
+−35.4
+Stage drop (pp)
+Single-pass
++ ReGround
+85.4
+77.7
+48.5
+94.8
+92.2
+89.8
+59.4
++6.8
++12.1
++10.9
+−9.4
+−7.7
+−29.2
+(63%)
+−2.6
+−2.4
+−30.5
+(86%)
+Clean
+Resized
+Warped
+Physical
+Screen pixels from native screenshot
+Screen pixels from camera capture
+Native screenshot
+Target area matched
+Homography + real scene
+Wearable camera image
+(a)
+(b)
+Rectified
+Inverse warp
+Target (ground truth)
+Screen corners
+(c)
+29.2 pp
+Clean 
+94.80%
+Warped 
+77.73%
+Rectified 
+63.13%
+Physical 
+48.48%
+Presentation
+Screen-aligned
+Camera-framed
+Screen pixel source
+Native 
+screenshot
+Camera 
+capture
+31.7 pp
+14.7 pp
+17.1 pp
+Homography
+Figure 3. Controlled analysis. (a) Different observation stages. Clean is the native screenshot. Resized scales the screenshot to match
+the target area in the corresponding physical image. Warped maps the screenshot to the annotated screen while retaining the surrounding
+scene. Physical is the original wearable camera image. (b) Grounding accuracy across observation stages, with and without ReGround.
+(c) Accuracy differences associated with screen pixel source and presentation.
+Aria Gen 1
+Aria Gen 2
+Quest 3
+Galaxy XR
+0
+20
+40
+60
+80
+100
+Accuracy (%)
+20.06
+54.93
+79.12
+63.96
+20.67
+65.85
+82.51
+79.39
+8.95
+39.38
+77.35
+74.91
+5.62
+17.67
+46.97
+38.37
+Clean  94.80
+(a)
+Indoor-Dark
+Indoor-Lamp
+Outdoor-Shade
+Outdoor-Sun
+0
+5
+10
+15
+Share of targets (%)
+10
+20
+50
+100
+200
+Target size in camera image (√area, px)
+0
+20
+40
+60
+80
+100
+Accuracy (%)
+Clean  94.80
+(b)
+Target-size distribution
+Physical
+Physical + ReGround
+Resized
+Warped
+Figure 4. Variation of the physical observation gap. (a) Single-
+pass accuracy on Physical across devices and viewing conditions.
+(b) Accuracy by target size. Results are averaged over ten open-
+source models, with shading indicating standard deviations.
+the ten open-source models, the accuracy range widens
+from 4.3 pp on Clean to 16.3 pp on Physical. Model rank-
+ings also change considerably: Qwen3.8-27B moves from
+last on Clean to first on Physical, while Muse Glimmer-30B
+falls from second to last. These results show that strong per-
+formance on screenshot-based benchmarks does not neces-
+sarily translate into strong physical performance.
+3 The physical grounding gap varies widely across de-
+vices and viewing conditions.
+Averaged over models and
+conditions (Fig. 4(a)), grounding accuracy is highest on
+Quest 3, followed by Galaxy XR, Aria Gen 2, and Aria
+Gen 1.
+Within each device, Outdoor-Sun is the hard-
+est condition and Indoor-Lamp the easiest.
+The relative
+difficulty of viewing conditions varies by device: Galaxy
+XR performs better under Outdoor-Shade than Indoor-Dark
+(74.9% vs. 64.0%), whereas the other devices show the op-
+posite trend. Imaging effects may contribute to these pat-
+terns: some Galaxy XR Indoor-Dark images lose fine text
+detail, while reflections and screen banding may help ex-
+plain why Outdoor-Sun is the hardest condition across de-
+vices (Supp. Fig. 9). Claude Sonnet 5.5 shows the same
+patterns, but reaches 59–66% on Aria Gen 1 indoors, where
+open-source models average 20% (Supp. Tab. 9). These re-
+sults highlight the importance of evaluating physical GUI
+grounding across diverse devices and viewing conditions.
+4.3. Physical Grounding Gap: Controlled Analysis
+To better understand the physical grounding gap, we inves-
+tigate how different visual changes affect grounding per-
+formance. Specifically, we construct intermediate observa-
+tions between native screenshots and physical camera im-
+ages (Fig. 3(a)): (1) Resized scales the native screenshot
+to match the target area in Physical; (2) Warped introduces
+perspective distortion and real backgrounds by projecting
+the screenshot using a homography estimated from human-
+verified corners. In contrast, Rectified applies an inverse
+homography, producing a front-facing view while retaining
+camera-captured screen content.
+4 The observation gap remains between transformed
+screenshots and real camera images.
+Across the ten
+open-source models, mean accuracy decreases from 94.8%
+on Clean to 85.4% on Resized, 77.7% on Warped, and
+48.5% on Physical (Fig. 3(b)).
+The Warped-to-Physical
+gap is 29.2 pp, which is much larger than drops of 9.4 pp
+(Clean to Resized) and 7.7 pp (Resized to Warped). The
+same pattern holds across models, with Warped-to-Physical
+drops ranging from 27.5 to 31.4 pp. The gap is also larger
+for smaller targets, reaching approximately 35 pp at 20 px,
+compared with 8 pp at 200 px (Fig. 4(b)). These findings
+suggest that changes in target scale, screen geometry, and
+background do not fully explain the physical grounding gap.
+5 Camera-captured screen is a larger contributor to
+6
+
+
+the physical grounding gap than screen presentation.
+We further compare Clean, Warped, Rectified, and Physi-
+cal along two dimensions. As shown in Fig. 3(c), changing
+the screen pixel source from native screenshots to camera
+captures corresponds to accuracy gaps of 29.2-31.7 pp. In
+contrast, changing screen presentation while retaining the
+same pixel source produces smaller gaps of 14.7-17.1 pp.
+4.4. Can Inference-Time Methods Bridge the Gap?
+Finally,
+we examine whether inference-time methods
+can improve physical grounding, considering ReGround
+(Sec. 4.1) and screen rectification.
+6 ReGround improves accuracy but still leaves a gap.
+According to Fig. 3(b), ReGround raises mean accuracy on
+Resized and Warped to 92.2% and 89.8%, respectively, nar-
+rowing the Clean-to-Warped gap from 17.1 to 5.0 percent-
+age points (pp). It also improves Physical accuracy from
+48.5% to 59.4%. However, the Warped-to-Physical gap re-
+mains nearly unchanged (29.2 vs. 30.5 pp), suggesting that
+local zooming does not address the main difficulties associ-
+ated with camera-captured screen content.
+7 Single-pass grounding after rectification can outper-
+form ReGround.
+Since human-verified screen corners
+(Oracle) are unavailable at inference time, we rectify with
+corners predicted by the detector in Sec. 3.4 (Auto). With a
+single grounding call, Auto outperforms ReGround (63.0%
+vs. 59.4% on average) and approaches Oracle accuracy
+(63.1%). Auto remains close to Oracle on held-out states
+(Supp. Sec. 9.4). Yet rectification retains camera-captured
+screen content, and Oracle remains 31.7 pp below Clean
+(Fig. 3(c)). Neither inference-time method bridges the gap
+to Clean, motivating model adaptation in the next section.
+5. Learning from Paired GUI Observations
+The previous analysis reveals that existing GUI grounding
+models struggle with camera-captured screen content, even
+after inference-time processing. Building on GlassGround’s
+paired-view design, we present PairDistill, which explores
+leveraging corresponding native screenshots and physical
+observations to improve grounding through representation
+alignment. Specifically, PairDistill aligns representations of
+the same GUI target across the two views while supervising
+target prediction. Native screenshots provide supervision
+only during training. At inference, the adapted model takes
+only the physical image and task instruction.
+5.1. Reusing Screenshot Grounding Supervision
+PairDistill is trained on paired examples, each consisting of
+a native screenshot Ic and a physical image Ip of the same
+GUI state, a task instruction q, and an answer a. Here, a de-
+notes the target coordinates in Ip, formatted according to the
+backbone’s output convention. Representation alignment
+Training-only supervision
+Clean
+Physical
+(rig capture)
+Teacher
+Frozen
+Student
+LoRA
+Rc
+Rp
+Visual tokens
+Visual tokens
+Weighted
+pooling
+Weighted
+pooling
+zc
+Cached
+zp
+align
+Task q
+Target
+coordinates
+SFT
+GT y
+Figure 5. The overall framework of PairDistill.
+additionally requires the corresponding target regions Rc
+and Rp in the two views. Following GlassGround’s paired-
+view construction, we obtain such training examples by
+displaying GUI screenshots on smartphones and capturing
+them with wearable cameras. The original target annotation
+provides Rc. We then use the screen homography (Sec. 3.4)
+to transfer Rc into the physical image, obtaining Rp and the
+corresponding answer a.
+5.2. PairDistill: Target-Aligned Distillation
+PairDistill combines coordinate supervision with target rep-
+resentation alignment, as illustrated in Fig. 5. The former
+trains the model to predict target coordinates from physical
+observations Ip, while the latter uses clean screenshots Ic to
+guide the representations of the corresponding targets.
+Teacher and student.
+The teacher and student are ini-
+tialized from the same pretrained checkpoint. The frozen
+teacher processes native screenshots, while the student takes
+physical images and task instructions as input. We adapt the
+student using LoRA and extract visual token features Fc and
+Fp from the patch merger outputs of the teacher and student,
+respectively. Since the teacher’s features do not depend on
+the task instruction, we precompute and cache them.
+Target pooling.
+The same GUI target may occupy differ-
+ent positions and cover different numbers of visual tokens
+across the two views. We therefore pool visual tokens based
+on their overlap with the target region. Let F = {fj} de-
+note the visual token features of an image and Ωj the image
+region covered by token j. For a target region R, we define
+the pooled target feature PoolR(F) as the area-weighted av-
+erage of the token features:
+PoolR(F) =
+X
+j
+wj fj,
+wj =
+|R ∩Ωj|
+P
+k |R ∩Ωk|,
+(3)
+where | · | denotes area.
+These area weights reduce the
+contribution of tokens that overlap only a small portion
+of the target. We subtract the means ¯fc and ¯fp of all vi-
+sual token features in each image from the pooled target
+7
+
+
+features, obtaining the corresponding target representations
+zc = PoolRc(Fc) −¯fc and zp = PoolRp(Fp) −¯fp.
+Training objective.
+We combine the two forms of super-
+vision in the following objective:
+LPD = ED[LSFT(Ip, q, a) + λ Lalign] ,
+(4)
+where D is the paired training set, LSFT is the mean to-
+ken cross-entropy over a with all other tokens masked, and
+Lalign = 1 −cos(zp, zc). We set λ = 1. Setting λ = 0
+yields the coordinate-only SFT baseline.
+6. Adaptation Results
+Experimental setup.
+Following Sec. 5.1, we construct
+training data independently of GlassGround from Android
+screenshots in AMEX [3], displayed on a smartphone and
+recaptured with a fixed rig. The training set contains 4,636
+image pairs, covering 76,224 targets across four device and
+lighting combinations: Aria Gen 1 under Indoor-Lamp and
+Indoor-Dark, and Quest 3 under Indoor-Dark and Outdoor-
+Sun. We adapt UI-Venus-2-9B [35] and MAI-UI-8B [54]
+using LoRA on both the language model and vision en-
+coder, including the patch merger, so that Lalign can update
+visual representations. Following WiSE-FT [38], we ap-
+ply weight interpolation with a fixed α = 0.5. Checkpoints
+are selected on a screenshot-disjoint AMEX validation split,
+and all adapted results are averaged over three seeds. By
+default, PairDistill uses scale augmentation during training
+(ablated in Table 2). Further details are in Supp. Sec. 11.
+6.1. Effectiveness of Paired Supervision
+1 PairDistill improves accuracy on physical images
+without additional inference-time processing.
+Table 1
+compares PairDistill with baseline models (Base). Under
+Single-pass inference, PairDistill improves Physical accu-
+racy from 55.1% to 64.5% for UI-Venus-2-9B and from
+45.8% to 58.0% for MAI-UI-8B. Meanwhile, Clean accu-
+racy stays within 0.8 pp of Base, indicating that adaptation
+largely preserves grounding on native screenshots.
+2 PairDistill narrows the gap between transformed
+screenshots and physical observations.
+The Warped-
+to-Physical gap decreases from 29.3 to 23.3 pp for UI-
+Venus and from 29.6 to 24.4 pp for MAI-UI. This contrasts
+with ReGround, which leaves this gap nearly unchanged
+(Sec. 4.4). Nevertheless, the remaining gap indicates that
+physical observations still pose substantial challenges.
+3 PairDistill is complementary to inference-time meth-
+ods.
+Combining ReGround with PairDistill raises Physi-
+cal accuracy to 69.6% for UI-Venus and 64.4% for MAI-UI,
+further improving over PairDistill alone by 5.1 and 6.4 pp.
+Stage-wise analysis shows that ReGround mainly reduces
+the Clean-to-Resized gap, whereas PairDistill reduces the
+Table 2. Ablations on Physical under Single-pass, mean±std over
+three seeds. PD: PairDistill; Aug: scale augmentation.
+Base
+SFT
+SFT+Aug
+PD
+PD+Aug
+UI-Venus 55.13 60.49±1.16 61.83±0.39 64.07±0.16 64.48±0.53
+MAI-UI
+45.80 53.44±2.01 54.30±1.84 57.17±0.59 57.96±0.21
+gaps between Resized and Physical (see Supp. Sec. 12.1).
+Auto rectification gives similar results (69.7% and 65.2%),
+3.8 and 2.5 pp above Base under the same rectification.
+4 Both coordinate supervision and target alignment
+contribute.
+Without scale augmentation (Table 2), coor-
+dinate supervision alone (SFT) raises accuracy from 55.1%
+to 60.5% for UI-Venus and from 45.8% to 53.4% for MAI-
+UI, showing that pairing enables effective reuse of screen-
+shot annotations for physical grounding. Under matched
+settings, adding target alignment yields further gains of 3.6
+and 3.7 pp without scale augmentation and 2.7 and 3.7 pp
+with it. Scale augmentation provides smaller gains (0.4–
+1.3 pp), and the full configuration achieves the highest accu-
+racy on both backbones (further analyses in Supp. Sec. 12).
+6.2. Generalization Across Deployment Settings
+We examine whether PairDistill generalizes beyond its
+training conditions. While its training uses Android inter-
+faces captured with a fixed rig, GlassGround evaluates nat-
+ural handheld observations across diverse devices, lighting
+conditions, and operating systems. The results are Single-
+pass accuracies on Physical, compared with Base.
+5 PairDistill generalizes to unseen devices and lighting
+conditions.
+Both backbones outperform Base across all
+16 device-lighting combinations (Supp. Fig. 12). On the
+two unseen devices, Aria Gen 2 and Galaxy XR, PairDistill
+improves accuracy from 62.4% to 71.0% for UI-Venus and
+from 49.5% to 63.4% for MAI-UI. These gains of 8.7 and
+13.9 pp are comparable to or larger than the overall gains
+of 9.4 and 12.2 pp. Across the 12 device-lighting combi-
+nations absent from training, the gains are 8.3 and 11.8 pp
+over Base and 2.3 and 3.3 pp over SFT with matched aug-
+mentation. Under Outdoor-Shade, which never appears in
+training, both backbones also improve on all four devices.
+6 The improvements extend to unseen operating sys-
+tems and applications.
+Although training uses only An-
+droid interfaces, PairDistill improves iOS accuracy by 8.9
+and 12.1 pp for UI-Venus and MAI-UI, respectively, com-
+parable to their Android gains of 10.0 and 12.3 pp. On iOS,
+it also outperforms matched SFT by 2.5 and 3.5 pp. Af-
+ter removing all applications whose names also appear in
+AMEX, including browsers, app stores, and system applica-
+tions, the remaining subset contains 7,600 physical images
+and 46,432 instances. In this subset, the gains are 9.2 and
+12.0 pp, closely matching those of the full benchmark.
+8
+
+
+7. Conclusion and Limitations
+We presented GlassGround, a paired benchmark that holds
+GUI states, instructions, and targets fixed to study ground-
+ing across native screenshots and wearable camera observa-
+tions. Our analysis reveals substantial losses when moving
+from transformed screenshot content to real camera images,
+even with local zooming. We further introduced PairDistill,
+which uses target correspondences between paired views to
+supervise grounding on physical images. Its gains extend
+to unseen wearable devices, capture configurations, and
+operating systems without paired screenshots at inference.
+These results highlight observation conditions as an impor-
+tant dimension of GUI grounding evaluation and demon-
+strate the value of paired supervision for adaptation.
+Our benchmark focuses on single-step grounding in
+static images and does not evaluate complete interaction
+sequences. The evaluation is also limited to smartphone
+screens, and performance on other physical displays re-
+mains to be assessed. Attributing the Warped-to-Physical
+gap to specific imaging factors is also left to future work.
+LLM Usage Statement
+Claude Fable 5.1 was used during benchmark construction
+to assess candidate GUI elements, generate grounding in-
+structions, and classify instruction types. It did not produce
+target regions. All retained tasks, instructions, and target
+annotations were reviewed and verified by human annota-
+tors. OpenAI ChatGPT and Anthropic Claude were used to
+assist with manuscript organization, wording, and editorial
+feedback. The authors reviewed all AI-assisted content and
+take full responsibility for the final manuscript.
+References
+[1] Anthropic.
+Claude sonnet 5.5 system card.
+https:
+//www.anthropic.com/claude-sonnet-5-5-
+system-card, 2026. 5, 19
+[2] Anthropic. Claude Fable 5.1 and Claude Mythos 5.1 sys-
+tem card. https://www.anthropic.com/claude-
+fable-5-1-mythos-5-1-system-card, 2026. 4,
+12
+[3] Yuxiang Chai, Siyuan Huang, Yazhe Niu, Han Xiao, Liang
+Liu, Guozhi Wang, Dingyu Zhang, Shuai Ren, and Hong-
+sheng Li. Amex: Android multi-annotation expo dataset for
+mobile gui agents. In Findings of the Association for Com-
+putational Linguistics: ACL 2025, pages 2138–2156, 2025.
+8, 21
+[4] Kanzhi Cheng, Qiushi Sun, Yougang Chu, Fangzhi Xu, Li
+YanTao, Jianbing Zhang, and Zhiyong Wu. SeeClick: Har-
+nessing GUI grounding for advanced visual GUI agents. In
+Proceedings of the 62nd Annual Meeting of the Associa-
+tion for Computational Linguistics (Volume 1: Long Papers),
+pages 9313–9332, Bangkok, Thailand, 2024. Association for
+Computational Linguistics. 1, 2
+[5] Sagnik Das, Ke Ma, Zhixin Shu, Dimitris Samaras, and
+Roy Shilkrot. Dewarpnet: Single-image document unwarp-
+ing with stacked 3d and 2d regression networks. In 2019
+IEEE/CVF International Conference on Computer Vision
+(ICCV), pages 131–140. IEEE, 2019. 2
+[6] Zihan Ding,
+Longxu Dou,
+Qi Gao,
+Xiangwu Guo,
+Shengchao Hu, Zilong Huang, Zihang Jiang, Lei Ke,
+Mengcheng Lan, Weixian Lei, et al. Ui-mate: Advancing
+open-weight foundation gui agents with in-context demon-
+strations. arXiv preprint arXiv:2608.15930, 2026. 5, 19
+[7] Kairong Fang, Jiesi Zhang, Shi-Ting Ni, Pan Hui, and
+Yuyang Wang. Guideme: A vlm-based system assisting in-
+dependent smartphone learning for older adults. In Proceed-
+ings of the 2026 CHI Conference on Human Factors in Com-
+puting Systems, pages 1–19, 2026. 1
+[8] Hao Feng, Yuechen Wang, Wengang Zhou, Jiajun Deng, and
+Houqiang Li. Doctr: Document image transformer for geo-
+metric unwarping and illumination correction. arXiv preprint
+arXiv:2110.12942, 2021. 2
+[9] Boyu Gou, Demi Ruohan Wang, Boyuan Zheng, Yanan Xie,
+Cheng Chang, Yiheng Shu, Huan Sun, and Yu Su. Navigat-
+ing the digital world as humans do: Universal visual ground-
+ing for gui agents. In International Conference on Learning
+Representations, pages 30851–30883, 2025. 2
+[10] H Company. Holo3.1: Fast & local computer use agents.
+Hugging Face model card, 2026. Accessed: 2026-09-28. 5,
+19
+[11] intelligence-indeed.
+Indeed-UI: High-resolution GUI
+grounding model. GitHub repository, 2026. Accessed: 2026-
+09-28. 5, 19
+[12] Zhuohang Jiang, Xu Yuan, Haohao Qu, Shanru Lin, Kang-
+long Liu, Wenqi Fan, and Li Qing. Superglasses: Bench-
+marking vision language models as intelligent agents for ai
+smart glasses. In Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recognition (CVPR) Find-
+ings, pages 2165–2175, 2026. 2
+[13] Glenn Jocher and Jing Qiu. Ultralytics YOLO11. https:
+/ / github . com / ultralytics / ultralytics,
+2024. Version 11.0.0. 4, 13
+[14] Kyeong Seon Kim, Jiyeon Son, and Tae-Hyun Oh.
+IGG:
+A benchmark for interactive GUI grounding under visibil-
+ity constraints. In Proceedings of the 2026 Conference on
+Empirical Methods in Natural Language Processing, pages
+61475–61498, Budapest, Hungary, 2026. Association for
+Computational Linguistics. 2
+[15] Kingsware
+and
+Vocaela
+AI.
+KV-Ground-8B-
+BaseGuiOwl1.5-0315.
+Hugging Face model card, 2026.
+Accessed: 2026-09-28. 5, 19
+[16] Chentao Li, Zirui Gao, Mingze Gao, Yinglian Ren, Jianjiang
+Feng, and Jie Zhou. Do mllms understand pointing? bench-
+marking and enhancing referential reasoning in egocentric
+vision.
+In Findings of the Association for Computational
+Linguistics: ACL 2026, pages 17000–17019, 2026. 2
+[17] Chenyue Li, Xiaoxiao Sun, Yubo Deng, Qinlin Zhao, Serena
+Yeung-Levy, and Yuhui Zhang. ScreenHaystack: Finding
+blind zones in GUI grounding. In Proceedings of the 2026
+Conference on Empirical Methods in Natural Language Pro-
+9
+
+
+cessing, pages 20821–20838, Budapest, Hungary, 2026. As-
+sociation for Computational Linguistics. 2
+[18] Jiawei Li, Linjie Qiu, Zhiqing Wu, Qiongyan Chen, Ziyan
+Wang, and Mingming Fan. Explorar: Assisting older adults
+to learn smartphone apps through ar-powered trial-and-error
+with interactive guidance. In Proceedings of the 33rd ACM
+International Conference on Multimedia, pages 7016–7025,
+2025. 1
+[19] Kaixin Li, Ziyang Meng, Hongzhan Lin, Ziyang Luo,
+Yuchen Tian, Jing Ma, Zhiyong Huang, and Tat-Seng
+Chua. Screenspot-pro: Gui grounding for professional high-
+resolution computer use. In Proceedings of the 33rd ACM
+International Conference on Multimedia, pages 8778–8786,
+2025. 1, 2, 5
+[20] Chen Liang, Yasha Iravantchi, Thomas Krolikowski, Rui-
+jie Geng, Alanson P Sample, and Anhong Guo.
+Brush-
+lens: hardware interaction proxies for accessible touchscreen
+interface actuation.
+In Proceedings of the 36th Annual
+ACM Symposium on User Interface Software and Technol-
+ogy, pages 1–17, 2023. 2
+[21] Peter Liu, Fahad Zafar, and Aldo Badano. The effect of am-
+bient illumination on handheld display image quality: The
+effect of ambient illumination. Journal of digital imaging,
+27(1):12–18, 2014. 4
+[22] Yadong Lu, Jianwei Yang, Yelong Shen, and Ahmed
+Awadallah.
+Omniparser for pure vision based gui agent.
+arXiv preprint arXiv:2408.00203, 2024. 4, 12
+[23] Tiange Luo, Lajanugen Logeswaran, Justin Johnson, and
+Honglak Lee. Visual test-time scaling for gui agent ground-
+ing. In 2025 IEEE/CVF International Conference on Com-
+puter Vision (ICCV), pages 19989–19998. IEEE, 2025. 5
+[24] Ke Ma, Zhixin Shu, Xue Bai, Jue Wang, and Dimitris Sama-
+ras. Docunet: Document image unwarping via a stacked u-
+net. In 2018 IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, pages 4700–4709. IEEE, 2018. 2
+[25] Meta. Muse-Glimmer-30B. Hugging Face model card, 2026.
+Accessed: 2026-09-28. 5, 19
+[26] OpenAI. GPT-6 Astra System Card. System card, OpenAI,
+2026. Section 11: GPT-6 Sol, GPT-6 Luna. 5, 19
+[27] Joonhyung Park, Peng Tang, Sagnik Das, Srikar Appalaraju,
+Kunwar Yashraj Singh, R Manmatha, and Shabnam Ghadar.
+R-vlm: Region-aware vision language model for precise gui
+grounding. In Findings of the Association for Computational
+Linguistics: ACL 2025, pages 9669–9685, 2025. 5
+[28] Buu Phan, Fahim Mannan, and Felix Heide.
+Adversarial
+imaging pipelines. In Proceedings of the IEEE/CVF Confer-
+ence on Computer Vision and Pattern Recognition (CVPR),
+pages 16051–16061, 2021. 4
+[29] Ju Qian, Zhengyu Shang, Shuoyan Yan, Yan Wang, and Lin
+Chen.
+Roscript: a visual script driven truly non-intrusive
+robotic testing system for touch screen applications. In Pro-
+ceedings of the ACM/IEEE 42nd International Conference
+on Software Engineering, pages 297–308, 2020. 2
+[30] Yujia Qin, Yining Ye, Junjie Fang, Haoming Wang, Shihao
+Liang, Shizuo Tian, Junda Zhang, Jiahao Li, Yunxin Li, Shi-
+jue Huang, et al. Ui-tars: Pioneering automated gui inter-
+action with native agents. arXiv preprint arXiv:2501.12326,
+2025. 2
+[31] Qwen Team.
+Qwen3.8-Max: A new bar for coding and
+cowork. Official blog post, 2026. Accessed: 2026-09-28.
+5, 19
+[32] Nicolas Robidoux, Luis E. Garcia Capel, Dong-eun Seo,
+Avinash Sharma, Federico Ariza, and Felix Heide.
+End-
+to-end high dynamic range camera pipeline optimization.
+In Proceedings of the IEEE/CVF Conference on Computer
+Vision and Pattern Recognition (CVPR), pages 6297–6307,
+2021. 4
+[33] Andreas Schmid, Thomas Fischer, Alexander Weichart,
+Alexander Hartmann, and Raphael Wimmer.
+Screenshot-
+matcher: Taking smartphone photos to capture screenshots.
+In Proceedings of Mensch Und Computer 2021, page 44–48,
+New York, NY, USA, 2021. Association for Computing Ma-
+chinery. 1, 2
+[34] Pengzhan Sun, Junbin Xiao, Tze Ho Elden Tse, Yicong Li,
+Arjun Akula, and Angela Yao. Visual intention grounding
+for egocentric assistants. In 2025 IEEE/CVF International
+Conference on Computer Vision (ICCV), pages 2512–2522.
+IEEE, 2025. 2
+[35] Venus Team, Zhuohan Cai, Haoxing Chen, Jiaxuan Chen,
+Weizhi Chen, Changlong Gao, Zhangxuan Gu, Yuan Guo,
+Yusong Hu, Jianrong Jiang, et al. Ui-venus-2 technical re-
+port. arXiv preprint arXiv:2609.00028, 2026. 5, 8, 19
+[36] TypeSafe AI. Jev: For the builders and dreamers. https:
+//typesafe.ai/blog/jev-1-14, 2026. Accessed:
+2026-10-27. 5, 19
+[37] Yangyue Wang, Harshvardhan Sikka, Yash Mathur, Tony
+Zhou, Jinu Nyachhyon, and Pranav Guruprasad.
+Gui-
+perturbed:
+Domain
+randomization
+reveals
+systematic
+brittleness in gui grounding models.
+arXiv preprint
+arXiv:2604.14262, 2026. 2
+[38] Mitchell Wortsman, Gabriel Ilharco, Jong Wook Kim,
+Mike Li, Simon Kornblith, Rebecca Roelofs, Raphael Gon-
+tijo Lopes, Hannaneh Hajishirzi, Ali Farhadi, Hongseok
+Namkoong, et al. Robust fine-tuning of zero-shot models.
+In 2022 IEEE/CVF Conference on Computer Vision and Pat-
+tern Recognition (CVPR), pages 7949–7961. IEEE, 2022. 8,
+23
+[39] Qianhui Wu, Kanzhi Cheng, Rui Yang, Chaoyun Zhang,
+Jianwei Yang, Huiqiang Jiang, Jian Mu, Baolin Peng, Bo
+Qiao, Reuben Tan, Si Qin, Lars Liden, Qingwei Lin, Huan
+Zhang, Tong Zhang, Jianbing Zhang, Dongmei Zhang, and
+Jianfeng Gao. Gui-actor: Coordinate-free visual grounding
+for gui agents. In Advances in Neural Information Process-
+ing Systems, pages 15101–15128. Curran Associates, Inc.,
+2025. 2
+[40] Zhiyong Wu, Zhenyu Wu, Fangzhi Xu, Yian Wang, Qiushi
+Sun, Chengyou Jia, Kanzhi Cheng, Zichen Ding, Liheng
+Chen, Paul Pu Liang, et al.
+Os-atlas: Foundation action
+model for generalist gui agents. In International Conference
+on Learning Representations, pages 5090–5108, 2025. 2
+[41] Mulong Xie, Jiaming Ye, Zhenchang Xing, and Lei Ma.
+Nicro: purely vision-based, non-intrusive cross-device and
+cross-platform gui testing. arXiv preprint arXiv:2305.14611,
+2023. 2
+[42] Tianbao Xie, Jiaqi Deng, Xiaochuan Li, Junlin Yang,
+Haoyuan Wu, Jixuan Chen, Wenjing Hu, Xinyuan Wang,
+10
+
+
+Yuhui Xu, Zekun Wang, Yiheng Xu, Junli Wang, Doyen
+Sahoo, Tao Yu, and Caiming Xiong. Scaling computer-use
+grounding via user interface decomposition and synthesis. In
+Advances in Neural Information Processing Systems. Curran
+Associates, Inc., 2025. 2
+[43] Haiyang Xu, Xi Zhang, Haowei Liu, Junyang Wang, Zhaozai
+Zhu, Shengjie Zhou, Xuhao Hu, Feiyu Gao, Junjie Cao, Zi-
+hua Wang, et al. Mobile-agent-v3.5: Multi-platform funda-
+mental gui agents. arXiv preprint arXiv:2602.16855, 2026.
+5, 19
+[44] Yiheng Xu, Zekun Wang, Junli Wang, Dunjie Lu, Tian-
+bao Xie, Amrita Saha, Doyen Sahoo, Tao Yu, and Caiming
+Xiong. Aguvis: Unified pure vision agents for autonomous
+gui interaction. arXiv preprint arXiv:2412.04454, 2024. 2
+[45] Jianwei Yang, Hao Zhang, Feng Li, Xueyan Zou, Chunyuan
+Li, and Jianfeng Gao.
+Set-of-mark prompting unleashes
+extraordinary visual grounding in gpt-4v.
+arXiv preprint
+arXiv:2310.11441, 2023. 4, 12
+[46] Shengcheng Yu, Chunrong Fang, Mingzhe Du, Yuchen Ling,
+Zhenyu Chen, and Zhendong Su. Practical non-intrusive gui
+exploration testing with visual-based robotic arms. In Pro-
+ceedings of the IEEE/ACM 46th International Conference on
+Software Engineering, pages 1–13, 2024. 2
+[47] Shoubin Yu, Lei Shu, Antoine Yang, Yao Fu, Srinivas
+Sunkara, Maria Wang, Jindong Chen, Mohit Bansal, and Bo-
+qing Gong. Ego2web: A web agent benchmark grounded in
+egocentric videos. arXiv preprint arXiv:2603.22529, 2026.
+2
+[48] Huanjing Yue, Yijia Cheng, Yan Mao, Cong Cao, and Jingyu
+Yang. Recaptured screen image demoir´eing in raw domain.
+IEEE Transactions on Multimedia, 25:5589–5600, 2022. 2
+[49] Huanjing Yue, Yijia Cheng, Xin Liu, and Jingyu Yang. Re-
+captured raw screen image and video demoir´eing via channel
+and spatial modulations. In Proceedings of the 37th Inter-
+national Conference on Neural Information Processing Sys-
+tems, Red Hook, NY, USA, 2023. Curran Associates Inc. 1,
+2
+[50] Xiaoyi Zhang, Anne Spencer Ross, and James Fogarty. Ro-
+bust annotation of mobile application interfaces in methods
+for accessibility repair and enhancement. In Proceedings of
+the 31st annual ACM symposium on user Interface software
+and technology, pages 609–621, 2018. 1
+[51] Zhanpei Zhang, Beicheng Liang, Tingting Ren, Chengmiao
+Fan, Rui Li, and Mu Li. Character-interested binary-like im-
+age learning for text image demoir´eing. Frontiers in Physics,
+12:1526412, 2024. 2
+[52] Haoren
+Zhao,
+Tianyi
+Chen,
+and
+Zhen
+Wang.
+Windeskground:
+A benchmark for robust gui ground-
+ing in complex multi-window desktop environments. arXiv
+preprint arXiv:2605.16402, 2026. 2
+[53] Beitong Zhou, Zhexiao Huang, Yuan Guo, Zhangxuan Gu,
+Tianyu Xia, Zichen Luo, Fei Tang, Dehan Kong, Yanyi
+Shang, Suling Ou, et al. Venusbench-gd: A comprehensive
+multi-platform gui benchmark for diverse grounding tasks.
+arXiv preprint arXiv:2512.16501, 2025. 2
+[54] Hanzhang Zhou, Xu Zhang, Panrong Tong, Jianan Zhang,
+Liangyu Chen, Quyu Kong, Chenglin Cai, Chen Liu, Yue
+Wang, Jingren Zhou, et al.
+Mai-ui technical report:
+Real-world centric foundation gui agents.
+arXiv preprint
+arXiv:2512.22047, 2025. 2, 5, 8, 19
+[55] Yunxiang Zhu, Hailei Ding, Yangkun Zhu, Jingtao Hu,
+Ming-Che Lee, Chaklam Silpasuwanchai, Min Huang, and
+Yibo Zou.
+Comprehensive image restoration for robot-
+assisted pc-side ui automated testing using neural network.
+Neurocomputing, page 131444, 2025. 1, 2
+11
+
+
+GlassGround: GUI Grounding Beyond Native Screenshots with
+Egocentric Wearable Vision
+Supplementary Material
+8. GlassGround Benchmark Details
+8.1. Physical Capture Setup and Protocol
+Source smartphones and display settings.
+GlassGround
+uses three smartphones to provide and display clean screen-
+shots. The iOS subset contains 303 screenshots from an
+iPhone 14 Pro at a resolution of 1179 × 2556. The Android
+subset contains 102 screenshots from an AT&T Maestro 3
+at 720 × 1600 and 131 screenshots from a Samsung Galaxy
+S20 Ultra 5G at 1080 × 2400. Each screenshot is displayed
+on its source smartphone, which is used consistently across
+the corresponding 16 physical capture settings.
+Adaptive brightness is disabled on all smartphones. In-
+door captures use a fixed manual screen brightness, while
+outdoor captures use the maximum brightness setting.
+Indoor-Dark is captured with the room lights turned off,
+and Indoor-Lamp uses normal laboratory lighting. Outdoor-
+Shade is captured in outdoor shaded areas, while Outdoor-
+Sun is captured under direct sunlight.
+Wearable image acquisition.
+Table 3 summarizes the
+image acquisition methods, saved resolutions, and export
+processing for the four wearable devices.
+Frame selection and quality control.
+Aria Gen 1 and
+Aria Gen 2 continuously record RGB video, from which we
+extract the images corresponding to each GUI state. We first
+use a sharpness score based on the variance of the Laplacian
+to identify candidate frames. Annotators then manually se-
+lect frames with clear screen content and complete target
+regions. Quest 3 and Galaxy XR instead capture system
+passthrough images directly. Captures that do not satisfy
+the acquisition requirements are retaken. For all devices,
+observations with incorrect screen content or targets cut off
+by the image boundary are recaptured or replaced.
+Image processing.
+Apart from the orientation adjustment
+and format conversion listed in Table 3, no additional crop-
+ping, resizing, image enhancement, or lens undistortion is
+applied during dataset preparation.
+Brightness-enhanced
+images available in the annotation interface are used only
+for visual inspection and are not included in the benchmark.
+Model evaluation uses the stored physical images.
+8.2. Clean Side Task Annotation
+As described in Sec. 3.3, we construct grounding tasks ex-
+clusively from clean screenshots without consulting their
+paired physical observations. We identify candidate GUI re-
+gions using OmniParser [22] and OCR, assign Set-of-Mark
+Table 3. Image acquisition and export settings for the four wear-
+able devices. Resolutions refer to the physical images stored in
+GlassGround.
+Device
+Acquisition
+Resolution
+Processing
+Aria Gen 1 RGB video, 20 fps 1408 × 1408 90◦CW
+Aria Gen 2 RGB video, 10 fps 2560 × 1920 None
+Quest 3
+Passthrough
+3840 × 2160 None
+Galaxy XR Passthrough
+2560 × 2560 HEIC to JPEG
+Glass
+Ground
+System
+15%
+Media
+15%
+Work
+14%
+Shopping
+14%
+Travel
+12%
+Lifestyle
+12%
+Social
+9%
+Web
+8%
+Android
+iOS
+21%
+27%
+20%
+16%
+43%
+47%
+17%
+11%
+Text
+Visual
+Functional
+Positional
+(a) App category
+(b) Task type
+Figure 6. Benchmark composition. (a) Distribution of GUI states
+across eight application categories. (b) Distribution of the four
+grounding instruction types for Android and iOS.
+labels [45], and query Claude Fable 5.1 [2] for candidate-
+wise task proposals. For suitable targets, the VLM gener-
+ates grounding instructions and assigns one of four instruc-
+tion types: text, which relies on visible text, visual, which
+relies on appearance such as icons, colors, or shapes, func-
+tional, which identifies the target by its function, and posi-
+tional, which relies on location, order, or spatial relations.
+The VLM does not predict target regions.
+Across 510 screenshots processed by the automated
+pipeline, 13,586 candidate regions were submitted to the
+VLM. Among these, 6,275 candidates (46.19%) were iden-
+tified as suitable grounding targets. Annotators reviewed
+the generated proposals, checking target validity and click-
+ability, instruction clarity and type, and bounding-box ac-
+curacy. Proposals failing these checks were rejected, while
+valid proposals could be retained or revised. Annotators
+could also activate candidates rejected by the VLM and add
+missing targets.
+Of the 2,752 final tasks originating from positive VLM
+proposals, 1,538 (55.89%) remained unchanged under our
+comparison criterion, while 1,214 (44.11%) were revised.
+12
+
+
+System
+82
+Media
+82
+Work
+76
+Shopping
+75
+Travel
+66
+Lifestyle
+63
+Social
+50
+Web
+42
+Settings (14)
+Clock (13)
+Weather (7)
+Home Screen (7)
+Camera (6)
+One UI Home (5)
+Samsung Members (4)
+Sound Recorder (4)
+Quick Settings (3)
+Google Home (3)
+Google Weather (2)
+Control Center (2)
+WiFiAnalyzer (2)
+YouTube (16)
+Google Photos (7)
+Photos (6)
+YouTube Music (6)
+Feedly (6)
+Spotify (5)
+Steam (5)
+Tubi (5)
+SmartRSS (5)
+TikTok (5)
+Gallery (4)
+Game Launcher (4)
+Chubby Club (4)
+Calendar (7)
+Files (7)
+Mail (6)
+Gmail (5)
+Google Drive (5)
+Notes (5)
+Notion (5)
+Reminders (5)
+Teams (5)
+Solid Explorer (5)
+Keep Notes (4)
+Samsung Notes (4)
+Google Calendar (3)
+Google Meet (3)
+My Files (3)
+Cx File Explorer (2)
+Google Play Store (12)
+Amazon (10)
+Chewy (8)
+AliExpress (7)
+Best Buy (6)
+Doordash (6)
+Home Depot (5)
+Temu (5)
+Deliveroo (5)
+Starbucks (5)
+Zillow (5)
+Maps (10)
+Uber (10)
+Google Maps (9)
+Airbnb (8)
+Alaska Airlines (7)
+SpotHero (6)
+Trainline (6)
+Booking.com (5)
+Delta (5)
+Bank of America (9)
+PayPal (8)
+Chase (7)
+Fitness (7)
+Health (7)
+Wallet (6)
+Progressive (5)
+Coursera (5)
+Forest (5)
+Duolingo (4)
+Facebook (20)
+Reddit (14)
+Instagram (7)
+WhatsApp (5)
+Phone (3)
+Chrome (14)
+Google (8)
+Safari (6)
+ChatGPT (5)
+Claude (5)
+Firefox (3)
+Figure 7. Application distribution in GlassGround. The inner ring shows the number of GUI states across eight application categories.
+The outer ring breaks down each category into individual applications, with the number of GUI states indicated in parentheses.
+A proposal is considered unchanged if its instruction
+matches after normalization, its instruction type is identical,
+and no bounding-box edge moves by more than two pix-
+els. Instruction normalization ignores capitalization, punc-
+tuation, and leading action verbs such as Tap, Click, Select,
+and Press.
+Annotators additionally recovered 188 targets initially
+rejected by the VLM and manually added 183 target re-
+gions.
+Another 127 tasks were manually annotated on
+26 pilot screenshots. The final benchmark contains 3,250
+human-verified grounding tasks across 536 clean screen-
+shots. Each task is paired with 16 physical observations,
+yielding 52,000 physical grounding instances.
+Benchmark composition.
+GlassGround covers 102 ap-
+plications across eight categories. Figure 7 provides a de-
+tailed breakdown of the 536 GUI states by application cat-
+egory and individual application.
+Figure 6 summarizes
+the category proportions and compares the distribution of
+grounding instruction types between Android and iOS.
+8.3. Physical Target Transfer and Quality Control
+Automatic
+screen
+corner
+initialization.
+We
+use
+YOLO11n-pose [13] to predict the four ordered screen
+corners in physical images.
+The detector was initially
+trained on 268 manually annotated pilot images not
+included in GlassGround and progressively updated as
+additional human-verified annotations became available.
+The predicted corners provide an initial estimate that
+annotators can directly inspect and refine, avoiding the
+need to locate all four corners from scratch.
+13
+
+
+Since small corner localization errors can affect the
+alignment of transferred GUI targets, later versions incorpo-
+rate an additional target projection loss alongside the stan-
+dard YOLO-pose loss. This loss penalizes discrepancies
+between clean target boxes projected using predicted and
+human-verified screen corners. The final detector was fine-
+tuned from an earlier version on 5,852 images, comprising
+268 pilot images, 3,526 previously annotated GlassGround
+images, and 2,058 AMEX camera images. Training used an
+input size of 960 pixels, 30 epochs, a batch size of 32, and
+an initial learning rate of 0.001.
+On 5,040 subsequent physical images not used to train
+their corresponding detector versions, the median per-image
+mean corner displacement relative to human-verified anno-
+tations is 5.83 pixels, or 0.89% of the screen diagonal.
+Human annotation protocol.
+Six annotators participated
+in physical image geometry verification, including two ex-
+perienced annotators responsible for quality control. An-
+notators corrected the predicted screen corners and in-
+spected the target regions transferred from human-verified
+clean screenshots. When transferred regions remained mis-
+aligned, annotators refined the geometric mapping through
+the screen corners or internal grid control points. Physical
+target regions were thus obtained through verified geomet-
+ric transfer rather than independent target annotation.
+Mesh refinement.
+A single homography may not fully
+capture local geometric deviations caused by camera imag-
+ing or image processing.
+We therefore provide optional
+mesh refinement using thin plate spline (TPS) interpolation.
+For a clean screenshot point x, the refined mapping to phys-
+ical observation k is
+Tk(x) = π(Hk˜x) + fk(x),
+(5)
+where Hk is the screen homography and fk is a TPS dis-
+placement field defined in clean screenshot coordinates.
+The grid is initialized from the homography projection.
+Annotators adjust selected grid points to specify local resid-
+ual displacements. Only adjusted points contribute addi-
+tional TPS constraints, while the four screen corners have
+zero residual displacement. The tool supports adjustable
+grid densities, with six rows and nine columns being the
+most common configuration. The median number of ad-
+justed control points is eight.
+For mesh-refined images, six points are sampled along
+each edge of a clean target box, including the starting vertex
+but excluding the ending vertex. The resulting 24 boundary
+points are transformed to construct the physical target poly-
+gon. Without mesh refinement, the target region is trans-
+ferred directly using homography.
+Mesh refinement was applied to 996 physical images
+(11.6%), covering 6,092 grounding instances. Most of these
+images were captured by Quest 3 and Aria Gen 2. Com-
+pared with homography alone, mesh refinement changes
+Table 4. Consistency of transferred target regions under indepen-
+dent pilot annotation and human review. Hit/miss verdicts are eval-
+uated using ten Single-pass grounding models.
+Metric
+Pilot
+Cross review
+Images
+197
+8,576
+Instances
+1,166
+52,000
+Verdict agreement (%)
+98.98
+99.59
+Cohen’s κ
+0.979
+0.992
+Max. |∆acc| (pp)
+0.69
+0.16
+target centers by a median of 2.98 pixels, equivalent to
+6.50% of the target scale. On these instances, the two map-
+pings yield 98.04% agreement in hit/miss verdicts. Using
+homography alone produces a mean accuracy 1.10 percent-
+age points lower across ten models. Figure 8 illustrates the
+resulting differences in target alignment.
+Pilot annotation agreement.
+Before large-scale annota-
+tion, two annotators independently verified the screen ge-
+ometry of a designated subset without consulting each
+other’s annotations. The analysis covers 197 physical im-
+ages and 1,166 grounding instances using homography-
+based target transfer. The median per-image mean corner
+displacement between the two annotations is 2.25 pixels, or
+0.53% of the screen diagonal. Table 4 shows that the result-
+ing grounding evaluations achieve high agreement across
+ten models.
+Human cross verification.
+All 8,576 physical images
+were annotated and reviewed by at least two annotators. Re-
+viewers checked the alignment of transferred target regions
+and refined the screen geometry when necessary. Some im-
+ages received further review by additional annotators.
+We assess the effect of this process by comparing the
+initial human annotations with the final reviewed geome-
+try across all 8,576 images and 52,000 grounding instances.
+A target region is considered modified when its vertex
+count changes or any vertex coordinate differs by more than
+0.5 pixels.
+Review resulted in changes to 3,583 images
+(41.78%) and 40.08% of grounding instances. The median
+mean corner displacement among revised images is 0.58%
+of the screen diagonal, reflecting mostly fine geometric ad-
+justments. A smaller subset of 703 instances (1.35%) has
+an IoU below 0.5 between the initial and final transferred
+regions.
+Despite these refinements, the grounding verdict agree-
+ment remains 99.59% across ten models. On instances with
+modified target regions, agreement is 98.97%. Mean ac-
+curacy changes by only 0.10 percentage points, and model
+rankings remain unchanged. These findings support the sta-
+bility of GlassGround evaluation under human annotation
+revisions.
+14
+
+
+Clean screenshot
+1
+2
+3
+4
+5
+Homography only
+1
+2 3 4
+5
+Mesh refinement
+1
+2 3 4
+5
+Clean screenshot
+3
+4
+5
+×1.9
+1
+2
+Homography only
+3
+4
+5
+×2.3
+1
+2
+Mesh refinement
+3
+4
+5
+×2.3
+1
+2
+Quest 3
+Aria Gen 2
+Clean target box
+Homography-only region
+Mesh-refined region (GT)
+GT target center
+1
+Highlighted ID: GT center outside homography-only region
+Zoomed region, magnified in the inset (×: zoom factor)
+Figure 8. Effect of mesh refinement on target transfer. Examples from Quest 3 and Aria Gen 2. Clean target boxes are transferred using
+homography alone or with mesh refinement. The green regions represent the final transferred ground truth. Yellow dots indicate target
+centers, while highlighted IDs mark centers outside the homography-only regions. Insets enlarge small targets to illustrate local alignment
+differences.
+Clean screenshot
+Galaxy XR
+×2.2
+Quest 3
+×1.8
+×2.2
+×1.7
+Outdoor-Sun
+Indoor-Dark
+Figure 9. Device-specific imaging artifacts under different lighting conditions. The left panel shows the clean screenshot, while the
+remaining panels show the same GUI state captured by Galaxy XR and Quest 3 under Outdoor-Sun and Indoor-Dark conditions. Outdoor-
+Sun captures exhibit horizontal dark bands and screen reflections. Under Indoor-Dark, the Galaxy XR example shows reduced contrast and
+loss of fine text detail, while the Quest 3 example retains relatively clearer text. Dashed boxes identify the screen regions enlarged in the
+insets, with magnification factors indicated.
+15
+
+
+Aria Gen 1
+Aria Gen 2
+Quest 3
+Galaxy XR
+Indoor-Dark
+Indoor-Lamp
+Outdoor-Shade
+Outdoor-Sun
+Clean screenshot
+1
+2
+3
+4
+5
+Full frame
+(Indoor-Lamp)
+Aria Gen 1
+Aria Gen 2
+Quest 3
+Galaxy XR
+Targets
+1
+Add a new place to the map
+Functional
+2
+Camera icon with a plus sign
+Visual
+3
+Tap "Post this photo for me"
+Text
+4
+Tap "Add 2 photos"
+Text
+5
+Second task row inside the
+contributor badge card
+Positional
+Figure 10. Complete paired observations in GlassGround. The left panel shows a clean screenshot with five annotated grounding
+targets and their instructions. The upper-right panels show full-frame Indoor-Lamp observations from Aria Gen 1, Aria Gen 2, Quest 3,
+and Galaxy XR. The lower-right grid shows cropped views of the same GUI state under all 16 combinations of four wearable devices and
+four lighting conditions. Blue boxes denote clean target regions, while green polygons indicate physical ground truth transferred through
+human-verified geometry. Crops and overlays are used for visualization only.
+8.4. Device Specific Imaging Artifacts
+Figure 9 illustrates representative imaging artifacts associ-
+ated with wearable devices and lighting conditions, comple-
+menting the observations discussed in Sec. 4.2. The exam-
+ples show the same GUI state captured by Galaxy XR and
+Quest 3 under Outdoor-Sun and Indoor-Dark conditions.
+Under Outdoor-Sun, both devices exhibit horizontal dark
+bands that partially obscure on-screen text and icons. These
+bands are more prominent in the Galaxy XR example, while
+the Quest 3 capture also shows visible screen reflections.
+Such banding may arise from a mismatch between display
+refresh or brightness modulation and camera exposure tim-
+ing. The final appearance may also be influenced by device-
+specific image processing.
+Under Indoor-Dark, the Galaxy XR example exhibits a
+washed-out screen appearance with reduced local contrast
+and loss of fine text detail. In comparison, the Quest 3 ex-
+16
+
+
+Table 5. Model inference configurations. Image budgets indi-
+cate pixel limits or native processor settings. Models with pixel
+limits resize oversized inputs. Prompt identifiers refer to the full
+templates provided at the end of the supplementary material.
+Model
+Image budget
+Inference mode
+Output Prompt
+MAI-UI-8B
+4.19M px
+Native reasoning
+Point
+P1
+GUI-Owl-1.5-8B / 32B 10.04M px
+Direct
+Point
+P2
+KV-Ground-8B
+10.04M px
+Direct
+Point
+P2
+Indeed-UI-32B
+10.04M px
+Direct
+Point
+P2
+UI-Venus-2-9B
+4.80M px
+Thinking off
+Box
+P3
+UI-Mate-27B
+4.80M px
+Thinking off
+Box
+P3
+Holo3.1-35B-A3B
+4.19M px
+Thinking
+Point
+P4
+Muse Glimmer-30B
+4,096 tokens
+Low reasoning
+Point
+P5
+Qwen3.8-27B
+4.80M px
+Thinking off
+Point
+P6
+Claude Sonnet 5.5
+Long side ≤2,576 px∗Adaptive, low
+Point
+P4
+GPT-6 Luna
+detail=original
+Low reasoning
+Point
+P4
+Jev 1.14
+Long side ≤1,568 px
+N/A
+Box
+P7
+∗Resized by the API.
+ample preserves relatively legible menu text. Although the
+overall interface structure remains visible in both observa-
+tions, the readability of individual elements differs. These
+examples illustrate variations in imaging artifacts rather
+than quantify their impact on grounding accuracy.
+8.5. Qualitative Benchmark Examples
+Figure 10 shows a complete paired example from Glass-
+Ground. The clean screenshot contains five grounding tasks
+spanning all four instruction types: functional, visual, text,
+and positional.
+The figure includes full-frame observa-
+tions from all four wearable devices under Indoor-Lamp
+and cropped views of all 16 device and lighting combina-
+tions. Although the GUI state, instructions, and targets re-
+main fixed, screen scale, position, perspective, and readabil-
+ity vary across observations.
+9. Evaluation Details
+9.1. Model Configurations and Evaluation Protocol
+Open-source models.
+We evaluate ten open-source mod-
+els locally using vLLM with bfloat16 precision and greedy
+decoding. We use a temperature of 0, a maximum genera-
+tion length of 512 tokens, and a random seed of 42. Infer-
+ence runs on NVIDIA RTX A6000, L40S, and A100 GPUs
+with tensor parallelism of 1 or 2 according to model size.
+Each request contains one image and its grounding instruc-
+tion. For each model, the checkpoint, prompt template, and
+decoding settings remain fixed across observation condi-
+tions. Each model uses its own visual processor with the
+image budget and inference mode listed in Table 5.
+Closed-source models.
+We evaluate Claude Sonnet 5.5,
+GPT-6 Luna, and Jev 1.14 through their respective APIs.
+Claude Sonnet 5.5 uses adaptive thinking with low effort
+and a maximum output length of 8,192 tokens. GPT-6 Luna
+uses low reasoning effort and a maximum output length of
+16,000 tokens. Both use the same grounding prompt, with
+images submitted according to their respective API inter-
+faces. Jev 1.14 uses a structured grounding interface that
+returns normalized bounding boxes. All three models are
+evaluated on the same fixed subset described in Sec. 9.3.
+Prediction parsing and scoring.
+We convert model out-
+puts into two-dimensional points in the original coordinate
+system of each observation. Open-source models, Claude
+Sonnet 5.5, and GPT-6 Luna use a coordinate scale of 0
+to 1000. Jev 1.14 returns bounding boxes on a scale of 0
+to 1. For models predicting bounding boxes, we use the
+box center as the grounding point. Normalized coordinates
+are mapped using the original image dimensions. A pre-
+diction is correct when its point lies inside the correspond-
+ing ground-truth polygon. Unparseable outputs or invalid
+final predictions are counted as incorrect. Accuracy is the
+proportion of correct predictions among the evaluation in-
+stances.
+Intermediate observation construction.
+For each task,
+Resized uniformly scales the clean screenshot so that its
+target area matches the corresponding physical target area.
+The scaled screenshot is placed on a gray background with
+the target center aligned to its position in the physical ob-
+servation. Warped projects the clean screenshot onto the
+screen region of the physical image using a homography
+from human-verified screen corners. The surrounding back-
+ground is retained from the physical observation. For both
+conditions, target regions are transformed consistently with
+the image construction.
+Rectified observations and scoring.
+We construct Rec-
+tified observations by applying a perspective transforma-
+tion to each physical image using either human-verified
+screen corners (Oracle) or automatically predicted corners
+(Auto). Both settings use the same rectification procedure
+and grounding inference configuration, differing only in the
+source of screen corners. The rectified screen is mapped to
+a front-facing canvas matching the clean screenshot dimen-
+sions.
+Predicted screen corners may contain localization errors,
+so target positions in the rectified image do not necessarily
+align exactly with their original bounding boxes in the clean
+screenshot. Furthermore, some physical target regions in-
+clude local mesh refinement that is not captured by a single
+homography. We therefore do not score predictions directly
+against clean target boxes in the rectified image. Instead,
+we map each predicted point back to the original physical
+image using the inverse of the transformation applied during
+rectification. The mapped point is then evaluated against the
+final human-verified physical ground-truth polygon. This
+procedure avoids treating geometric misalignment with the
+clean target box as a grounding error while preserving the
+effect of rectification quality on model predictions.
+17
+
+
+9.2. ReGround Implementation
+ReGround directly reuses the Single-pass prediction as its
+initial result. Given a valid initial point, we extract a crop
+centered on the prediction, with its width and height set to
+half of the original image dimensions, rounded down to in-
+tegers. If the crop extends beyond the image boundary, we
+shift the window back inside the image while preserving
+its size, without padding. For open-source models, Claude
+Sonnet 5.5, and GPT-6 Luna, the crop is resized to the orig-
+inal image dimensions. For Jev 1.14, the crop is resized to
+the image dimensions used in the initial API request. We
+then perform a second grounding inference using the same
+model, instruction, prompt template, and inference config-
+uration.
+Let (x0, y0) denote the top-left corner of the crop, and let
+(wc, hc) denote its width and height. We convert the second
+prediction to normalized crop coordinates (u, v) ∈[0, 1]2,
+taking the center of the predicted box for box-output mod-
+els. The final prediction in the original image coordinates
+is
+ˆp = (x0 + uwc, y0 + vhc).
+(6)
+If the second prediction is invalid, we retain the initial
+prediction. If the initial prediction is invalid, we skip the
+second inference and count the instance as incorrect. Every
+valid initial prediction triggers one refinement inference.
+Each instance requires at most two model inferences in to-
+tal, with the first prediction reused from Single-pass eval-
+uation. Neither ground-truth target annotations nor screen
+corner annotations are used during cropping or refinement.
+9.3. Evaluation Subset and Matched Comparison
+Subset construction.
+To control the inference cost of
+closed-source models, we construct a fixed evaluation sub-
+set of 500 grounding tasks from the 3,250 clean tasks in
+GlassGround. We stratify the tasks along three dimensions:
+operating system (Android or iOS), instruction type (text,
+visual, functional, or positional), and tertiles of clean target
+bounding-box area. This produces 24 strata, from which
+we sample tasks approximately in proportion to their fre-
+quencies in the full benchmark. We generate candidate sub-
+sets using 50 random seeds from 0 to 49 and select seed
+39, which minimizes the mean absolute accuracy difference
+between the full benchmark and the corresponding subset
+across the ten open-source models.
+Subset size and evaluation coverage.
+The selected sub-
+set contains 500 grounding tasks from 332 distinct clean
+GUI states. Each task is paired with all 16 combinations of
+four wearable devices and four lighting conditions, yield-
+ing 8,000 physical grounding instances across 5,312 distinct
+physical images. All three closed-source models are eval-
+uated on this fixed subset under Clean, Resized, Warped,
+Physical, Oracle, and Auto conditions, as well as ReGround
+on Resized, Warped, and Physical observations. Clean con-
+tains 500 evaluation instances, while each of the other con-
+ditions contains 8,000 instances.
+Matched-subset comparison.
+The open-source baseline
+results in the main paper are evaluated on the full bench-
+mark. For direct comparison with closed-source models,
+we extract the corresponding predictions from the full-
+benchmark open-source evaluations and recompute accu-
+racy on the same 500-task subset. We also evaluate the two
+PairDistill-adapted models on this subset and report their
+mean accuracy and standard deviation across three training
+seeds. Table 6 presents the resulting matched comparisons
+across all evaluation conditions.
+9.4. Held-Out Automatic Rectification
+Held-out evaluation protocol.
+As described in Sec. 8.3,
+the screen corner detector was trained using a subset of
+GlassGround physical images. To assess its performance
+on unseen observations, we construct a held-out evalua-
+tion subset that does not overlap with the detector’s training
+data. This subset contains 315 distinct clean GUI states and
+1,883 grounding tasks, yielding 30,128 physical grounding
+instances. Neither the physical images nor their correspond-
+ing clean GUI states were used to train the corner detector.
+We evaluate Physical, Oracle, and Auto on identical held-
+out instances using the same model configurations and the
+scoring protocol described in Sec. 9.1.
+Downstream grounding results.
+Table 7 reports the re-
+sults for ten open-source models and two PairDistill-
+adapted models. The mean Physical Single-pass accuracy
+across the ten open-source models is 50.01%. Oracle recti-
+fication using human-verified screen corners increases this
+accuracy to 64.90%, while Auto rectification using pre-
+dicted corners achieves 64.73%. The difference between
+Oracle and Auto is less than 0.2 percentage points. The
+absolute accuracy difference between the two settings is at
+most 0.4 percentage points for every open-source baseline.
+The two PairDistill-adapted models exhibit a similar pat-
+tern. For UI-Venus-2-9B with PairDistill, Oracle and Auto
+achieve 71.20% and 71.10% accuracy, respectively.
+For
+MAI-UI-8B with PairDistill, the corresponding accuracies
+are 66.87% and 66.71%. These results show that automati-
+cally predicted screen corners support effective rectification
+on physical observations unseen during detector training,
+achieving downstream grounding accuracy close to that ob-
+tained with human-verified corners.
+10. Additional Analysis Results
+10.1. Condition-Wise Performance of Open-Source
+Models
+Table 8 reports Physical Single-pass accuracy across all
+16 device and lighting combinations for ten open-source
+18
+
+
+Table 6. Matched-subset grounding accuracy (%) on GlassGround. All models are compared on the same stratified subset of 500 clean
+grounding tasks and 8,000 paired physical instances. Single-pass results cover the observation stages and rectification with annotated (Ora-
+cle) or detected (Auto) screen corners. ReGround results are reported separately for Resized, Warped, and Physical observations. Adapted
+models report mean ± standard deviation over three training seeds. The best and second-best scores in each column are highlighted, with
+ties sharing the same distinction.
+Model
+Single-pass Accuracy ↑
+Rectified (Single-pass) ↑
+ReGround Accuracy ↑
+Clean
+Resized
+Warped
+Physical
+Oracle
+Auto
+Resized
+Warped
+Physical
+Closed-source VLMs
+Claude Sonnet 5.5 [1]
+97.20
+90.13
+94.95
+70.29
+71.49
+69.96
+96.51
+96.98
+76.83
+GPT-6 Luna [26]
+95.80
+86.56
+88.96
+58.35
+47.53
+46.66
+90.39
+91.44
+61.28
+Jev 1.14 [36]
+83.60
+31.03
+27.14
+16.53
+48.91
+49.18
+49.76
+48.28
+31.35
+Open-source baselines
+MAI-UI-8B [54]
+95.60
+84.43
+76.01
+45.84
+62.39
+62.65
+93.20
+90.41
+59.26
+GUI-Owl-1.5-8B [43]
+94.20
+82.38
+74.20
+44.33
+56.33
+56.25
+89.68
+86.29
+54.41
+GUI-Owl-1.5-32B [43]
+96.00
+83.51
+76.75
+48.84
+61.18
+61.25
+90.60
+87.98
+57.03
+KV-Ground-8B [15]
+94.80
+84.19
+77.65
+48.06
+59.90
+59.83
+90.68
+87.11
+56.19
+UI-Venus-2-9B [35]
+95.60
+87.95
+84.11
+54.76
+65.89
+65.81
+93.69
+91.30
+63.89
+UI-Mate-27B [6]
+96.80
+86.13
+81.68
+50.04
+64.90
+64.99
+93.33
+91.51
+60.08
+Holo3.1-35B-A3B [10]
+95.80
+88.35
+78.16
+46.46
+63.09
+62.93
+93.55
+90.78
+59.89
+Indeed-UI-32B [11]
+97.20
+84.60
+78.24
+50.31
+61.41
+61.34
+91.29
+88.71
+57.56
+Muse Glimmer-30B [25]
+96.00
+85.58
+67.70
+40.29
+69.60
+69.13
+94.65
+93.09
+62.98
+Qwen3.8-27B [31]
+92.00
+88.30
+83.46
+55.99
+67.03
+67.33
+94.74
+92.83
+64.34
+Open-source Avg.
+95.40
+85.54
+77.80
+48.49
+63.17
+63.15
+92.54
+90.00
+59.56
+Adapted models (mean ± std., 3 seeds)
+UI-Venus-2-9B + PD
+96.13±0.42
+90.13±0.16
+87.96±0.44
+64.21±0.63
+69.08±0.55
+69.19±0.52
+94.15±0.30
+92.85±0.29
+69.57±0.36
+MAI-UI-8B + PD
+95.47±0.31
+85.11±1.01
+81.98±0.37
+57.71±0.32
+65.10±0.89
+65.02±0.58
+92.06±0.64
+90.28±0.72
+64.35±0.17
+Table 7. Grounding accuracy (%) with automatic rectifica-
+tion on held-out physical observations. Results are evaluated on
+30,128 physical grounding instances from 315 clean GUI states
+not used for training the corner detector.
+Oracle uses human-
+verified screen corners, while Auto uses predicted corners. All
+predictions are scored using the protocol in Sec. 9.1. PairDistill
+(PD) results are reported as mean ± standard deviation over three
+training seeds. Model abbreviations follow Table 5. This subset
+differs from the full benchmark, so absolute accuracies should not
+be directly compared across the two evaluation sets.
+Model
+Physical
+Oracle
+Auto
+MAI-UI-8B
+46.85
+64.26
+64.31
+Owl-8B
+46.15
+58.20
+58.20
+Owl-32B
+51.13
+62.84
+62.68
+KV-Ground
+49.73
+61.83
+61.86
+UI-Venus-2-9B
+56.69
+67.72
+67.42
+UI-Mate-27B
+51.29
+66.25
+66.06
+Holo3.1
+48.07
+65.33
+65.33
+Indeed-UI
+52.48
+62.92
+62.59
+Muse Glimmer
+40.40
+70.46
+70.08
+Qwen3.8
+57.29
+69.14
+68.79
+Open-source Avg.
+50.01
+64.90
+64.73
+Venus + PD
+65.63±0.58
+71.20±0.56
+71.10±0.55
+MAI + PD
+59.52±0.28
+66.87±0.48
+66.71±0.45
+baselines and the SFT and PairDistill variants of two back-
+bone models. Each condition contains 3,250 grounding in-
+stances. Performance varies substantially across wearable
+devices and lighting conditions.
+Outdoor-Sun yields the
+lowest accuracy among the four lighting conditions for ev-
+ery open-source baseline on each device.
+PairDistill improves both backbone models across the
+evaluated device and lighting combinations, including con-
+ditions not represented in its training data. For Aria Gen 1,
+the two indoor conditions are seen during PairDistill train-
+ing, whereas Outdoor-Shade and Outdoor-Sun are unseen.
+On these two unseen conditions, PairDistill improves UI-
+Venus-2-9B over its base model by approximately 14.9 and
+8.5 percentage points, respectively. The corresponding im-
+provements for MAI-UI-8B are approximately 10.4 and 6.1
+percentage points. Both PairDistill variants also outperform
+their corresponding SFT configurations on these conditions.
+Although absolute accuracy remains limited under these
+challenging observations, the results show that the improve-
+ments extend beyond the device and lighting combinations
+encountered during training.
+10.2.
+Condition-Wise
+Performance
+of
+Closed-
+Source Models
+Table 9 compares three closed-source models, the mean
+of ten open-source baselines, and two PairDistill-adapted
+models on the same fixed 500-task subset. All condition-
+wise results are evaluated on identical tasks and physical
+observations.
+Claude Sonnet 5.5 achieves 59.20% and 66.40% ac-
+19
+
+
+Table 8. Physical Single-pass accuracy (%) across 16 device–lighting conditions on the full GlassGround benchmark. Each condition
+contains 3,250 grounding instances. Panel (a) reports ten open-source baselines and their mean. Panel (b) reports SFT and PairDistill (PD)
+variants of UI-Venus-2-9B and MAI-UI-8B as mean ± standard deviation over three training seeds. ∗Seen device–lighting combination in
+PairDistill training data. Model abbreviations correspond to the full model names in Table 5.
+(a) Open-source baselines
+Device
+Lighting
+MAI
+Owl-8B
+Owl-32B
+KV
+Indeed
+Venus
+Mate
+Holo
+Muse
+Qwen
+Avg.
+Aria Gen 1
+Dark∗
+20.68
+13.94
+21.69
+19.14
+22.18
+29.32
+21.51
+19.29
+3.51
+29.35
+20.06
+Lamp∗
+22.65
+15.23
+20.86
+19.17
+22.00
+30.03
+26.95
+17.94
+1.51
+30.40
+20.67
+Shade
+11.23
+5.78
+10.15
+7.51
+10.71
+11.69
+8.89
+10.00
+0.46
+13.05
+8.95
+Sun
+7.35
+3.75
+7.14
+4.71
+7.20
+7.17
+5.05
+6.49
+0.12
+7.26
+5.62
+Aria Gen 2
+Dark
+49.54
+45.42
+53.82
+50.65
+55.14
+65.63
+57.54
+55.51
+49.32
+66.71
+54.93
+Lamp
+59.60
+63.26
+68.40
+67.45
+70.06
+77.20
+72.15
+65.08
+36.62
+78.65
+65.85
+Shade
+38.43
+33.75
+44.18
+39.45
+45.88
+53.14
+42.58
+27.63
+13.91
+54.89
+39.38
+Sun
+19.11
+13.63
+21.02
+16.58
+21.82
+26.09
+16.80
+11.78
+3.75
+26.09
+17.67
+Quest 3
+Dark∗
+76.22
+76.92
+74.28
+79.45
+75.91
+83.17
+78.98
+79.94
+82.06
+84.25
+79.12
+Lamp
+78.92
+80.58
+79.66
+82.37
+81.05
+86.28
+82.62
+83.82
+82.86
+86.95
+82.51
+Shade
+73.94
+74.46
+75.72
+76.28
+77.26
+81.97
+77.57
+77.17
+76.92
+82.22
+77.35
+Sun∗
+45.60
+43.75
+47.82
+47.35
+47.94
+53.57
+45.11
+45.38
+40.40
+52.77
+46.97
+Galaxy XR
+Dark
+59.20
+56.92
+63.66
+62.18
+64.55
+68.25
+64.40
+63.35
+65.60
+71.45
+63.96
+Lamp
+72.43
+75.29
+79.78
+79.11
+81.66
+84.09
+79.97
+79.69
+76.68
+85.20
+79.39
+Shade
+64.09
+70.95
+77.45
+76.49
+80.00
+80.83
+77.66
+70.77
+68.18
+82.71
+74.91
+Sun
+33.78
+34.74
+39.54
+38.95
+41.14
+43.57
+38.46
+34.62
+34.18
+44.68
+38.37
+Overall
+45.80
+44.28
+49.07
+47.93
+50.28
+55.13
+49.77
+46.78
+39.76
+56.04
+48.48
+(b) Adapted models (mean ± std., 3 training seeds)
+Device
+Lighting
+Venus+SFT
+Venus+PD
+MAI+SFT
+MAI+PD
+Aria Gen 1
+Dark∗
+40.82±1.27
+44.50±1.36
+31.12±3.03
+35.88±0.67
+Lamp∗
+46.45±0.43
+51.26±0.96
+35.10±4.48
+42.76±1.46
+Shade
+22.98±0.94
+26.62±1.04
+18.40±2.05
+21.65±0.30
+Sun
+13.77±0.96
+15.70±0.50
+12.02±1.02
+13.47±0.05
+Aria Gen 2
+Dark
+70.23±1.02
+72.91±0.67
+59.34±3.12
+63.59±0.43
+Lamp
+83.30±0.40
+85.23±0.53
+71.87±2.45
+75.94±0.22
+Shade
+62.24±0.23
+65.86±1.07
+50.64±1.73
+55.45±0.87
+Sun
+33.99±1.44
+39.27±0.42
+26.16±1.75
+31.52±0.97
+Quest 3
+Dark∗
+85.20±0.37
+85.99±0.30
+79.60±0.87
+81.73±0.57
+Lamp
+88.25±0.12
+89.08±0.18
+83.64±1.09
+84.86±0.23
+Shade
+84.66±0.17
+85.77±0.87
+79.06±1.59
+81.66±0.28
+Sun∗
+59.55±0.60
+64.61±1.37
+53.76±1.70
+57.88±0.44
+Galaxy XR
+Dark
+74.11±0.76
+75.67±0.42
+67.35±2.24
+69.28±0.17
+Lamp
+88.06±0.59
+89.04±0.40
+81.24±1.75
+83.91±0.29
+Shade
+85.84±0.26
+87.21±0.11
+76.52±1.36
+81.18±0.63
+Sun
+49.84±0.89
+53.01±0.75
+42.98±1.48
+46.68±0.37
+Overall
+61.83±0.39
+64.48±0.53
+54.30±1.84
+57.96±0.21
+curacy on Aria Gen 1 under Indoor-Dark and Indoor-
+Lamp, respectively, substantially exceeding the correspond-
+ing open-source averages of 20.24% and 20.56%. These
+results show that the physical observations in these two
+conditions retain visual information sufficient for success-
+ful grounding on a substantial fraction of tasks. Thus, the
+low accuracy of open-source baselines cannot be attributed
+solely to missing visual information.
+Across the entire matched subset, Claude Sonnet 5.5
+achieves the highest Physical accuracy at 70.29%, com-
+pared with 64.21% for UI-Venus with PairDistill. Never-
+theless, PairDistill substantially narrows the gap between
+the open-source backbone and the stronger closed-source
+model.
+On the unseen Aria Gen 1 Outdoor-Shade and
+Outdoor-Sun conditions, UI-Venus with PairDistill obtains
+27.13% and 15.60% accuracy, compared with 26.60% and
+13.60% for Claude Sonnet 5.5.
+These are similar ob-
+served accuracies on identical evaluation instances, with-
+out establishing statistical equivalence. On another unseen
+condition, Aria Gen 2 under Outdoor-Sun, UI-Venus with
+PairDistill achieves 38.60%, compared with 33.20% for
+Claude Sonnet 5.5. Together with the overall results, these
+comparisons illustrate the potential of PairDistill to improve
+grounding under unseen physical capture conditions while
+showing that a performance gap to stronger closed-source
+models remains.
+10.3. Statistical Reliability of Main Findings
+Bootstrap protocol.
+A clean GUI state in GlassGround
+may contain multiple grounding tasks, each paired with 16
+physical observations. Consequently, evaluation instances
+are not fully independent.
+We assess the uncertainty of
+the main accuracy differences using a paired cluster boot-
+strap at the clean GUI-state level. For each bootstrap repli-
+20
+
+
+Table 9. Physical Single-pass accuracy (%) on the matched 500-task subset. All models are evaluated on the same tasks and physical
+observations. Each device–lighting condition contains 500 grounding instances. The open-source average is computed across ten baseline
+models. PairDistill (PD) results are reported as mean ± standard deviation over three training seeds. ∗Seen device–lighting combination
+in PairDistill training data.
+Device
+Lighting
+Sonnet 5.5
+GPT-6 Luna
+Jev 1.14
+Open Avg.
+Venus+PD
+MAI+PD
+Aria Gen 1
+Dark∗
+59.20
+26.00
+7.80
+20.24
+45.27±2.10
+37.00±2.16
+Lamp∗
+66.40
+34.60
+9.20
+20.56
+51.53±1.70
+44.20±0.60
+Shade
+26.60
+22.20
+4.00
+9.00
+27.13±1.51
+22.80±0.72
+Sun
+13.60
+13.20
+3.60
+6.16
+15.60±1.40
+13.47±1.72
+Aria Gen 2
+Dark
+86.40
+65.40
+14.60
+54.54
+73.33±1.33
+62.67±0.46
+Lamp
+90.00
+88.80
+15.40
+65.70
+83.67±0.31
+75.27±1.01
+Shade
+69.60
+62.00
+8.00
+39.70
+65.33±0.64
+54.73±2.21
+Sun
+33.20
+28.00
+5.20
+16.90
+38.60±0.72
+31.20±1.22
+Quest 3
+Dark∗
+93.80
+81.60
+29.40
+79.78
+85.33±1.14
+81.47±0.50
+Lamp
+95.20
+89.60
+34.20
+82.80
+88.53±0.12
+84.33±0.50
+Shade
+93.00
+82.60
+33.00
+78.96
+86.53±1.03
+82.60±0.69
+Sun∗
+69.20
+47.60
+18.20
+46.22
+62.13±1.53
+53.60±0.72
+Galaxy XR
+Dark
+85.80
+72.00
+19.40
+62.74
+76.60±0.40
+71.00±0.69
+Lamp
+95.20
+82.80
+25.20
+79.86
+88.93±0.12
+83.00±1.00
+Shade
+93.40
+88.60
+26.80
+74.82
+87.33±0.23
+79.80±0.87
+Sun
+54.00
+48.60
+10.40
+37.88
+51.53±0.31
+46.27±0.76
+Overall
+70.29
+58.35
+16.53
+48.49
+64.21±0.63
+57.71±0.32
+cate, we sample 536 clean GUI states with replacement and
+retain all tasks and physical observations associated with
+each sampled state. We perform 10,000 bootstrap replicates
+and report percentile 95% confidence intervals. For adapted
+models with three training seeds, we first average the per-
+instance correctness indicators across seeds before resam-
+pling. The resulting intervals reflect uncertainty due to the
+composition of evaluation samples, while variation across
+training seeds is reported separately through the standard
+deviations in the main results.
+Accuracy drops across observation stages.
+As shown in
+Table 10, the mean accuracy drops across ten open-source
+models are 9.39, 7.69, and 29.24 percentage points for
+Clean to Resized, Resized to Warped, and Warped to Phys-
+ical, respectively. Their corresponding 95% confidence in-
+tervals are [8.74, 10.04], [7.42, 7.94], and [28.66, 29.84]. To
+compare the stage drops directly, we compute paired differ-
+ences between them within the same bootstrap replicates.
+The Warped-to-Physical drop exceeds the other two drops
+by 19.86 and 21.56 percentage points, respectively. Both
+paired-difference confidence intervals have lower bounds
+above zero. Thus, Warped to Physical remains the largest
+accuracy drop after accounting for sampling uncertainty at
+the GUI-state level.
+PairDistill improvements.
+Under Physical Single-pass
+evaluation, PairDistill improves accuracy over the origi-
+nal UI-Venus-2-9B and MAI-UI-8B backbones by 9.36 and
+12.17 percentage points, respectively.
+The correspond-
+ing 95% confidence intervals are [8.81, 9.89] and [11.54,
+12.80]. Relative to SFT configurations that also use scale
+augmentation, PairDistill further improves accuracy by 2.65
+and 3.66 percentage points, with intervals of [2.39, 2.92]
+and [3.38, 3.96]. The lower bounds of all four intervals ex-
+Table 10. GUI-state-level paired bootstrap confidence inter-
+vals. Point estimates and percentile 95% confidence intervals are
+reported in percentage points. We use 10,000 cluster resamples
+of 536 clean GUI states. All adaptation comparisons use Physical
+Single-pass accuracy. Both SFT and PairDistill use scale augmen-
+tation. For adapted models, correctness is averaged across three
+training seeds at the instance level before resampling.
+Comparison
+Difference
+95% CI
+Clean →Resized drop
+9.39
+[8.74, 10.04]
+Resized →Warped drop
+7.69
+[7.42, 7.94]
+Warped →Physical drop
+29.24
+[28.66, 29.84]
+(W →P) −(C →R)
+19.86
+[18.99, 20.72]
+(W →P) −(R →W)
+21.56
+[20.96, 22.16]
+Venus: Base →PD
+9.36
+[8.81, 9.89]
+MAI: Base →PD
+12.17
+[11.54, 12.80]
+Venus: SFT →PD
+2.65
+[2.39, 2.92]
+MAI: SFT →PD
+3.66
+[3.38, 3.96]
+ceed zero, indicating positive accuracy differences after ac-
+counting for uncertainty in the evaluated GUI-state sample.
+11. PairDistill Details
+11.1. Paired Training Data Collection
+Data source and capture.
+We construct PairDistill train-
+ing data from AMEX [3], which provides element function-
+ality descriptions for approximately 21K of its more than
+104K screenshots. We use these descriptions as ground-
+ing instructions and the corresponding element bounding
+boxes as target regions. Due to capture costs, we select
+approximately the first quarter of these annotated screen-
+shots in filename order. We display 5,098 distinct screen-
+shots on a smartphone and record them with wearable de-
+21
+
+
+Figure 11. Training data capture setup (Aria Gen 1). The smart-
+phone and the wearable device are mounted on fixed holders. Left:
+an AMEX screenshot displayed in full screen. Right: a numbered
+green separator frame displayed between consecutive screenshots,
+used to segment the recorded video.
+vices, both mounted on fixed stands. Their relative posi-
+tions remain fixed within each capture session. The screen-
+shots are shown sequentially in full-screen mode, with num-
+bered green separator frames inserted between consecutive
+screenshots. Figure 11 illustrates the capture setup and the
+separator frames used for video segmentation. The wear-
+able device continuously records video, which we segment
+using these separator frames to identify the correspond-
+ing screenshot intervals and extract physical images. Each
+screenshot is captured only once under one of the four de-
+vice and lighting combinations. After human verification
+of screen corners, we transfer clean target boxes to the
+physical images using homography. We exclude captures
+requiring non-homographic alignment and invalid capture
+records, yielding 4,880 valid pairs of clean screenshots and
+physical images.
+Training and validation split.
+We randomly reserve ap-
+proximately 5% of the valid image pairs for validation at the
+clean screenshot level using seed 42, ensuring that identical
+screenshots do not appear in both training and validation.
+This produces 4,636 training pairs and an initial validation
+set of 244 pairs. To reduce near-duplicate interfaces in val-
+idation, we resize clean screenshots to 32 × 32 grayscale
+thumbnails and compute normalized cross-correlation be-
+tween each validation screenshot and all training screen-
+shots. We exclude validation samples whose maximum cor-
+relation with any training screenshot is at least 0.85. The
+resulting validation set contains 83 image pairs and 1,266
+grounding targets and is used for checkpoint selection. The
+training set contains 4,636 image pairs and 76,224 ground-
+ing targets. Of these, 1,960 pairs with 33,755 targets were
+captured using Aria Gen 1 under Indoor-Lamp, and 953
+pairs with 14,782 targets under Indoor-Dark. The remain-
+ing pairs were captured using Quest 3, comprising 945 pairs
+with 15,310 targets under Indoor-Dark and 778 pairs with
+12,377 targets under Outdoor-Sun.
+11.2. Training Implementation
+LoRA configuration.
+We adapt UI-Venus-2-9B and
+MAI-UI-8B using LoRA with rank 16, scaling parameter
+32, and dropout 0.05. For MAI-UI-8B, LoRA is applied
+to the attention and MLP projections of all 36 language
+model layers. For UI-Venus-2-9B, LoRA covers the atten-
+tion projections of eight standard attention layers and 24
+linear attention layers, together with the MLP projections
+of all 32 layers. For both backbones, LoRA also covers
+the attention and feed-forward projections of the 27 vision
+encoder blocks, the patch embedding projection, and the
+patch merger. MAI-UI-8B additionally adapts three Deep-
+Stack mergers. This yields 52.5 million trainable parame-
+ters across 369 modules for MAI-UI-8B and 51.3 million
+trainable parameters across 359 modules for UI-Venus-2-
+9B.
+Optimization.
+We use AdamW with β1 = 0.9, β2 =
+0.999, and weight decay 0.01. The learning rate is 10−4
+with cosine decay and linear warmup over the first 3% of
+optimization steps. Each training sample contains one phys-
+ical image and one of its grounding targets. Targets are
+grouped into four tiers by width relative to the image width.
+In each epoch, the images are shuffled and each image con-
+tributes one target, drawn at random with a fixed seed from
+the smallest tier present in that image. We use a microbatch
+size of one and gradient accumulation over four steps, giv-
+ing an effective batch size of four. Training runs for three
+epochs, with 1,159 optimizer updates per epoch and 3,477
+updates in total. The frozen base weights use bfloat16 pre-
+cision, while LoRA parameters are maintained in float32
+without automatic mixed-precision casting. We enable gra-
+dient checkpointing and clip gradient norms at 1.0.
+Scale augmentation.
+Scale augmentation is applied inde-
+pendently to each physical training image, while the cor-
+responding clean screenshot remains unchanged. For each
+sample, we leave the image unchanged with probability 0.2,
+enlarge it with probability 0.4, or shrink it with probabil-
+ity 0.4.
+For enlargement, we sample a scale factor log-
+uniformly from [1, min(smax, 3)], where smax is the largest
+factor that permits a crop containing both the screen and tar-
+get regions. We randomly position the crop and resize it to
+the original image dimensions. For shrinking, we sample
+a scale factor log-uniformly from [1/3, 1], resize the entire
+image, and place it at a random position on a canvas of the
+original dimensions. The canvas background is filled with
+either a random gray value or the mean color of the origi-
+nal image. We apply the same scaling and translation to the
+physical target quadrilateral, coordinate labels, and screen
+corners. Student-side feature pooling uses the transformed
+target region, while teacher-side pooling uses the original
+target region in the clean screenshot.
+Feature alignment.
+We extract 4,096-dimensional visual
+22
+
+
+features from the patch merger outputs of the frozen teacher
+and adapted student.
+For MAI-UI-8B, the features are
+taken from the main patch merger rather than the Deep-
+Stack mergers. Following Sec. 5.2, we subtract the mean
+visual token feature of each image before pooling token
+features according to their overlap with the target region.
+The teacher is the frozen original backbone without LoRA.
+Teacher target features are precomputed from clean screen-
+shots and cached for training. The visual input pixel bud-
+gets are 4,194,304 for MAI-UI-8B and 4,800,000 for UI-
+Venus-2-9B. Student features are computed from physical
+observations during training.
+We use the alignment loss
+1 −cos(zp, zc) with weight λ = 1.
+Checkpoint selection and weight interpolation.
+We
+evaluate checkpoints every 400 optimizer updates using the
+83 AMEX validation image pairs and all 1,266 correspond-
+ing grounding targets described in Sec. 11.1. Validation
+accuracy is measured by checking whether each predicted
+point falls inside the projected target quadrilateral in the
+physical image. For MAI-UI-8B, we use the directly pre-
+dicted point, while for UI-Venus-2-9B, we use the center
+of the predicted bounding box. Unparseable predictions are
+counted as incorrect, with a fixed denominator of 1,266. We
+use greedy decoding with maximum generation lengths of
+48 tokens for MAI-UI-8B and 32 tokens for UI-Venus-2-
+9B. For each training seed, we select the checkpoint with
+the highest validation accuracy. Following WiSE-FT [38],
+we use a weight interpolation coefficient of α = 0.5 for the
+final adapted models. In our LoRA implementation, this is
+achieved by reducing the LoRA scaling parameter from 32
+during training to 16 at inference.
+12. Additional Adaptation Results
+12.1. Stage-wise Performance Analysis
+Table 11 reports the accuracy gaps between consecutive ob-
+servation stages for the two backbones. ReGround mainly
+reduces the gaps before Warped. It reduces the Clean-to-
+Resized gap by 5.7 and 8.3 pp on UI-Venus-2-9B and MAI-
+UI-8B, respectively, and the Resized-to-Warped gap by 1.6
+and 6.0 pp, while the Warped-to-Physical gap changes by
+about 1 pp. PairDistill instead mainly reduces the Warped-
+to-Physical gap, by 6.0 and 5.3 pp relative to Base, and
+also reduces the Resized-to-Warped gap by 1.4 and 5.6 pp.
+These two stages together account for 81% and 84% of its
+reduction in the overall Clean-to-Physical gap. Compared
+with SFT under the same scale augmentation, the align-
+ment term mainly reduces the Warped-to-Physical gap, by
+2.1 and 2.5 pp, while the Clean-to-Resized gap changes by
+less than 0.4 pp. Applying ReGround on top of PairDistill
+further reduces the Clean-to-Resized gap by 4.0 and 6.1 pp,
+while the Warped-to-Physical gap changes by at most 1.4
+pp. ReGround thus mainly reduces the gaps before Warped,
+0
+10
+20
+(29.3)
+(30.0)
+(11.7)
+(7.2)
+(65.6)
+(77.2)
+(53.1)
+(26.1)
+(83.2)
+(86.3)
+(82.0)
+(53.6)
+(68.2)
+(84.1)
+(80.8)
+(43.6)
+Dark
+Lamp
+Shade
+Sun
+Dark
+Lamp
+Shade
+Sun
+Dark
+Lamp
+Shade
+Sun
+Dark
+Lamp
+Shade
+Sun
+Aria Gen 1
+Aria Gen 2
+Quest 3
+Galaxy XR
+(a) Backbone: UI-Venus-2-9B
+11.5
+15.2
+16.4
+21.2
+11.3
+14.9
+6.6
+8.5
+4.6
+7.3
+6.1
+8.0
+9.1
+12.7
+7.9
+13.2
+2.0
+2.8
+2.0
+2.8
+2.7
+3.8
+6.0
+11.0
+5.9
+7.4
+4.0
+4.9
+5.0
+6.4
+6.3
+9.4
+0
+10
+20
+(20.7)
+(22.6)
+(11.2)
+(7.4)
+(49.5)
+(59.6)
+(38.4)
+(19.1)
+(76.2)
+(78.9)
+(73.9)
+(45.6)
+(59.2)
+(72.4)
+(64.1)
+(33.8)
+(b) Backbone: MAI-UI-8B
+10.4
+15.2
+12.5
+20.1
+7.2
+10.4
+4.7
+6.1
+9.8
+14.1
+12.3
+16.3
+12.2
+17.0
+7.1
+12.4
+3.4
+5.5
+4.7
+5.9
+5.1
+7.7
+8.2
+12.3
+8.2
+10.1
+8.8
+11.5
+12.4
+17.1
+9.2
+12.9
+Accuracy gain over Base (pp)
+Seen capture setting
+SFT + Scale-Aug
+PairDistill + Scale-Aug
+Figure 12. Gains of SFT and PairDistill over Base across de-
+vice and lighting combinations. Gains are Physical Single-pass
+accuracy improvements (pp) over Base for (a) UI-Venus-2-9B and
+(b) MAI-UI-8B, averaged over three training seeds. Error bars de-
+note the standard deviation across seeds. Both methods use scale
+augmentation. Numbers in parentheses give Base accuracy (%).
+Hatching marks combinations seen in training.
+Table 11. Stage-wise accuracy gaps. Gaps (pp) between con-
+secutive observation stages: Clean to Resized (C→R), Resized to
+Warped (R→W), and Warped to Physical (W→P). ReGround is
+not applied to Clean, so rows with ReGround use the Single-pass
+Clean accuracy. SFT and PairDistill (PD) both use scale augmen-
+tation and are averaged over three training seeds. Gaps are com-
+puted from unrounded accuracies.
+Backbone
+Setting
+C→R
+R→W
+W→P
+UI-Venus-2-9B
+Base
+8.02
+3.49
+29.31
++ ReGround
+2.28
+1.88
+28.09
++ SFT
+6.67
+2.39
+25.46
++ PD
+6.34
+2.10
+23.32
++ PD + ReGround
+2.33
+1.05
+23.24
+MAI-UI-8B
+Base
+11.32
+8.71
+29.62
++ ReGround
+3.02
+2.68
+30.72
++ SFT
+9.18
+4.58
+26.90
++ PD
+9.28
+3.13
+24.36
++ PD + ReGround
+3.20
+1.44
+25.73
+whereas PairDistill mainly reduces the Warped-to-Physical
+gap, and the two are complementary.
+23
+
+
+0
+10
+20
+30
+(30.8/28.3)
+(27.2/32.0)
+(11.3/12.0)
+(6.1/7.9)
+(71.0/61.8)
+(79.8/75.4)
+(46.2/58.0)
+(20.9/29.8)
+(84.9/82.0)
+(86.1/86.4)
+(78.1/84.7)
+(48.5/57.1)
+(77.2/61.9)
+(83.6/84.4)
+(76.8/83.7)
+(31.1/52.4)
+Dark
+Lamp
+Shade
+Sun
+Dark
+Lamp
+Shade
+Sun
+Dark
+Lamp
+Shade
+Sun
+Dark
+Lamp
+Shade
+Sun
+Aria Gen 1
+Aria Gen 2
+Quest 3
+Galaxy XR
+(a) Backbone: UI-Venus-2-9B
+16.2
+14.4
+23.1
+20.0
+15.2
+14.7
+7.1
+9.6
+6.3
+7.9
+7.3
+8.5
+15.9
+10.5
+13.0
+13.3
+3.0
+2.7
+3.2
+2.5
+4.9
+3.1
+12.2
+10.2
+6.5
+8.1
+6.5
+3.8
+9.0
+4.6
+10.9
+8.4
+0
+10
+20
+30
+(21.4/20.2)
+(20.3/24.3)
+(10.6/11.7)
+(6.2/8.2)
+(54.0/46.4)
+(63.7/56.7)
+(32.9/42.3)
+(14.8/22.1)
+(79.6/73.8)
+(79.1/78.8)
+(71.2/75.9)
+(40.4/49.3)
+(71.6/50.5)
+(72.3/72.5)
+(61.6/65.8)
+(22.4/41.8)
+(b) Backbone: MAI-UI-8B
+16.4
+14.4
+20.6
+19.7
+10.4
+10.4
+4.9
+7.0
+15.0
+13.4
+15.1
+17.2
+18.4
+16.0
+12.2
+12.6
+5.1
+5.8
+6.1
+5.8
+8.0
+7.5
+13.3
+11.6
+7.5
+11.9
+12.6
+10.7
+17.9
+16.5
+12.6
+13.1
+PairDistill + Scale-Aug gain over Base (pp)
+Seen capture setting
+Android
+iOS
+Figure 13. Gains of PairDistill over Base on Android and iOS.
+Gains are Physical Single-pass accuracy improvements (pp) of
+PairDistill with scale augmentation over Base for (a) UI-Venus-
+2-9B and (b) MAI-UI-8B, averaged over three training seeds. Er-
+ror bars denote the standard deviation across seeds. Numbers in
+parentheses give Base accuracy (%) on Android and iOS. Hatch-
+ing marks the Android subsets of combinations seen in training.
+The training data contain no iOS screenshots.
+12.2. Gains across Capture Conditions
+Figure 12 breaks down the gains of SFT and PairDistill over
+Base by device and lighting combination. Averaged over
+three training seeds, PairDistill achieves larger gains than
+SFT in all 16 combinations on both backbones, including
+the 12 combinations absent from training.
+12.3. Transfer from Android to iOS
+Figure 13 breaks down the gains of PairDistill over Base by
+operating system. Although the training data contain only
+Android screenshots, both backbones improve over Base in
+all 16 combinations on iOS.
+13. Limitations, Ethics, and Dataset Documen-
+tation
+Limitations.
+GlassGround
+focuses
+on
+single-step
+grounding in static GUI states and does not cover se-
+quential interaction, action feedback, or complete task
+execution.
+The benchmark is limited to smartphone
+screens.
+By holding GUI content fixed while varying
+wearable devices and lighting conditions, our controlled
+capture protocol enables paired comparisons of grounding
+performance across physical observations.
+However, it
+does not cover dynamic interfaces, other types of physical
+displays, or the broader range of conditions encountered in
+everyday use.
+Ethical
+considerations.
+This
+study
+evaluates
+GUI
+grounding models rather than human behavior or perfor-
+mance. Physical observations were captured by members
+of the research team following a predefined protocol,
+without recruiting external participants as research sub-
+jects. We do not analyze individual behavior, physiological
+characteristics, or other personal attributes. We use only
+RGB images from the wearable devices to construct and
+evaluate the benchmark, without using audio, eye-tracking,
+or other sensor data. For these reasons, we did not seek
+institutional review board (IRB) review.
+Privacy protection.
+The GUI screenshots in Glass-
+Ground were obtained partly from test accounts and partly
+from personal accounts belonging to members of the re-
+search team. Before public release, we redacted non-public
+personal information, such as names, profile pictures, phone
+numbers, email addresses, and residential addresses of team
+members and their contacts. The corresponding physical
+images and grounding instructions were de-identified con-
+sistently. Manual inspection confirmed that no bystanders
+appeared in indoor captures.
+For outdoor captures, we
+blurred or redacted identifiable faces, license plates, and
+other information that could reveal personal identities. As
+a result, the public release contains localized differences in
+some images and task instructions compared with the ver-
+sion used for the evaluations reported in this paper.
+Dataset documentation and intended use.
+We release
+GlassGround in our repository,
+including clean GUI
+screenshots, corresponding wearable camera observations,
+grounding instructions, target region annotations, and
+human-verified screen corner annotations. The accompa-
+nying documentation will describe the devices, lighting
+conditions, image correspondences, and evaluation proto-
+cols needed to support reproducibility. GlassGround is in-
+tended for research on GUI grounding, visual robustness,
+and wearable vision understanding. It is not intended for
+personal identification or the analysis of individual behav-
+ior.
+14. Live Headset Prototype
+The demo video shows a live prototype using a Samsung
+Galaxy XR headset. The user wears the headset and oper-
+ates a phone step by step, following the overlays that the
+assistant renders in real time. The prototype illustrates the
+application setting that GlassGround targets. The user states
+a task by voice. The assistant has no access to the phone’s
+screenshots or interface state. It observes the screen only
+through the headset camera and highlights the element to
+24
+
+
+(a) Spoken request
+(b) Grounding overlay and rectified view
+(c) Step verification
+Figure 14. Live headset prototype. Frames from the demo video. (a) The user states a task by voice. The subtitle was added in post-
+production. (b) The grounding prediction is rendered as an overlay in the headset’s passthrough view, aligned with the phone screen. The
+side panel shows the rectified screen with the same prediction. (c) The system detects that the step is complete.
+operate at each step. In the video, the user completes three
+tasks in the iOS Settings app: enabling Dark Mode, set-
+ting brightness to maximum, and setting the largest text size
+(Figure 14). Guidance in this setting depends on localizing
+the target element in the camera view, which is the capabil-
+ity GlassGround evaluates.
+Pipeline.
+The headset handles the interface, camera cap-
+ture, and phone tracking. Speech transcription and ground-
+ing run on a remote GPU server, and Claude models are
+called through their API. The spoken request is transcribed
+with Whisper large-v3-turbo. Claude Sonnet 5.5 then de-
+composes it into steps and writes a grounding instruction
+and a completion condition for each step. For each step, the
+grounding model (UI-Venus-2-9B + PairDistill) takes the
+grounding instruction and predicts the target once on the
+original headset camera frame, as in Single-pass inference.
+The screen corner detector from Sec. 3.4 separately locates
+the phone screen in the same frame, and the resulting ho-
+mography converts the prediction to screen coordinates. A
+headset-side version of the same detector tracks the phone
+in real time. The overlay is continuously re-projected onto
+the live passthrough view according to the tracking result,
+so it follows the phone as it moves. A side panel shows
+the rectified screen from the captured frame together with
+the prediction. While a step is active, the system repeat-
+edly captures a frame and rectifies the screen, and Claude
+Haiku 5.5 checks it against the completion condition. Once
+the condition is met, the system advances to the next step
+automatically.
+Latency.
+In this setting, the user waits for the overlay
+before acting at each step, so per-step latency directly af-
+fects how smoothly the guidance proceeds.
+This is also
+why Sec. 4.1 considers inference efficiency when selecting
+closed-source baselines. The prototype calls the ground-
+ing model once per step. Across the six steps in the video,
+grounding takes 1.17 to 1.18 s on the server. The round trip
+from sending the grounding request to receiving the result
+takes 1.56 to 1.84 s. It includes upload, server processing,
+and download, and excludes the preceding frame capture
+and the subsequent rendering.
+Live operation and recording.
+Grounding, overlay ren-
+dering, and step verification in the video all run live while
+the user operates the phone.
+They are not produced by
+offline processing of a recorded video. The video frames
+are the headset’s screen recording from a single continuous
+take, with no cuts between the three tasks. The overlays
+and panels are what the prototype rendered live in the head-
+set and what the user saw, although the recorded field of
+view is slightly narrower than the view when wearing the
+headset. The user completed each step by following these
+cues. Apart from trimming the clip, post-production only
+affected the audio and subtitles. In this recording, the head-
+set’s screen capture contains no sound while the application
+is using the microphone. The speech in the video therefore
+comes from the same recording that the application saved
+for transcription, voice-altered for privacy and placed back
+at its original timing. The subtitles show the application’s
+transcription and were overlaid afterwards. Ambient sound
+was removed. The video illustrates the application setting
+and is not an evaluation result.
+25
+
+
+Grounding Prompt Templates
+The following prompt templates were used for grounding inference. The placeholders {instr} and {instruction}
+denote the current task instruction. For P1 and P2, the template is a system prompt and the user message contains the task
+instruction. The other templates are user prompts or structured requests.
+P1: MAI-UI-8B (System Prompt)
+You are a GUI grounding agent.
+## Task
+Given a screenshot and the user’s grounding instruction. Your task is to accurately locate a UI element based on the user’s
+instructions.
+First, you should carefully examine the screenshot and analyze the user’s instructions, translate the user’s instruction into a
+effective reasoning process, and then provide the final coordinate.
+## Output Format
+Return a json object with a reasoning process in <grounding_think></grounding_think> tags, a [x,y] format coordinate within <
+answer></answer> XML tags:
+<grounding_think>...</grounding_think>
+<answer>
+{"coordinate": [x,y]}
+</answer>
+## Input instruction
+P2: GUI-Owl, KV-Ground, and Indeed-UI (System Prompt)
+# Tools
+You may call one or more functions to assist with the user query.
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+{"type": "function", "function": {"name": "computer_use", "description": "Use a mouse to interact with a computer.
+* The screen’s resolution is 1000x1000.
+* Make sure to click any buttons, links, icons, etc with the cursor tip in the center of the element. Don’t click boxes on their edges
+unless asked.
+* don’t use any other computer use tool like type, key, scroll, left_click_drag and so on.
+* you can only use the left_click and mouse_move action to interact with the computer. if you can’t find the element, you should
+terminate the task and report the failure.", "parameters": {"properties": {"action": {"description": "The action to perform. The
+available actions are:
+* ‘mouse_move‘: Move the cursor to a specified (x, y) pixel coordinate on the screen.
+* ‘left_click‘: Click the left mouse button with coordinate (x, y) pixel coordinate on the screen.", "enum": ["mouse_move", "
+left_click"], "type": "string"}, "coordinate": {"description": "(x, y): The x (pixels from the left edge) and y (pixels from the top edge
+26
+
+
+) coordinates to move the mouse to. Required only by ‘action=mouse_move‘ and ‘action=left_click‘.", "type": "array"}}, "required
+": ["action"], "type": "object"}}}
+</tools>
+For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{"name": <function-name>, "arguments": <args-json-object>}
+</tool_call>
+P3: UI-Venus-2-9B and UI-Mate-27B (User Prompt)
+Outline the position corresponding to the instruction: {instr}. The output should be only [x1,y1,x2,y2].
+P4: Holo3.1, Claude Sonnet 5.5, and GPT-6 Luna (User Prompt)
+Localize an element on the GUI image according to the provided target and output a click position.
+* You must output a valid JSON following the format: {"x": int, "y": int}, where x and y are normalized between 0 and 1000.
+{instr}
+P5: Muse Glimmer-30B (User Prompt)
+Given the UI screenshot, output the click coordinates for: {instr}. Respond with only [x, y] coordinates normalized 0-1000.
+P6: Qwen3.8-27B (User Prompt)
+Look at this UI screenshot. Point at the UI element matching: {instr}. Output only the pixel coordinates as [x, y], normalized 0-
+1000.
+P7: Jev 1.14 (Structured Request)
+State:
+Screenshot of a user interface:
+Question:
+{
+"target": {
+"type": "box",
+"instructions": "In the screenshot, the UI element to use for this task: {instruction}"
+}
+}
+27
